@@ -6,9 +6,10 @@ import requests
 from bs4 import BeautifulSoup
 from pydantic import ValidationError
 
-from .logger import logger
-from .constants import USER_AGENT
-from .schema import SourceSchema
+from logger import logger
+from constants import USER_AGENT
+from schema import SourceSchema
+from datetime import datetime
 
 
 def scrape_huggingface_trending_papers() -> List[SourceSchema]:
@@ -75,6 +76,7 @@ def scrape_huggingface_trending_papers() -> List[SourceSchema]:
                 'title': title,
                 'authors': [author.get('name', 'Unknown Author') for author in paper_info.get('authors', [])],
                 'link': f"https://huggingface.co/papers/{paper_id}",
+                'source_link': f"https://huggingface.co/papers/{paper_id}",
                 'summary': paper_info.get('ai_summary'),  # Defaults to None if not present
                 'keywords': paper_info.get('ai_keywords'),  # Defaults to None if not present
                 'tags': ['research'],
@@ -142,9 +144,10 @@ def scrape_hacker_news() -> List[SourceSchema]:
                     'title': entry.title,
                     'authors': [entry.author] if hasattr(entry, 'author') and entry.author else ['Unknown Author'],
                     'link': comments_link,
+                    'source_link': entry.link,
                     'summary': None,
                     'keywords': None, 'tags': ['research'] if is_research else ['industry'],
-                    'date': entry.published,  # Pydantic will parse the date string
+                    'date': datetime.strptime(entry.published, '%a, %d %b %Y %H:%M:%S %z').strftime('%Y-%m-%dT%H:%M:%S%z'),
                 }
 
                 validated_story = SourceSchema(**story_data)

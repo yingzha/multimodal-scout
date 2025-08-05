@@ -1,14 +1,14 @@
 from typing import List
 
-from .cache import add_summary_to_cache, get_summary_from_cache, load_cache, save_cache
-from .constants import INTERESTED_KEYWORDS
-from .logger import logger
-from .utils import generate_summary_from_link
-from .scraper import scrape_hacker_news, scrape_huggingface_trending_papers
-from .schema import SourceSchema
-from .search import keyword_search, semantic_search
+from cache import add_summary_to_cache, get_summary_from_cache, load_cache, save_cache
+from constants import INTERESTED_KEYWORDS
+from logger import logger
+from utils import generate_summary_from_link
+from scraper import scrape_hacker_news, scrape_huggingface_trending_papers
+from schema import SourceSchema
+from search import keyword_search, semantic_search
 
-SEMANTIC_SIMILARITY_THRESHOLD = 0.4  # Adjustable threshold (0.0 to 1.0)
+SEMANTIC_SIMILARITY_THRESHOLD = 0.5  # Adjust able threshold (0.0 to 1.0)
 
 
 def filter_sources(
@@ -73,11 +73,15 @@ def enrich_sources_with_summaries(sources: List[SourceSchema]) -> List[SourceSch
                 source.summary = cached_summary
                 logger.info(f"Found cached summary for: {source.title}")
             else:
-                new_summary = generate_summary_from_link(source.link)
+                new_summary = generate_summary_from_link(source.source_link)
+                if new_summary is None:
+                    logger.warning(f"2nd attempt to generate summary from link for: {source.link}")
+                    new_summary = generate_summary_from_link(source.link)
                 if new_summary:
                     source.summary = new_summary
                     add_summary_to_cache(str(source.link), new_summary, summary_cache)
                     updated = True
+
 
     if updated:
         save_cache(summary_cache)

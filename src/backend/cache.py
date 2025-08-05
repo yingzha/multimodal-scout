@@ -2,7 +2,7 @@ import json
 import os
 from typing import Dict, Optional
 
-from .logger import logger
+from logger import logger
 
 # Determine the project root directory (which is two levels up from this file's directory)
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))

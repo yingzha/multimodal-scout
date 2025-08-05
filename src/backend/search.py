@@ -3,8 +3,8 @@ from typing import List
 
 from sentence_transformers import SentenceTransformer, util
 
-from .logger import logger
-from .schema import SourceSchema
+from logger import logger
+from schema import SourceSchema
 
 # --- Semantic Search Setup ---
 # Load the model once when the module is loaded. This is memory-intensive
@@ -47,8 +47,6 @@ def keyword_search(sources: List[SourceSchema], keywords: List[str]) -> List[Sou
             searchable_text += " " + _normalize_text(source.summary)
         if source.keywords:
             searchable_text += " " + " ".join(_normalize_text(k) for k in source.keywords)
-        if source.tags:
-            searchable_text += " " + " ".join(_normalize_text(t) for t in source.tags)
 
         if any(keyword in searchable_text for keyword in normalized_keywords):
             matches.append(source)

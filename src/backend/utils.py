@@ -1,20 +1,20 @@
 import os
 from typing import Optional
 
-import google.generativeai as genai
+from google import genai
 import requests
 from bs4 import BeautifulSoup
 from pydantic import HttpUrl
 
-from .constants import GEMINI_MODEL_NAME, USER_AGENT
-from .logger import logger
+from constants import GEMINI_MODEL_NAME, USER_AGENT
+from logger import logger
 
 # --- API Key Configuration ---
 # It's highly recommended to set your GOOGLE_API_KEY as an environment variable
 # for security. The library will automatically pick it up.
 # Example: export GOOGLE_API_KEY="your_api_key_here"
 try:
-    genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
+    client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
     AI_ENABLED = True
     logger.info("Google Generative AI configured successfully.")
 except KeyError:
@@ -50,13 +50,12 @@ def generate_summary_from_link(link: HttpUrl) -> Optional[str]:
     article_text = _fetch_article_text(link)
 
     if not article_text or len(article_text.strip()) < 100:  # Don't summarize very short texts
-        logger.info("Could not extract sufficient text to summarize.")
-        return None
+        logger.info("Could not extract sufficient text to summarize. Return the original text instead")
+        return article_text
 
     try:
-        model = genai.GenerativeModel(GEMINI_MODEL_NAME)
         prompt = f"Please provide a concise, one-paragraph summary of the following article text:\n\n---\n\n{article_text[:4000]}"
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(model=GEMINI_MODEL_NAME, contents=[prompt])
         return response.text.strip()
     except Exception as e:
         logger.error(f"Error generating summary with Gemini: {e}")
