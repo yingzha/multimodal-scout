@@ -63,12 +63,10 @@ def enrich_sources_with_summaries(sources: List[SourceSchema]) -> List[SourceSch
         The list of sources, with missing summaries filled in where possible.
     """
     logger.info("--- Enriching sources with missing summaries ---")
-    summary_cache = load_cache()
-    updated = False
 
     for source in sources:
         if not source.summary:
-            cached_summary = get_summary_from_cache(str(source.link), summary_cache)
+            cached_summary = get_summary_from_cache(str(source.link))
             if cached_summary:
                 source.summary = cached_summary
                 logger.info(f"Found cached summary for: {source.title}")
@@ -79,13 +77,8 @@ def enrich_sources_with_summaries(sources: List[SourceSchema]) -> List[SourceSch
                     new_summary = generate_summary_from_link(source.link)
                 if new_summary:
                     source.summary = new_summary
-                    add_summary_to_cache(str(source.link), new_summary, summary_cache)
-                    updated = True
-
-
-    if updated:
-        save_cache(summary_cache)
-        logger.info("Cache updated with new summaries.")
+                    add_summary_to_cache(str(source.link), new_summary)
+                    logger.info(f"Added new summary for: {source.title}")
 
     return sources
 
