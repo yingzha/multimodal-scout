@@ -1,0 +1,59 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: multimodal_scout
+      POSTGRES_USER: scout_user
+      POSTGRES_PASSWORD: scout_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scout_user -d multimodal_scout"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://scout_user:scout_password@postgres:5432/multimodal_scout
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - DEBUG=${DEBUG:-false}
+    volumes:
+      - ./src:/app/src
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        python -c 'from src.backend.database import db_manager; db_manager.create_tables()' &&
+        alembic upgrade head &&
+        echo 'Database ready. Starting application...' &&
+        python src/backend/merger.py
+      "
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+      - NODE_ENV=production
+    volumes:
+      - ./src/frontend:/app
+      - /app/node_modules
+      - /app/.next
+
+volumes:
+  postgres_data:
