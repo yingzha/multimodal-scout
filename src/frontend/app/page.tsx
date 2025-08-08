@@ -18,6 +18,7 @@ export default function Home() {
   const [showBookmarks, setShowBookmarks] = useState(false)
   const [bookmarkedCards, setBookmarkedCards] = useState<any[]>([])
   const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set())
+  const [keywordMessage, setKeywordMessage] = useState('')
 
   // Fetch default topics from backend
   const fetchDefaultTopics = async () => {
@@ -52,11 +53,25 @@ export default function Home() {
   }, [])
 
   const handleAddKeyword = () => {
+    const trimmedKeyword = newKeyword.trim()
     const allTopics = [...defaultTopics, ...customTopics]
-    if (newKeyword.trim() && !allTopics.includes(newKeyword.trim())) {
-      setCustomTopics([...customTopics, newKeyword.trim()])
-      setNewKeyword('')
+    
+    if (!trimmedKeyword) {
+      setKeywordMessage('Please enter a keyword')
+      setTimeout(() => setKeywordMessage(''), 3000)
+      return
     }
+    
+    if (allTopics.includes(trimmedKeyword)) {
+      setKeywordMessage('This keyword already exists in your topics')
+      setTimeout(() => setKeywordMessage(''), 3000)
+      return
+    }
+    
+    setCustomTopics([...customTopics, trimmedKeyword])
+    setNewKeyword('')
+    setKeywordMessage('Keyword added successfully!')
+    setTimeout(() => setKeywordMessage(''), 2000)
   }
 
   const handleRemoveCustomTopic = (topicToRemove: string) => {
@@ -387,6 +402,19 @@ export default function Home() {
               Add
             </button>
           </div>
+          
+          {/* Keyword feedback message */}
+          {keywordMessage && (
+            <div className={`mt-3 text-center text-sm font-medium ${
+              keywordMessage.includes('successfully') 
+                ? 'text-green-600' 
+                : keywordMessage.includes('already exists') || keywordMessage.includes('Please enter')
+                ? 'text-red-600' 
+                : 'text-gray-600'
+            }`}>
+              {keywordMessage}
+            </div>
+          )}
         </div>
 
         {/* Action Buttons */}
@@ -410,7 +438,7 @@ export default function Home() {
             
             {/* Button Text */}
             <span className="relative z-10">
-              {isLoading ? (showDetailedProgress ? `${progress}%` : 'Fetching...') : 'Fetch Top Items'}
+              {isLoading ? (showDetailedProgress ? `${progress}%` : 'Fetching...') : '🔍 Fetch Top Items'}
             </span>
           </button>
           
