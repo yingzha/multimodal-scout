@@ -85,7 +85,7 @@ Frontend (Next.js)          Backend (FastAPI)           External Services
 │             │             │             │              │             │
 │ • Progress  │             │ • /api/fetch│              └─────────────┘
 │ • Bookmarks │             │ • /api/fetch│                     ↑
-│ • Topics    │             │   -stream   │                     │
+│ • Topics    │             │   -stream   │                    
 └─────────────┘             │ • /bookmarks│              ┌─────────────┐
                             └─────────────┘              │   Content   │
                                    ↓                     │   Sources   │
