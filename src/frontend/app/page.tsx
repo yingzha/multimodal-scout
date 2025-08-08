@@ -17,6 +17,7 @@ export default function Home() {
   const [bookmarkedItems, setBookmarkedItems] = useState<Set<string>>(new Set())
   const [showBookmarks, setShowBookmarks] = useState(false)
   const [bookmarkedCards, setBookmarkedCards] = useState<any[]>([])
+  const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set())
 
   // Fetch default topics from backend
   const fetchDefaultTopics = async () => {
@@ -142,6 +143,7 @@ export default function Home() {
         setBookmarkedCards(data.items)
         setShowBookmarks(true)
         setShowResults(false) // Hide search results when showing bookmarks
+        setExpandedSummaries(new Set()) // Clear expanded state when switching views
       }
     } catch (error) {
       console.error('Failed to fetch bookmarks:', error)
@@ -151,6 +153,19 @@ export default function Home() {
   const handleHideBookmarks = () => {
     setShowBookmarks(false)
     setBookmarkedCards([])
+    setExpandedSummaries(new Set()) // Clear expanded state when hiding bookmarks
+  }
+
+  const toggleSummaryExpansion = (itemLink: string) => {
+    setExpandedSummaries(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(itemLink)) {
+        newSet.delete(itemLink)
+      } else {
+        newSet.add(itemLink)
+      }
+      return newSet
+    })
   }
 
   const handleFetchItems = async () => {
@@ -237,6 +252,7 @@ export default function Home() {
                   setFetchedItems(eventData.data.items)
                   setShowResults(true)
                   setShowBookmarks(false) // Hide bookmarks when showing fresh search results
+                  setExpandedSummaries(new Set()) // Clear expanded state for new results
                   setProgress(100)
                   setProgressMessage('Complete!')
                   break
@@ -473,6 +489,49 @@ export default function Home() {
                     {item.title}
                   </h3>
                   
+                  {/* Summary Section */}
+                  {item.summary && item.summary !== "No summary available" && item.summary.trim() !== "" ? (
+                    <div className="mb-4">
+                      <div className="text-gray-700 text-sm leading-relaxed">
+                        {expandedSummaries.has(item.link) ? (
+                          // Full summary
+                          <div>
+                            <p>{item.summary}</p>
+                            <button
+                              onClick={() => toggleSummaryExpansion(item.link)}
+                              className="mt-2 text-blue-600 hover:text-blue-800 text-xs font-medium focus:outline-none"
+                            >
+                              Show less ↑
+                            </button>
+                          </div>
+                        ) : (
+                          // Truncated summary
+                          <div>
+                            <p>
+                              {item.summary.length > 200 
+                                ? `${item.summary.substring(0, 200)}...` 
+                                : item.summary
+                              }
+                            </p>
+                            {item.summary.length > 200 && (
+                              <button
+                                onClick={() => toggleSummaryExpansion(item.link)}
+                                className="mt-2 text-blue-600 hover:text-blue-800 text-xs font-medium focus:outline-none"
+                              >
+                                Read more ↓
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    // Debug: Show when no summary is available
+                    <div className="mb-4 text-xs text-gray-400 italic">
+                      {item.summary ? `Summary: "${item.summary.substring(0, 50)}..."` : 'No summary available'}
+                    </div>
+                  )}
+                  
                   <div className="flex justify-end">
                     <a
                       href={item.link}
@@ -539,6 +598,44 @@ export default function Home() {
                     <h3 className="text-xl font-semibold text-gray-900 mb-4 leading-tight">
                       {item.title}
                     </h3>
+                    
+                    {/* Summary Section for Bookmarks */}
+                    {item.summary && item.summary !== "No summary available" && item.summary.trim() !== "" && (
+                      <div className="mb-4">
+                        <div className="text-gray-700 text-sm leading-relaxed">
+                          {expandedSummaries.has(item.link) ? (
+                            // Full summary
+                            <div>
+                              <p>{item.summary}</p>
+                              <button
+                                onClick={() => toggleSummaryExpansion(item.link)}
+                                className="mt-2 text-blue-600 hover:text-blue-800 text-xs font-medium focus:outline-none"
+                              >
+                                Show less ↑
+                              </button>
+                            </div>
+                          ) : (
+                            // Truncated summary
+                            <div>
+                              <p>
+                                {item.summary.length > 200 
+                                  ? `${item.summary.substring(0, 200)}...` 
+                                  : item.summary
+                                }
+                              </p>
+                              {item.summary.length > 200 && (
+                                <button
+                                  onClick={() => toggleSummaryExpansion(item.link)}
+                                  className="mt-2 text-blue-600 hover:text-blue-800 text-xs font-medium focus:outline-none"
+                                >
+                                  Read more ↓
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                     
                     <div className="flex justify-between items-center">
                       <a
