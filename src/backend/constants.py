@@ -19,5 +19,5 @@ INTERESTED_KEYWORDS = [
     'document processing',
     'image processing',
     'video processing',
-    'AI agents',
+    'multimodal agents',
 ]

@@ -2,7 +2,7 @@ import os
 from datetime import datetime
 from typing import Optional, List
 
-from sqlalchemy import create_engine, Column, String, DateTime, Text, Integer, JSON
+from sqlalchemy import create_engine, Column, String, DateTime, Text, Integer, JSON, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.dialects.postgresql import UUID
@@ -33,6 +33,18 @@ class Source(Base):
     date = Column(DateTime, nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+class Bookmark(Base):
+    __tablename__ = "bookmarks"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title = Column(String, nullable=False)
+    link = Column(String, nullable=False, index=True)
+    source_tag = Column(String, nullable=False)  # Research/Industry/etc
+    summary = Column(Text, nullable=True)
+    bookmarked_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    # For future user support, we can add user_id here
+    # user_id = Column(UUID, nullable=True, index=True)
 
 class DatabaseManager:
     def __init__(self, database_url: Optional[str] = None):
@@ -91,6 +103,69 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def add_bookmark(self, title: str, link: str, source_tag: str, summary: str = None) -> str:
+        """Add a bookmark and return its ID"""
+        session = self.get_session()
+        try:
+            # Check if bookmark already exists
+            existing = session.query(Bookmark).filter(Bookmark.link == link).first()
+            if existing:
+                return str(existing.id)  # Return existing bookmark ID
+            
+            # Create new bookmark
+            new_bookmark = Bookmark(
+                title=title,
+                link=link,
+                source_tag=source_tag,
+                summary=summary
+            )
+            session.add(new_bookmark)
+            session.commit()
+            return str(new_bookmark.id)
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+    
+    def remove_bookmark(self, link: str) -> bool:
+        """Remove a bookmark by link, return True if removed"""
+        session = self.get_session()
+        try:
+            bookmark = session.query(Bookmark).filter(Bookmark.link == link).first()
+            if bookmark:
+                session.delete(bookmark)
+                session.commit()
+                return True
+            return False
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+    
+    def is_bookmarked(self, link: str) -> bool:
+        """Check if a link is bookmarked"""
+        session = self.get_session()
+        try:
+            exists = session.query(Bookmark).filter(Bookmark.link == link).first() is not None
+            return exists
+        except Exception as e:
+            raise e
+        finally:
+            session.close()
+    
+    def get_bookmarks(self, limit: int = 100) -> List[Bookmark]:
+        """Get all bookmarks, ordered by most recently bookmarked"""
+        session = self.get_session()
+        try:
+            bookmarks = session.query(Bookmark).order_by(Bookmark.bookmarked_at.desc()).limit(limit).all()
+            return bookmarks
+        except Exception as e:
+            raise e
+        finally:
+            session.close()
+
     def close(self):
         """Close database connection"""
         self.engine.dispose()

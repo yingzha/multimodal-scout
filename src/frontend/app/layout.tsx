@@ -1,8 +1,9 @@
 import type { Metadata } from 'next'
+import './globals.css'
 
 export const metadata: Metadata = {
   title: 'Multimodal Scout',
-  description: 'AI-powered content scouting system',
+  description: 'Find top stories and papers related to multimodal AI and AI agents',
 }
 
 export default function RootLayout({
@@ -12,7 +13,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className="antialiased">{children}</body>
     </html>
   )
 }
