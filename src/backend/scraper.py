@@ -6,9 +6,9 @@ import requests
 from bs4 import BeautifulSoup
 from pydantic import ValidationError
 
-from logger import logger
-from constants import USER_AGENT
-from schema import SourceSchema
+from .logger import logger
+from .constants import USER_AGENT
+from .schema import SourceSchema
 from datetime import datetime
 
 

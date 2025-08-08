@@ -2,7 +2,7 @@ import json
 import os
 from typing import Dict, Optional
 
-from logger import logger
+from .logger import logger
 
 # Keep legacy JSON cache for migration purposes
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -10,7 +10,7 @@ CACHE_FILE_PATH = os.path.join(PROJECT_ROOT, "summary_cache.json")
 
 # Import new database functions
 try:
-    from db_cache import (
+    from .db_cache import (
         get_summary_from_db, 
         add_summary_to_db,
         initialize_database

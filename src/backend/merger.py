@@ -1,12 +1,12 @@
 from typing import List
 
-from cache import add_summary_to_cache, get_summary_from_cache, load_cache, save_cache
-from constants import INTERESTED_KEYWORDS
-from logger import logger
-from utils import generate_summary_from_link
-from scraper import scrape_hacker_news, scrape_huggingface_trending_papers
-from schema import SourceSchema
-from search import keyword_search, semantic_search
+from .cache import add_summary_to_cache, get_summary_from_cache, load_cache, save_cache
+from .constants import INTERESTED_KEYWORDS
+from .logger import logger
+from .utils import generate_summary_from_link
+from .scraper import scrape_hacker_news, scrape_huggingface_trending_papers
+from .schema import SourceSchema
+from .search import keyword_search, semantic_search
 
 SEMANTIC_SIMILARITY_THRESHOLD = 0.5  # Adjust able threshold (0.0 to 1.0)
 

@@ -3,8 +3,8 @@ from typing import Dict, Optional, List
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, and_
 
-from database import db_manager, SummaryCache
-from logger import logger
+from .database import db_manager, SummaryCache
+from .logger import logger
 
 
 def get_db_session() -> Session:

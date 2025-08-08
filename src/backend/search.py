@@ -1,18 +1,19 @@
 import re
 from typing import List
 
-from sentence_transformers import SentenceTransformer, util
-
-from logger import logger
-from schema import SourceSchema
+from .logger import logger
+from .schema import SourceSchema
 
 # --- Semantic Search Setup ---
 # Load the model once when the module is loaded. This is memory-intensive
 # but highly efficient for processing, as it avoids reloading the model.
 logger.info("Loading sentence transformer model for semantic search...")
 try:
+    import sentence_transformers
+    from sentence_transformers import SentenceTransformer, util
     SEMANTIC_MODEL = SentenceTransformer('all-MiniLM-L6-v2')
     SEMANTIC_SEARCH_ENABLED = True
+    logger.info("Semantic search model loaded successfully")
 except Exception as e:
     logger.warning(f"Could not load semantic search model. Semantic search disabled. Error: {e}")
     SEMANTIC_MODEL = None
@@ -69,6 +70,12 @@ def semantic_search(
         A list of sources that are semantically similar to the keywords.
     """
     if not SEMANTIC_SEARCH_ENABLED or not sources:
+        return []
+    
+    try:
+        from sentence_transformers import util
+    except ImportError:
+        logger.warning("sentence_transformers not available for semantic search")
         return []
 
     matches = []

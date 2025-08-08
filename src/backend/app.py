@@ -5,17 +5,21 @@ Provides REST API endpoints for fetching topics and scraping content.
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Dict, Any
+from fastapi.responses import StreamingResponse
+from typing import List, Dict, Any, Generator
 from pydantic import BaseModel
 import asyncio
+import json
 from datetime import datetime, timedelta
 
-from constants import INTERESTED_KEYWORDS
-from scraper import scrape_huggingface_trending_papers, scrape_hacker_news
-from logger import logger
-from merger import filter_sources
-from schema import SourceSchema
-from database import db_manager
+from .constants import INTERESTED_KEYWORDS
+from .scraper import scrape_huggingface_trending_papers, scrape_hacker_news
+from .logger import logger
+from .merger import filter_sources, enrich_sources_with_summaries
+from .schema import SourceSchema
+from .database import db_manager
+from .cache import get_summary_from_cache, add_summary_to_cache
+from .utils import generate_summary_from_link
 
 app = FastAPI(
     title="Multimodal Scout API",
@@ -31,6 +35,46 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+def enrich_sources_with_progress(sources: List[SourceSchema]):
+    """
+    Generates summaries for sources that are missing them, yielding progress updates.
+    """
+    sources_needing_summaries = [source for source in sources if not source.summary]
+    total_sources = len(sources_needing_summaries)
+    
+    if total_sources == 0:
+        yield f"data: {json.dumps({'type': 'info', 'message': 'All sources already have summaries'})}\n\n"
+        return
+    
+    yield f"data: {json.dumps({'type': 'start', 'message': f'Starting summary generation for {total_sources} sources...', 'total': total_sources})}\n\n"
+    
+    processed = 0
+    for source in sources_needing_summaries:
+        processed += 1
+        
+        # Check cache first
+        cached_summary = get_summary_from_cache(str(source.link))
+        if cached_summary:
+            source.summary = cached_summary
+            yield f"data: {json.dumps({'type': 'progress', 'message': f'Found cached summary for: {source.title[:50]}...', 'processed': processed, 'total': total_sources})}\n\n"
+            continue
+        
+        # Generate new summary
+        yield f"data: {json.dumps({'type': 'progress', 'message': f'Generating summary for: {source.title[:50]}...', 'processed': processed, 'total': total_sources})}\n\n"
+        
+        new_summary = generate_summary_from_link(source.source_link)
+        if new_summary is None:
+            new_summary = generate_summary_from_link(source.link)
+            
+        if new_summary:
+            source.summary = new_summary
+            add_summary_to_cache(str(source.link), new_summary)
+            yield f"data: {json.dumps({'type': 'progress', 'message': f'✓ Generated summary for: {source.title[:50]}...', 'processed': processed, 'total': total_sources})}\n\n"
+        else:
+            yield f"data: {json.dumps({'type': 'warning', 'message': f'⚠ Could not generate summary for: {source.title[:50]}...', 'processed': processed, 'total': total_sources})}\n\n"
+    
+    yield f"data: {json.dumps({'type': 'complete', 'message': f'Summary generation complete! Processed {total_sources} sources.', 'processed': total_sources, 'total': total_sources})}\n\n"
 
 class FetchRequest(BaseModel):
     """Request model for fetching top items"""
@@ -128,6 +172,11 @@ async def fetch_top_items(request: FetchRequest):
         except Exception as e:
             logger.error(f"Failed to fetch Hacker News items: {e}")
         
+        # Enrich sources with AI-generated summaries if they are missing
+        if all_sources:
+            logger.info(f"Enriching {len(all_sources)} sources with summaries...")
+            all_sources = enrich_sources_with_summaries(all_sources)
+        
         # Filter sources based on topics using the existing merger logic
         if all_topics and all_sources:
             logger.info(f"Filtering {len(all_sources)} items with topics: {all_topics}")
@@ -164,6 +213,108 @@ async def fetch_top_items(request: FetchRequest):
     except Exception as e:
         logger.error(f"Failed to fetch items: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch items: {str(e)}")
+
+@app.post("/api/fetch-stream")
+async def fetch_top_items_stream(request: FetchRequest):
+    """
+    Fetch top items with streaming progress updates for summary generation.
+    Uses Server-Sent Events (SSE) to provide real-time progress.
+    """
+    def generate_stream():
+        try:
+            logger.info(f"Starting streaming fetch for {request.selectedDays} days with topics: {request.topics}")
+            
+            # Combine default topics with custom topics for filtering
+            all_topics = request.topics
+            
+            all_sources = []
+            source_names = []
+            
+            # Initial status update
+            yield f"data: {json.dumps({'type': 'status', 'message': 'Fetching sources from Hugging Face and Hacker News...'})}\n\n"
+            
+            try:
+                # Fetch Hugging Face papers
+                logger.info("Scraping Hugging Face trending papers...")
+                hf_papers = scrape_huggingface_trending_papers()
+                if hf_papers:
+                    all_sources.extend(hf_papers)
+                    source_names.append("Hugging Face")
+                    yield f"data: {json.dumps({'type': 'status', 'message': f'Found {len(hf_papers)} Hugging Face papers'})}\n\n"
+            except Exception as e:
+                yield f"data: {json.dumps({'type': 'error', 'message': f'Failed to fetch Hugging Face papers: {str(e)}'})}\n\n"
+            
+            try:
+                # Fetch Hacker News items
+                logger.info("Scraping Hacker News...")
+                hn_items = scrape_hacker_news()
+                if hn_items:
+                    all_sources.extend(hn_items)
+                    source_names.append("Hacker News")
+                    yield f"data: {json.dumps({'type': 'status', 'message': f'Found {len(hn_items)} Hacker News items'})}\n\n"
+            except Exception as e:
+                yield f"data: {json.dumps({'type': 'error', 'message': f'Failed to fetch Hacker News items: {str(e)}'})}\n\n"
+            
+            # Enrich sources with progress updates
+            if all_sources:
+                yield f"data: {json.dumps({'type': 'status', 'message': f'Processing {len(all_sources)} sources for summary enrichment...'})}\n\n"
+                
+                # Use the progress-aware enrichment function
+                for progress_update in enrich_sources_with_progress(all_sources):
+                    yield progress_update
+            
+            # Filter sources based on topics
+            if all_topics and all_sources:
+                yield f"data: {json.dumps({'type': 'status', 'message': f'Filtering {len(all_sources)} items with topics...'})}\n\n"
+                filtered_sources = filter_sources(all_sources, all_topics)
+                yield f"data: {json.dumps({'type': 'status', 'message': f'Filtered down to {len(filtered_sources)} relevant items'})}\n\n"
+            else:
+                filtered_sources = all_sources[:20]  # Limit to 20 items if no filtering
+            
+            # Convert to response format
+            items = []
+            for source in filtered_sources[:20]:  # Limit to top 20
+                # Use tags instead of source, with fallback
+                source_tag = "General"
+                if hasattr(source, 'tags') and source.tags:
+                    # Use the first tag, capitalize it
+                    source_tag = source.tags[0].capitalize() if source.tags[0] else "General"
+                
+                items.append({
+                    'title': source.title,
+                    'link': str(source.link),  # Convert HttpUrl to string
+                    'summary': source.summary or "No summary available",
+                    'source': source_tag,
+                    'created_at': source.date.isoformat() if hasattr(source, 'date') and source.date else datetime.now().isoformat()
+                })
+            
+            # Final result
+            result = {
+                'type': 'result',
+                'data': {
+                    'items': items,
+                    'total_count': len(items),
+                    'sources': list(set(source_names))
+                }
+            }
+            yield f"data: {json.dumps(result)}\n\n"
+            yield "data: [DONE]\n\n"
+            
+        except Exception as e:
+            logger.error(f"Failed to fetch items in stream: {e}")
+            yield f"data: {json.dumps({'type': 'error', 'message': f'Failed to fetch items: {str(e)}'})}\n\n"
+    
+    return StreamingResponse(
+        generate_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
 
 @app.post("/api/bookmarks", response_model=BookmarkResponse)
 async def add_bookmark(request: BookmarkRequest):

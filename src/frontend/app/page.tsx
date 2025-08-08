@@ -9,6 +9,8 @@ export default function Home() {
   const [newKeyword, setNewKeyword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [progressMessage, setProgressMessage] = useState('')
+  const [showDetailedProgress, setShowDetailedProgress] = useState(false)
   const [isLoadingTopics, setIsLoadingTopics] = useState(true)
   const [fetchedItems, setFetchedItems] = useState<any[]>([])
   const [showResults, setShowResults] = useState(false)
@@ -154,24 +156,14 @@ export default function Home() {
   const handleFetchItems = async () => {
     setIsLoading(true)
     setProgress(0)
+    setProgressMessage('Starting fetch...')
+    setShowDetailedProgress(false)
     
     try {
       const allTopics = [...defaultTopics, ...customTopics]
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       
-      // Show smooth progress during API call
-      let currentProgress = 0
-      const progressInterval = setInterval(() => {
-        currentProgress += Math.floor(Math.random() * 8) + 5 // Add 5-12 each time
-        if (currentProgress >= 90) {
-          clearInterval(progressInterval)
-          setProgress(90)
-        } else {
-          setProgress(currentProgress)
-        }
-      }, 600)
-      
-      const response = await fetch(`${apiUrl}/api/fetch`, {
+      const response = await fetch(`${apiUrl}/api/fetch-stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -182,29 +174,93 @@ export default function Home() {
         })
       })
       
-      clearInterval(progressInterval)
-      setProgress(100)
-      
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
+
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
       
-      const data = await response.json()
-      console.log('Successfully fetched items:', data)
-      
-      // Store and display the fetched items
-      setFetchedItems(data.items)
-      setShowResults(true)
-      setShowBookmarks(false) // Hide bookmarks when showing fresh search results
+      if (!reader) {
+        throw new Error('Failed to get response reader')
+      }
+
+      while (true) {
+        const { done, value } = await reader.read()
+        
+        if (done) break
+        
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || '' // Keep incomplete line in buffer
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+            try {
+              const eventData = JSON.parse(line.slice(6)) // Remove 'data: '
+              
+              switch (eventData.type) {
+                case 'status':
+                  setProgressMessage(eventData.message)
+                  break
+                  
+                case 'start':
+                  setShowDetailedProgress(true)
+                  setProgressMessage(eventData.message)
+                  setProgress(0)
+                  break
+                  
+                case 'progress':
+                  const progressPercent = Math.round((eventData.processed / eventData.total) * 100)
+                  setProgress(progressPercent)
+                  setProgressMessage(eventData.message)
+                  break
+                  
+                case 'complete':
+                  setProgress(100)
+                  setProgressMessage(eventData.message)
+                  break
+                  
+                case 'info':
+                case 'warning':
+                  setProgressMessage(eventData.message)
+                  break
+                  
+                case 'error':
+                  console.error('Stream error:', eventData.message)
+                  alert(`Error: ${eventData.message}`)
+                  break
+                  
+                case 'result':
+                  console.log('Successfully fetched items:', eventData.data)
+                  setFetchedItems(eventData.data.items)
+                  setShowResults(true)
+                  setShowBookmarks(false) // Hide bookmarks when showing fresh search results
+                  setProgress(100)
+                  setProgressMessage('Complete!')
+                  break
+              }
+            } catch (parseError) {
+              console.error('Failed to parse event data:', parseError)
+            }
+          } else if (line === 'data: [DONE]') {
+            break
+          }
+        }
+      }
       
     } catch (error) {
       console.error('Failed to fetch items:', error)
       alert('Failed to fetch items. Please check if the backend server is running.')
+      setProgressMessage('Failed to fetch items')
     } finally {
       setTimeout(() => {
         setIsLoading(false)
         setProgress(0)
-      }, 500)
+        setProgressMessage('')
+        setShowDetailedProgress(false)
+      }, 2000) // Show completion message for 2 seconds
     }
   }
 
@@ -338,7 +394,7 @@ export default function Home() {
             
             {/* Button Text */}
             <span className="relative z-10">
-              {isLoading ? `Fetching... ${progress}%` : 'Fetch Top Items'}
+              {isLoading ? (showDetailedProgress ? `${progress}%` : 'Fetching...') : 'Fetch Top Items'}
             </span>
           </button>
           
@@ -349,6 +405,21 @@ export default function Home() {
             📚 View My Bookmarks
           </button>
         </div>
+
+        {/* Progress Message */}
+        {isLoading && progressMessage && (
+          <div className="mt-6 text-center">
+            <div className="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-800 rounded-lg">
+              <div className="animate-spin w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full mr-3"></div>
+              <span className="text-sm font-medium">{progressMessage}</span>
+            </div>
+            {showDetailedProgress && (
+              <div className="mt-2 text-xs text-gray-600">
+                Summary generation can take 30-60 seconds per article. Thank you for your patience!
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Results Section */}
         {showResults && fetchedItems.length > 0 && (

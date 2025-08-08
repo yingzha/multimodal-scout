@@ -6,8 +6,8 @@ import requests
 from bs4 import BeautifulSoup
 from pydantic import HttpUrl
 
-from constants import GEMINI_MODEL_NAME, USER_AGENT
-from logger import logger
+from .constants import GEMINI_MODEL_NAME, USER_AGENT
+from .logger import logger
 
 # --- API Key Configuration ---
 # It's highly recommended to set your GOOGLE_API_KEY as an environment variable

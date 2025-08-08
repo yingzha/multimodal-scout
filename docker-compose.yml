@@ -34,11 +34,8 @@ services:
       - "8000:8000"
     command: >
       sh -c "
-        echo 'Waiting for database...' &&
-        python -c 'from src.backend.database import db_manager; db_manager.create_tables()' &&
-        alembic upgrade head &&
         echo 'Database ready. Starting FastAPI server...' &&
-        uvicorn src.backend.app:app --host 0.0.0.0 --port 8000 --reload
+        python -m uvicorn src.backend.app:app --host 0.0.0.0 --port 8000 --reload
       "
 
   cron:

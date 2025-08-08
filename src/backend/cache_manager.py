@@ -10,15 +10,15 @@ import sys
 from datetime import datetime, timedelta
 from typing import Dict, Any
 
-from db_cache import (
+from .db_cache import (
     get_summaries_by_date_range,
     cleanup_old_summaries,
     get_cache_stats,
     search_summaries,
     initialize_database
 )
-from cache import load_cache, CACHE_FILE_PATH
-from logger import logger
+from .cache import load_cache, CACHE_FILE_PATH
+from .logger import logger
 
 
 def migrate_json_to_db() -> Dict[str, Any]:
