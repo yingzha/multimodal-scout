@@ -88,7 +88,7 @@ Frontend (Next.js)          Backend (FastAPI)           External Services
 │ • Topics    │             │   -stream   │                     │
 └─────────────┘             │ • /bookmarks│              ┌─────────────┐
                             └─────────────┘              │   Content   │
-                                   ↓                      │   Sources   │
+                                   ↓                     │   Sources   │
                             ┌─────────────┐              │             │
                             │  AI Engine  │              │ • Hugging   │
                             │             │ ←──────────→ │   Face      │
