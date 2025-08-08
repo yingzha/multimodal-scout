@@ -1,94 +1,79 @@
 # Multimodal Scout
 
-Multimodal Scout is a Python-based data pipeline designed to scrape, enrich, and filter content from various online sources. It leverages AI to generate summaries, uses hybrid search (keyword + semantic) to find relevant articles, and provides a structured, validated output.
+A smart content discovery platform that automatically finds, curates, and helps you bookmark the latest multimodal AI research papers and industry articles. Built with FastAPI, Next.js, and PostgreSQL.
 
-## Features
+## What It Does
 
-- **Multi-Source Scraping**: Gathers data from Hugging Face Trending Papers and the Hacker News RSS feed.
-- **AI-Powered Enrichment**: Uses the Google Gemini API to automatically generate summaries for sources that are missing them.
-- **Data Tagging**: Automatically categorizes sources as `research` or `industry` based on heuristics.
-- **Efficient Caching**: Caches generated summaries in a local `summary_cache.json` file to reduce redundant API calls and save costs.
-- **Hybrid Search**: Filters content using a two-pass system:
-  1.  A fast, normalized keyword search.
-  2.  A sophisticated semantic search for conceptually related content.
-- **Data Validation**: Employs Pydantic to ensure all collected data conforms to a strict, well-defined schema.
-- **Structured Logging**: Provides clear, leveled logging for monitoring and debugging the pipeline's execution.
+Multimodal Scout scrapes content from Hugging Face trending papers and Hacker News, uses AI to generate summaries, and provides a clean web interface to:
 
-## Project Structure
+- 🔍 **Discover** relevant multimodal AI content automatically
+- 📚 **Bookmark** articles you want to read later  
+- 🎯 **Filter** content based on your interests and custom keywords
+- ⏰ **Stay updated** with configurable time ranges (1-7 days)
 
-The core logic resides in the `src/backend/` directory:
-
-```
-src/backend/
-├── scraper.py       # Functions for scraping data from sources.
-├── search.py        # Keyword and semantic search implementations.
-├── utils.py         # Utilities for AI summary generation.
-├── merger.py        # Main orchestrator for the data pipeline.
-├── schema.py        # Pydantic data schema for sources.
-├── cache.py         # Logic for reading/writing to the summary cache.
-├── constants.py     # Centralized configuration and keywords.
-└── logger.py        # Application-wide logger configuration.
-```
-
-## Setup and Installation
+## Quick Start
 
 ### Prerequisites
-- Python 3.8+
-- Git
+- Docker and Docker Compose
+- Google Gemini API key ([Get one here](https://makersuite.google.com/app/apikey))
 
-### 1. Clone the Repository
+### Deploy in 3 Steps
 
-```bash
-git clone <your-repository-url>
-cd multimodal-scout
+1. **Clone and configure:**
+   ```bash
+   git clone https://github.com/yingzha/multimodal-scout.git
+   cd multimodal-scout
+   echo "GOOGLE_API_KEY=your_api_key_here" > .env
+   ```
+
+2. **Start all services:**
+   ```bash
+   docker-compose up -d
+   ```
+
+3. **Open your browser:**
+   - Frontend: http://localhost:3000
+   - API docs: http://localhost:8000/docs
+
+That's it! The system will automatically start scraping and processing content.
+
+## How to Use
+
+1. **Set your interests**: Add custom keywords to the default multimodal AI topics
+2. **Choose time range**: Select 1, 3, or 7 days of content
+3. **Fetch content**: Click "Fetch Top Items" to discover relevant articles
+4. **Bookmark articles**: Click ☆ to save articles for later review
+5. **Review bookmarks**: Use "View My Bookmarks" to see saved articles
+
+## Architecture
+
+```
+Frontend (Next.js) ←→ Backend (FastAPI) ←→ Database (PostgreSQL)
+     ↑                      ↑                      ↑
+     └──────────────────────┼──────────────────────┘
+                            │
+                    Cron Jobs (Auto-scraping)
 ```
 
-### 2. Create and Activate a Virtual Environment
+## Documentation
 
-It's highly recommended to use a virtual environment to manage dependencies.
+- 📖 [API Documentation](docs/api.md)
+- 🛠 [Development Setup](docs/development.md)
+- 🚀 [Deployment Guide](docs/deployment.md)
+- 🎨 [Frontend Architecture](docs/frontend.md)
 
-```bash
-# For macOS/Linux
-python3 -m venv venv
-source venv/bin/activate
+## Contributing
 
-# For Windows
-python -m venv venv
-.\venv\Scripts\activate
-```
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-### 3. Install Dependencies
+## License
 
-Install all required packages from the `requirements.txt` file.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-```bash
-pip install -r requirements.txt
-```
+---
 
-### 4. Set Up Google API Key
-
-This project uses the Google Gemini API for summary generation. You need to set your API key as an environment variable.
-
-```bash
-# For macOS/Linux
-export GOOGLE_API_KEY="your_api_key_here"
-
-# For Windows (in Command Prompt)
-set GOOGLE_API_KEY="your_api_key_here"
-```
-
-## How to Run
-
-Execute the main merger script from the project's root directory. The script will run all scrapers, enrich the data, filter it, and print the final sorted list to the console.
-
-```bash
-python -m src.backend.merger
-```
-
-## How to Run Tests
-
-The project includes unit tests to validate the scrapers. To run them, use `pytest`:
-
-```bash
-pytest
-```
+**Built with FastAPI, Next.js, PostgreSQL, and AI ✨**
