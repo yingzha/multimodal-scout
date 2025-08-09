@@ -23,8 +23,7 @@ RUN chmod 0644 /etc/cron.d/scraper-cron && \
     crontab /etc/cron.d/scraper-cron && \
     touch /var/log/cron.log
 
-# Make scripts executable
-RUN chmod +x src/backend/run_hacker_news_scraper.py src/backend/run_huggingface_scraper.py
+# Scripts are run via python -m, no need to make them executable
 
 # Start cron and tail the log file
 CMD ["sh", "-c", "cron && tail -f /var/log/cron.log"]
