@@ -19,6 +19,7 @@ export default function Home() {
   const [bookmarkedCards, setBookmarkedCards] = useState<any[]>([])
   const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set())
   const [keywordMessage, setKeywordMessage] = useState('')
+  const [selectedTag, setSelectedTag] = useState<string | null>(null)
 
   // Fetch default topics from backend
   const fetchDefaultTopics = async () => {
@@ -159,6 +160,7 @@ export default function Home() {
         setShowBookmarks(true)
         setShowResults(false) // Hide search results when showing bookmarks
         setExpandedSummaries(new Set()) // Clear expanded state when switching views
+        setSelectedTag(null) // Clear tag filter when switching to bookmarks
       }
     } catch (error) {
       console.error('Failed to fetch bookmarks:', error)
@@ -169,6 +171,7 @@ export default function Home() {
     setShowBookmarks(false)
     setBookmarkedCards([])
     setExpandedSummaries(new Set()) // Clear expanded state when hiding bookmarks
+    setSelectedTag(null) // Clear tag filter when hiding bookmarks
   }
 
   const toggleSummaryExpansion = (itemLink: string) => {
@@ -181,6 +184,10 @@ export default function Home() {
       }
       return newSet
     })
+  }
+
+  const handleTagFilter = (tag: string) => {
+    setSelectedTag(selectedTag === tag ? null : tag) // Toggle tag selection
   }
 
   const handleFetchItems = async () => {
@@ -268,6 +275,7 @@ export default function Home() {
                   setShowResults(true)
                   setShowBookmarks(false) // Hide bookmarks when showing fresh search results
                   setExpandedSummaries(new Set()) // Clear expanded state for new results
+                  setSelectedTag(null) // Clear tag filter for new results
                   setProgress(100)
                   setProgressMessage('Complete!')
                   break
@@ -438,7 +446,10 @@ export default function Home() {
             
             {/* Button Text */}
             <span className="relative z-10">
-              {isLoading ? (showDetailedProgress ? `${progress}%` : 'Fetching...') : '🔍 Fetch Top Items'}
+              {isLoading 
+                ? (showDetailedProgress ? `🔍 Fetch Top Items ${progress}%` : '🔍 Fetching...') 
+                : '🔍 Fetch Top Items'
+              }
             </span>
           </button>
           
@@ -469,8 +480,25 @@ export default function Home() {
         {showResults && fetchedItems.length > 0 && (
           <div className="mt-12">
             <div className="flex justify-between items-center mb-6">
-              <div className="text-sm text-gray-600">
-                {fetchedItems.length} results
+              <div className="flex items-center gap-3">
+                <div className="text-sm text-gray-600">
+                  {selectedTag 
+                    ? `${fetchedItems.filter(item => item.source === selectedTag).length} results for "${selectedTag}"` 
+                    : `${fetchedItems.length} results`
+                  }
+                </div>
+                {selectedTag && (
+                  <div className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                    <span>{selectedTag}</span>
+                    <button
+                      onClick={() => setSelectedTag(null)}
+                      className="ml-2 w-4 h-4 bg-blue-200 hover:bg-red-200 rounded-full flex items-center justify-center text-blue-600 hover:text-red-600 focus:outline-none transition-colors text-xs font-bold"
+                      title="Clear filter"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
               </div>
               <button
                 onClick={() => setShowResults(false)}
@@ -483,6 +511,7 @@ export default function Home() {
             
             <div className="space-y-4">
               {fetchedItems
+                .filter(item => selectedTag ? item.source === selectedTag : true)
                 .sort((a, b) => {
                   const aBookmarked = bookmarkedItems.has(a.link)
                   const bBookmarked = bookmarkedItems.has(b.link)
@@ -497,9 +526,17 @@ export default function Home() {
                   className="bg-white rounded-lg p-6 border border-gray-200 hover:shadow-lg transition-all duration-300"
                 >
                   <div className="flex items-start justify-between mb-4">
-                    <span className="inline-block px-3 py-1 bg-gray-300 text-gray-800 text-xs font-medium rounded-full">
+                    <button
+                      onClick={() => handleTagFilter(item.source)}
+                      className={`inline-block px-3 py-1 text-xs font-medium rounded-full transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        selectedTag === item.source
+                          ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-300'
+                          : 'bg-gray-300 text-gray-800 hover:bg-gray-400'
+                      }`}
+                      title={`Filter by ${item.source}`}
+                    >
                       {item.source}
-                    </span>
+                    </button>
                     <button
                       onClick={() => handleBookmark(item)}
                       className={`w-8 h-8 flex items-center justify-center rounded-full focus:outline-none transition-colors ${
@@ -580,8 +617,25 @@ export default function Home() {
         {showBookmarks && (
           <div className="mt-12">
             <div className="flex justify-between items-center mb-6">
-              <div className="text-sm text-gray-600">
-                {bookmarkedCards.length} bookmarks
+              <div className="flex items-center gap-3">
+                <div className="text-sm text-gray-600">
+                  {selectedTag 
+                    ? `${bookmarkedCards.filter(item => item.source === selectedTag).length} bookmarks for "${selectedTag}"` 
+                    : `${bookmarkedCards.length} bookmarks`
+                  }
+                </div>
+                {selectedTag && (
+                  <div className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                    <span>{selectedTag}</span>
+                    <button
+                      onClick={() => setSelectedTag(null)}
+                      className="ml-2 w-4 h-4 bg-blue-200 hover:bg-red-200 rounded-full flex items-center justify-center text-blue-600 hover:text-red-600 focus:outline-none transition-colors text-xs font-bold"
+                      title="Clear filter"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
               </div>
               <button
                 onClick={handleHideBookmarks}
@@ -602,15 +656,25 @@ export default function Home() {
               </div>
             ) : (
               <div className="space-y-4">
-                {bookmarkedCards.map((item, index) => (
+                {bookmarkedCards
+                  .filter(item => selectedTag ? item.source === selectedTag : true)
+                  .map((item, index) => (
                   <div
                     key={index}
                     className="bg-white rounded-lg p-6 border border-gray-200 hover:shadow-lg transition-all duration-300"
                   >
                     <div className="flex items-start justify-between mb-4">
-                      <span className="inline-block px-3 py-1 bg-gray-300 text-gray-800 text-xs font-medium rounded-full">
+                      <button
+                        onClick={() => handleTagFilter(item.source)}
+                        className={`inline-block px-3 py-1 text-xs font-medium rounded-full transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          selectedTag === item.source
+                            ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-300'
+                            : 'bg-gray-300 text-gray-800 hover:bg-gray-400'
+                        }`}
+                        title={`Filter by ${item.source}`}
+                      >
                         {item.source}
-                      </span>
+                      </button>
                       <div className="flex items-center gap-2">
                         <span className="text-yellow-600">★</span>
                         <button
