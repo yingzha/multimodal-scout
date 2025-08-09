@@ -41,25 +41,25 @@ That's it! The system will automatically start scraping and processing content.
 
 ## How to Use
 
-1. **Configure search settings**: Customize your content discovery experience
-   - **Smart Balanced Search**: Toggle advanced filtering with separate thresholds for research vs industry content
-   - **Result count**: Choose 5-50 results (default: 10)
-   - **Content balance**: Adjust research/industry ratio from 0-100% (default: 50/50)
-2. **Set your interests**: Add custom keywords to the default multimodal AI topics
+1. **Set your interests**: Add custom keywords to the default multimodal AI topics
    - Default topics are locked (🔒) but you can add your own
    - Get real-time feedback when adding keywords (duplicate detection, validation)
-3. **Choose time range**: Select 1, 3, or 7 days of content
-4. **Fetch content**: Click "🔍 Fetch Top Items" to discover relevant articles
+2. **Configure search settings**: Customize your content discovery experience
+   - **Time range**: Retrieve content from the last 1, 3, or 7 days
+   - **Result count**: Choose 5-50 results (default: 10)
+   - **Content balance**: Adjust research/industry ratio from 0-100% (default: 50/50)
+   - Smart Balanced Search is always enabled with optimized thresholds
+3. **Fetch content**: Click "🔍 Fetch Top Items" to discover relevant articles
    - Watch real-time progress with detailed status updates
    - See AI summary generation and smart filtering progress
    - Progress bar shows completion percentage during processing
-5. **Review results**: Browse intelligently filtered and balanced content
+4. **Review results**: Browse intelligently filtered and balanced content
    - Results prioritize keyword matches first, then semantic matches by relevance
    - Click article tags to filter by category (Research, Industry, etc.)
    - Expand/collapse summaries with improved "Read more" functionality (only for long text)
    - See filtered result counts and clear filters easily
-6. **Bookmark articles**: Click ☆ to save articles for later review
-7. **Manage bookmarks**: Use "📚 View My Bookmarks" to see and organize saved articles
+5. **Bookmark articles**: Click ☆ to save articles for later review
+6. **Manage bookmarks**: Use "📚 View My Bookmarks" to see and organize saved articles
    - Tag filtering also works in bookmarks view
    - Remove bookmarks with ★ and × buttons
 

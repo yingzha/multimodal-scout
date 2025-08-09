@@ -42,15 +42,14 @@ Currently, no authentication is required for API access.
 ### Content Fetching
 
 **POST /api/fetch**
-- **Description**: Fetch and filter articles based on topics and time range with optional Smart Balanced Search
+- **Description**: Fetch and filter articles based on topics and time range using Smart Balanced Search
 - **Request Body**:
   ```json
   {
     "selectedDays": 7,
     "topics": ["multimodal agents", "computer vision", "custom topic"],
     "maxResults": 10,
-    "researchRatio": 0.5,
-    "useAdvancedFiltering": true
+    "researchRatio": 0.5
   }
   ```
 - **Parameters**:
@@ -58,7 +57,7 @@ Currently, no authentication is required for API access.
   - `topics` (required): Array of keywords to search for
   - `maxResults` (optional): Maximum results to return (5-50, default: 10)
   - `researchRatio` (optional): Ratio of research vs industry content (0.0-1.0, default: 0.5)
-  - `useAdvancedFiltering` (optional): Enable Smart Balanced Search (default: false)
+- **Note**: Smart Balanced Search is always enabled with optimized thresholds (research: 0.65, industry: 0.55)
 - **Response**:
   ```json
   {
