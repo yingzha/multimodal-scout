@@ -8,7 +8,7 @@ from .scraper import scrape_hacker_news, scrape_huggingface_trending_papers
 from .schema import SourceSchema
 from .search import keyword_search, semantic_search
 
-SEMANTIC_SIMILARITY_THRESHOLD = 0.5 # Adjust able threshold (0.0 to 1.0)
+SEMANTIC_SIMILARITY_THRESHOLD = 0.6 # Adjust able threshold (0.0 to 1.0)
 
 
 def filter_sources(

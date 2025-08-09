@@ -206,9 +206,14 @@ export default function Home() {
   }) => {
     const totalPages = Math.ceil(totalItems / itemsPerPage)
     
-// console.log('Pagination:', { currentPage, totalItems, itemsPerPage, totalPages })
+console.log('Pagination:', { currentPage, totalItems, itemsPerPage, totalPages })
     
-    if (totalPages <= 1) return null
+    if (totalPages <= 1) {
+      console.log('Pagination hidden: totalPages =', totalPages)
+      return null
+    }
+    
+    console.log('Pagination component rendering with', totalPages, 'pages')
     
     
     return (
@@ -229,7 +234,7 @@ export default function Home() {
           <button
             key={page}
             onClick={() => {
-              // console.log('Setting page to:', page)
+              console.log('Setting page to:', page)
               setCurrentPage(page)
             }}
             className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
@@ -586,21 +591,28 @@ export default function Home() {
                     return 0
                   })
                 
-                // console.log('Results pagination:', { 
-                //   totalItems: filteredItems.length, 
-                //   currentPage, 
-                //   itemsPerPage 
-                // })
+                console.log('Results pagination:', { 
+                  totalItems: filteredItems.length, 
+                  currentPage, 
+                  itemsPerPage,
+                  showingAll: filteredItems.length <= itemsPerPage
+                })
                 
                 const startIndex = (currentPage - 1) * itemsPerPage
                 const endIndex = startIndex + itemsPerPage
                 const paginatedItems = filteredItems.slice(startIndex, endIndex)
                 
-                // console.log('Pagination slice:', { startIndex, endIndex, paginatedCount: paginatedItems.length })
+                console.log('Pagination slice:', { 
+                  startIndex, 
+                  endIndex, 
+                  originalCount: filteredItems.length,
+                  paginatedCount: paginatedItems.length,
+                  shouldPaginate: filteredItems.length > itemsPerPage
+                })
                 
                 return paginatedItems.map((item, index) => (
                 <div
-                  key={index}
+                  key={`${item.link}-${startIndex + index}`}
                   className="bg-white rounded-lg p-6 border border-gray-200 hover:shadow-lg transition-all duration-300"
                 >
                   <div className="flex items-start justify-between mb-4">
@@ -691,12 +703,18 @@ export default function Home() {
             </div>
             
             {/* Pagination for Results */}
-            <PaginationControls
-              currentPage={currentPage}
-              setCurrentPage={setCurrentPage}
-              totalItems={fetchedItems.filter(item => selectedTag ? item.source === selectedTag : true).length}
-              itemsPerPage={itemsPerPage}
-            />
+            {(() => {
+              const filteredCount = fetchedItems.filter(item => selectedTag ? item.source === selectedTag : true).length
+              console.log('Pagination component call:', { filteredCount, itemsPerPage, shouldShow: filteredCount > itemsPerPage })
+              return (
+                <PaginationControls
+                  currentPage={currentPage}
+                  setCurrentPage={setCurrentPage}
+                  totalItems={filteredCount}
+                  itemsPerPage={itemsPerPage}
+                />
+              )
+            })()}
           </div>
         )}
 
@@ -752,9 +770,11 @@ export default function Home() {
                     const endIndex = startIndex + itemsPerPage
                     const paginatedBookmarks = filteredBookmarks.slice(startIndex, endIndex)
                     
-                    return paginatedBookmarks.map((item, index) => (
+                    return paginatedBookmarks.map((item, index) => {
+                      const bookmarkStartIndex = (bookmarksPage - 1) * itemsPerPage
+                      return (
                   <div
-                    key={index}
+                    key={`bookmark-${item.link}-${bookmarkStartIndex + index}`}
                     className="bg-white rounded-lg p-6 border border-gray-200 hover:shadow-lg transition-all duration-300"
                   >
                     <div className="flex items-start justify-between mb-4">
@@ -837,7 +857,8 @@ export default function Home() {
                       </span>
                     </div>
                   </div>
-                    ))
+                      )
+                    })
                   })()}
                 </div>
                 

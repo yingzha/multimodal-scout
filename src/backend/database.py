@@ -2,7 +2,8 @@ import os
 from datetime import datetime
 from typing import Optional, List
 
-from sqlalchemy import create_engine, Column, String, DateTime, Text, Integer, JSON, Boolean
+from sqlalchemy import create_engine, Column, String, DateTime, Text, Integer, JSON, Boolean, Float
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.dialects.postgresql import UUID
@@ -33,6 +34,16 @@ class Source(Base):
     date = Column(DateTime, nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+class EmbeddingCache(Base):
+    __tablename__ = "embedding_cache"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    text = Column(Text, nullable=False, index=True)  # The text that was embedded
+    text_hash = Column(String(64), unique=True, nullable=False, index=True)  # SHA256 hash for fast lookup
+    embedding = Column(ARRAY(Float), nullable=False)  # Store embedding as array of floats
+    model_name = Column(String, nullable=False, default="gemini-embedding-001")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
 class Bookmark(Base):
     __tablename__ = "bookmarks"
@@ -161,6 +172,59 @@ class DatabaseManager:
         try:
             bookmarks = session.query(Bookmark).order_by(Bookmark.bookmarked_at.desc()).limit(limit).all()
             return bookmarks
+        except Exception as e:
+            raise e
+        finally:
+            session.close()
+    
+    def get_embedding_from_cache(self, text_hash: str) -> Optional[List[float]]:
+        """Get cached embedding by text hash"""
+        session = self.get_session()
+        try:
+            cached = session.query(EmbeddingCache).filter(EmbeddingCache.text_hash == text_hash).first()
+            if cached:
+                return cached.embedding
+            return None
+        except Exception as e:
+            raise e
+        finally:
+            session.close()
+    
+    def add_embedding_to_cache(self, text: str, text_hash: str, embedding: List[float], model_name: str = "gemini-embedding-001") -> None:
+        """Add embedding to cache"""
+        session = self.get_session()
+        try:
+            # Check if already exists
+            existing = session.query(EmbeddingCache).filter(EmbeddingCache.text_hash == text_hash).first()
+            if existing:
+                return  # Already cached
+            
+            # Create new cache entry
+            new_cache = EmbeddingCache(
+                text=text,
+                text_hash=text_hash,
+                embedding=embedding,
+                model_name=model_name
+            )
+            session.add(new_cache)
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+    
+    def get_embedding_cache_stats(self) -> dict:
+        """Get embedding cache statistics"""
+        session = self.get_session()
+        try:
+            total_embeddings = session.query(EmbeddingCache).count()
+            models_used = session.query(EmbeddingCache.model_name).distinct().all()
+            
+            return {
+                'total_embeddings': total_embeddings,
+                'models_used': [model[0] for model in models_used]
+            }
         except Exception as e:
             raise e
         finally:

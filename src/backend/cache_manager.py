@@ -17,6 +17,7 @@ from .db_cache import (
     search_summaries,
     initialize_database
 )
+from .database import db_manager
 from .cache import load_cache, CACHE_FILE_PATH
 from .logger import logger
 
@@ -53,7 +54,7 @@ def print_cache_stats():
     """Print cache statistics."""
     try:
         stats = get_cache_stats()
-        print("=== Cache Statistics ===")
+        print("=== Summary Cache Statistics ===")
         print(f"Total summaries: {stats['total_summaries']}")
         print(f"Recent summaries (7 days): {stats['recent_summaries_7_days']}")
         
@@ -61,6 +62,12 @@ def print_cache_stats():
         if stats['total_summaries'] > 0:
             avg_per_day = stats['recent_summaries_7_days'] / 7
             print(f"Average per day: {avg_per_day:.1f}")
+        
+        # Embedding cache stats
+        embedding_stats = db_manager.get_embedding_cache_stats()
+        print("\n=== Embedding Cache Statistics ===")
+        print(f"Total embeddings: {embedding_stats['total_embeddings']}")
+        print(f"Models used: {', '.join(embedding_stats['models_used'])}")
             
     except Exception as e:
         print(f"Error getting stats: {e}")
