@@ -6,16 +6,15 @@ Provides REST API endpoints for fetching topics and scraping content.
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from typing import List, Dict, Any, Generator
+from typing import List, Dict, Any
 from pydantic import BaseModel
-import asyncio
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from .constants import INTERESTED_KEYWORDS
 from .scraper import scrape_huggingface_trending_papers, scrape_hacker_news
 from .logger import logger
-from .merger import filter_sources, enrich_sources_with_summaries
+from .merger import filter_sources, filter_sources_advanced, enrich_sources_with_summaries
 from .search import keyword_search, semantic_search
 from .schema import SourceSchema
 from .database import db_manager
@@ -81,65 +80,92 @@ def enrich_sources_with_progress(sources: List[SourceSchema], phase_start: int, 
         else:
             yield f"data: {json.dumps({'type': 'warning', 'message': f'⚠ Could not generate summary for: {source.title[:50]}...', 'processed': progress_percent, 'total': 100})}\n\n"
 
-def filter_sources_with_progress(sources: List[SourceSchema], keywords: List[str], phase_start: int, phase_weight: int, total_weight: int):
+def filter_sources_with_progress(sources: List[SourceSchema], keywords: List[str], phase_start: int, phase_weight: int, total_weight: int, use_advanced: bool = False, max_results: int = 10, research_ratio: float = 0.5):
     """
     Filters sources using keyword and semantic search with progress updates.
     Uses unified progress tracking across phases.
     """
-    from .merger import SEMANTIC_SIMILARITY_THRESHOLD
-    
-    # --- Pass 1: Keyword Search (fast) ---
-    yield f"data: {json.dumps({'type': 'status', 'message': 'Running keyword search...'})}\n\n"
-    keyword_matches = keyword_search(sources, keywords)
-    
-    # Update progress for keyword search completion (takes 10% of this phase)
-    keyword_progress = phase_start + (phase_weight * 0.1)
-    progress_percent = int((keyword_progress / total_weight) * 100)
-    yield f"data: {json.dumps({'type': 'progress', 'message': f'Found {len(keyword_matches)} sources via keyword search', 'processed': progress_percent, 'total': 100})}\n\n"
-
-    matched_links = {source.link for source in keyword_matches}
-
-    # --- Pass 2: Semantic Search (slow, embedding generation) ---
-    semantic_candidates = [
-        source for source in sources
-        if source.link not in matched_links
-        and source.summary  # Ensure there is a summary to search on
-    ]
-    
-    if semantic_candidates:
-        yield f"data: {json.dumps({'type': 'status', 'message': f'Running semantic search on {len(semantic_candidates)} sources with summaries...'})}\n\n"
+    if use_advanced:
+        # Use advanced filtering with progress tracking
+        yield f"data: {json.dumps({'type': 'status', 'message': 'Applying smart balanced filtering...'})}\n\n"
         
-        # Semantic search takes 90% of this phase
-        semantic_start = phase_start + (phase_weight * 0.1)
-        semantic_weight = phase_weight * 0.9
+        # Show progress during advanced filtering
+        progress_25 = phase_start + (phase_weight * 0.25)
+        progress_percent = int((progress_25 / total_weight) * 100)
+        yield f"data: {json.dumps({'type': 'progress', 'message': 'Running keyword search and categorizing sources...', 'processed': progress_percent, 'total': 100})}\n\n"
         
-        # Start semantic search
-        semantic_progress = semantic_start
-        progress_percent = int((semantic_progress / total_weight) * 100)
-        yield f"data: {json.dumps({'type': 'progress', 'message': 'Generating embeddings for semantic search...', 'processed': progress_percent, 'total': 100})}\n\n"
+        progress_50 = phase_start + (phase_weight * 0.5)
+        progress_percent = int((progress_50 / total_weight) * 100)
+        yield f"data: {json.dumps({'type': 'progress', 'message': 'Applying semantic search with different thresholds...', 'processed': progress_percent, 'total': 100})}\n\n"
         
-        # Process semantic search
-        semantic_matches = semantic_search(semantic_candidates, keywords, threshold=SEMANTIC_SIMILARITY_THRESHOLD)
+        progress_75 = phase_start + (phase_weight * 0.75)
+        progress_percent = int((progress_75 / total_weight) * 100)
+        yield f"data: {json.dumps({'type': 'progress', 'message': 'Balancing research and industry results...', 'processed': progress_percent, 'total': 100})}\n\n"
         
-        # Complete semantic search
-        semantic_complete = phase_start + phase_weight
-        progress_percent = int((semantic_complete / total_weight) * 100)
-        yield f"data: {json.dumps({'type': 'progress', 'message': f'Semantic search complete! Found {len(semantic_matches)} additional matches.', 'processed': progress_percent, 'total': 100})}\n\n"
-    else:
-        semantic_matches = []
-        # Still advance progress if no semantic search needed
+        filtered_sources = filter_sources_advanced(sources, keywords, max_results, research_ratio)
+        
         complete_progress = phase_start + phase_weight
         progress_percent = int((complete_progress / total_weight) * 100)
-        yield f"data: {json.dumps({'type': 'progress', 'message': 'No sources available for semantic search (no summaries)', 'processed': progress_percent, 'total': 100})}\n\n"
-    
-    # Combine results
-    filtered_sources = keyword_matches + semantic_matches
-    yield f"data: {json.dumps({'type': 'status', 'message': f'Total filtered results: {len(filtered_sources)} sources'})}\n\n"
+        yield f"data: {json.dumps({'type': 'progress', 'message': f'Smart filtering complete! Found {len(filtered_sources)} balanced results.', 'processed': progress_percent, 'total': 100})}\n\n"
+        
+    else:
+        # Use traditional filtering
+        from .merger import SEMANTIC_SIMILARITY_THRESHOLD
+        
+        # --- Pass 1: Keyword Search (fast) ---
+        yield f"data: {json.dumps({'type': 'status', 'message': 'Running keyword search...'})}\n\n"
+        keyword_matches = keyword_search(sources, keywords)
+        
+        # Update progress for keyword search completion (takes 10% of this phase)
+        keyword_progress = phase_start + (phase_weight * 0.1)
+        progress_percent = int((keyword_progress / total_weight) * 100)
+        yield f"data: {json.dumps({'type': 'progress', 'message': f'Found {len(keyword_matches)} sources via keyword search', 'processed': progress_percent, 'total': 100})}\n\n"
+
+        matched_links = {source.link for source in keyword_matches}
+
+        # --- Pass 2: Semantic Search (slow, embedding generation) ---
+        semantic_candidates = [
+            source for source in sources
+            if source.link not in matched_links
+            and source.summary  # Ensure there is a summary to search on
+        ]
+        
+        if semantic_candidates:
+            yield f"data: {json.dumps({'type': 'status', 'message': f'Running semantic search on {len(semantic_candidates)} sources with summaries...'})}\n\n"
+            
+            # Semantic search takes 90% of this phase
+            semantic_start = phase_start + (phase_weight * 0.1)
+            semantic_weight = phase_weight * 0.9
+            
+            # Start semantic search
+            semantic_progress = semantic_start
+            progress_percent = int((semantic_progress / total_weight) * 100)
+            yield f"data: {json.dumps({'type': 'progress', 'message': 'Generating embeddings for semantic search...', 'processed': progress_percent, 'total': 100})}\n\n"
+            
+            # Process semantic search
+            semantic_matches = semantic_search(semantic_candidates, keywords, threshold=SEMANTIC_SIMILARITY_THRESHOLD)
+            
+            # Complete semantic search
+            semantic_complete = phase_start + phase_weight
+            progress_percent = int((semantic_complete / total_weight) * 100)
+            yield f"data: {json.dumps({'type': 'progress', 'message': f'Semantic search complete! Found {len(semantic_matches)} additional matches.', 'processed': progress_percent, 'total': 100})}\n\n"
+        else:
+            semantic_matches = []
+            # Still advance progress if no semantic search needed
+            complete_progress = phase_start + phase_weight
+            progress_percent = int((complete_progress / total_weight) * 100)
+            yield f"data: {json.dumps({'type': 'progress', 'message': 'No sources available for semantic search (no summaries)', 'processed': progress_percent, 'total': 100})}\n\n"
+        
+        filtered_sources = keyword_matches + semantic_matches
+        yield f"data: {json.dumps({'type': 'status', 'message': f'Total filtered results: {len(filtered_sources)} sources'})}\n\n"
 
 class FetchRequest(BaseModel):
     """Request model for fetching top items"""
     selectedDays: int
     topics: List[str]
+    maxResults: int = 10  # Default to 10 results
+    researchRatio: float = 0.5  # Default to 50/50 research/industry balance
+    useAdvancedFiltering: bool = False  # Option to use new advanced filtering
 
 class TopicResponse(BaseModel):
     """Response model for default topics"""
@@ -237,17 +263,25 @@ async def fetch_top_items(request: FetchRequest):
             logger.info(f"Enriching {len(all_sources)} sources with summaries...")
             all_sources = enrich_sources_with_summaries(all_sources)
         
-        # Filter sources based on topics using the existing merger logic
+        # Filter sources based on topics using the filtering logic
         if all_topics and all_sources:
             logger.info(f"Filtering {len(all_sources)} items with topics: {all_topics}")
-            filtered_sources = filter_sources(all_sources, all_topics)
-            logger.info(f"Filtered down to {len(filtered_sources)} relevant items")
+            if request.useAdvancedFiltering:
+                filtered_sources = filter_sources_advanced(
+                    all_sources, all_topics, 
+                    max_results=request.maxResults,
+                    research_ratio=request.researchRatio
+                )
+                logger.info(f"Advanced filtered down to {len(filtered_sources)} relevant items")
+            else:
+                filtered_sources = filter_sources(all_sources, all_topics)
+                logger.info(f"Filtered down to {len(filtered_sources)} relevant items")
         else:
-            filtered_sources = all_sources[:20]  # Limit to 20 items if no filtering
+            filtered_sources = all_sources[:request.maxResults]  # Limit to requested items if no filtering
         
         # Convert to response format
         items = []
-        for source in filtered_sources[:20]:  # Limit to top 20
+        for source in filtered_sources[:request.maxResults]:  # Limit to requested max results
             # Use tags instead of source, with fallback
             source_tag = "General"
             if hasattr(source, 'tags') and source.tags:
@@ -342,20 +376,35 @@ async def fetch_top_items_stream(request: FetchRequest):
                 yield f"data: {json.dumps({'type': 'status', 'message': f'Starting topic filtering for {len(all_sources)} items...'})}\n\n"
                 
                 # Phase 3: Filtering (20% of total progress)
-                for progress_update in filter_sources_with_progress(all_sources, all_topics, current_progress, filtering_weight, total_weight):
+                # The filtering is now done inside filter_sources_with_progress
+                # We need to get the results from it
+                filtered_sources = None
+                for progress_update in filter_sources_with_progress(
+                    all_sources, all_topics, current_progress, filtering_weight, total_weight, 
+                    use_advanced=request.useAdvancedFiltering, 
+                    max_results=request.maxResults, 
+                    research_ratio=request.researchRatio
+                ):
                     yield progress_update
                 
-                # Get the actual filtered sources using the original function
-                filtered_sources = filter_sources(all_sources, all_topics)
+                # Get the filtered sources using the appropriate function (since progress function doesn't return them)
+                if request.useAdvancedFiltering:
+                    filtered_sources = filter_sources_advanced(
+                        all_sources, all_topics, 
+                        max_results=request.maxResults,
+                        research_ratio=request.researchRatio
+                    )
+                else:
+                    filtered_sources = filter_sources(all_sources, all_topics)
                 current_progress = total_weight  # Now at 100%
             else:
-                filtered_sources = all_sources[:20]  # Limit to 20 items if no filtering
+                filtered_sources = all_sources[:request.maxResults]  # Limit to requested items if no filtering
                 # Still advance to 100% even if no filtering
-                yield f"data: {json.dumps({'type': 'progress', 'message': 'No topic filtering requested - using first 20 items', 'processed': 100, 'total': 100})}\n\n"
+                yield f"data: {json.dumps({'type': 'progress', 'message': f'No topic filtering requested - using first {request.maxResults} items', 'processed': 100, 'total': 100})}\n\n"
             
             # Convert to response format
             items = []
-            for source in filtered_sources[:20]:  # Limit to top 20
+            for source in filtered_sources:
                 # Use tags instead of source, with fallback
                 source_tag = "General"
                 if hasattr(source, 'tags') and source.tags:

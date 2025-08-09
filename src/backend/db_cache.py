@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Dict, Optional, List
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, and_
+from sqlalchemy import desc
 
 from .database import db_manager, SummaryCache
 from .logger import logger

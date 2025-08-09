@@ -1,5 +1,4 @@
 import re
-import os
 import hashlib
 import numpy as np
 from typing import List
@@ -127,6 +126,68 @@ def keyword_search(sources: List[SourceSchema], keywords: List[str]) -> List[Sou
         if any(keyword in searchable_text for keyword in normalized_keywords):
             matches.append(source)
 
+    return matches
+
+
+def semantic_search_with_scores(
+    sources: List[SourceSchema], keywords: List[str], threshold: float = None
+) -> List[tuple[SourceSchema, float]]:
+    """
+    Performs a semantic search on sources with summaries using Google Gemini embeddings.
+    Returns sources with their similarity scores.
+
+    Args:
+        sources: A list of SourceSchema objects to search through.
+        keywords: A list of keywords to find semantically similar content for.
+        threshold: The minimum similarity score (0.0 to 1.0) to consider a match. If None, returns all with scores.
+
+    Returns:
+        A list of tuples (source, similarity_score) sorted by descending similarity.
+    """
+    if not SEMANTIC_SEARCH_ENABLED or not sources or not genai_client:
+        logger.warning("Semantic search is disabled or no sources provided")
+        return []
+
+    matches = []
+    
+    try:
+        # Combine keywords into a single query
+        query_text = " ".join(keywords)
+        query_embedding = _get_embedding(query_text)
+        
+        if len(query_embedding) == 0:
+            logger.warning("Failed to get query embedding, skipping semantic search")
+            return []
+
+        logger.info(f"Running Gemini semantic search on {len(sources)} sources with query: '{query_text}'")
+        
+        for source in sources:
+            if not source.summary or source.summary.strip() == "":
+                continue
+                
+            # Get embedding for the source summary
+            source_embedding = _get_embedding(source.summary)
+            
+            if len(source_embedding) == 0:
+                continue
+                
+            # Calculate similarity
+            similarity = _cosine_similarity(query_embedding, source_embedding)
+            
+            # Add to matches if no threshold or meets threshold
+            if threshold is None or similarity > threshold:
+                matches.append((source, similarity))
+                if threshold is not None and similarity > threshold:
+                    logger.info(f"Gemini semantic match found for: '{source.title}' (Score: {similarity:.3f})")
+                
+    except Exception as e:
+        logger.error(f"Error in Gemini semantic search: {e}")
+        return []
+
+    # Sort by similarity score in descending order
+    matches.sort(key=lambda x: x[1], reverse=True)
+    
+    logger.info(f"Gemini semantic search completed: {len(matches)} matches found")
     return matches
 
 

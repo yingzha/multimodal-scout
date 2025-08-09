@@ -2,7 +2,7 @@ import os
 from datetime import datetime
 from typing import Optional, List
 
-from sqlalchemy import create_engine, Column, String, DateTime, Text, Integer, JSON, Boolean, Float
+from sqlalchemy import create_engine, Column, String, DateTime, Text, JSON, Float
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session

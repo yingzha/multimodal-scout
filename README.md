@@ -8,7 +8,7 @@ Multimodal Scout scrapes content from Hugging Face trending papers and Hacker Ne
 
 - 🔍 **Discover** relevant multimodal AI content automatically
 - 🧠 **AI-Powered Summaries** for Hacker News articles using Google Gemini
-- 🎯 **Smart Filtering** with both keyword and semantic search capabilities
+- 🎯 **Smart Balanced Search** with advanced filtering, content balancing, and configurable result limits
 - 📚 **Bookmark** articles you want to read later with persistent storage
 - ⏰ **Stay updated** with configurable time ranges (1-7 days)
 - 📊 **Real-time Progress** tracking during content processing
@@ -41,20 +41,25 @@ That's it! The system will automatically start scraping and processing content.
 
 ## How to Use
 
-1. **Set your interests**: Add custom keywords to the default multimodal AI topics
+1. **Configure search settings**: Customize your content discovery experience
+   - **Smart Balanced Search**: Toggle advanced filtering with separate thresholds for research vs industry content
+   - **Result count**: Choose 5-50 results (default: 10)
+   - **Content balance**: Adjust research/industry ratio from 0-100% (default: 50/50)
+2. **Set your interests**: Add custom keywords to the default multimodal AI topics
    - Default topics are locked (🔒) but you can add your own
    - Get real-time feedback when adding keywords (duplicate detection, validation)
-2. **Choose time range**: Select 1, 3, or 7 days of content
-3. **Fetch content**: Click "🔍 Fetch Top Items" to discover relevant articles
+3. **Choose time range**: Select 1, 3, or 7 days of content
+4. **Fetch content**: Click "🔍 Fetch Top Items" to discover relevant articles
    - Watch real-time progress with detailed status updates
-   - See AI summary generation progress for Hacker News articles
+   - See AI summary generation and smart filtering progress
    - Progress bar shows completion percentage during processing
-4. **Review results**: Browse AI-filtered content with intelligent summaries
-   - Click article tags to filter by category (Research, General, etc.)
-   - Expand/collapse summaries with "Read more" functionality
+5. **Review results**: Browse intelligently filtered and balanced content
+   - Results prioritize keyword matches first, then semantic matches by relevance
+   - Click article tags to filter by category (Research, Industry, etc.)
+   - Expand/collapse summaries with improved "Read more" functionality (only for long text)
    - See filtered result counts and clear filters easily
-5. **Bookmark articles**: Click ☆ to save articles for later review
-6. **Manage bookmarks**: Use "📚 View My Bookmarks" to see and organize saved articles
+6. **Bookmark articles**: Click ☆ to save articles for later review
+7. **Manage bookmarks**: Use "📚 View My Bookmarks" to see and organize saved articles
    - Tag filtering also works in bookmarks view
    - Remove bookmarks with ★ and × buttons
 
@@ -62,8 +67,9 @@ That's it! The system will automatically start scraping and processing content.
 
 ### 🤖 **AI-Powered Content Processing**
 - **Intelligent Summaries**: Automatically generates summaries for Hacker News articles using Google Gemini AI
-- **Semantic Search**: Uses Google Gemini embeddings for finding semantically similar content
-- **Smart Caching**: Stores generated summaries to avoid reprocessing
+- **Advanced Semantic Search**: Uses Google Gemini embeddings with separate thresholds for research (0.65) vs industry (0.55) content
+- **Smart Balanced Filtering**: Prioritizes keyword matches, then adds semantic matches by relevance score with configurable research/industry balance
+- **Comprehensive Caching**: Stores generated summaries and embeddings to avoid reprocessing
 
 ### 📡 **Real-Time User Experience**
 - **Streaming Progress Updates**: Server-Sent Events (SSE) provide live feedback during processing

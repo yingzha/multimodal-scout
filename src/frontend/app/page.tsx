@@ -23,6 +23,12 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1)
   const [bookmarksPage, setBookmarksPage] = useState(1)
   const itemsPerPage = 10
+  const [paginatedItems, setPaginatedItems] = useState<any[]>([])
+  const [paginatedBookmarks, setPaginatedBookmarks] = useState<any[]>([])
+  const [showReadMore, setShowReadMore] = useState<Set<string>>(new Set())
+  const [maxResults, setMaxResults] = useState(10)
+  const [researchRatio, setResearchRatio] = useState(0.5)
+  const [useAdvancedFiltering, setUseAdvancedFiltering] = useState(true)
 
   // Fetch default topics from backend
   const fetchDefaultTopics = async () => {
@@ -126,31 +132,56 @@ export default function Home() {
 
   // Check bookmark status when results are loaded
   useEffect(() => {
-    const checkBookmarks = async () => {
-      if (fetchedItems.length === 0) return
-      
-      try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-        const bookmarkChecks = await Promise.all(
-          fetchedItems.map(async (item) => {
-            const response = await fetch(`${apiUrl}/api/bookmarks/check?link=${encodeURIComponent(item.link)}`)
-            const data = await response.json()
-            return { link: item.link, isBookmarked: data.is_bookmarked }
-          })
-        )
+    const filtered = fetchedItems
+      .filter(item => selectedTag ? item.source === selectedTag : true)
+      .sort((a, b) => {
+        const aBookmarked = bookmarkedItems.has(a.link)
+        const bBookmarked = bookmarkedItems.has(b.link)
+        if (aBookmarked && !bBookmarked) return 1
+        if (!aBookmarked && bBookmarked) return -1
+        return 0
+      })
+
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    setPaginatedItems(filtered.slice(startIndex, endIndex))
+  }, [fetchedItems, selectedTag, currentPage, itemsPerPage, bookmarkedItems])
+
+  useEffect(() => {
+    const filtered = bookmarkedCards.filter(item => selectedTag ? item.source === selectedTag : true)
+    const startIndex = (bookmarksPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    setPaginatedBookmarks(filtered.slice(startIndex, endIndex))
+  }, [bookmarkedCards, selectedTag, bookmarksPage, itemsPerPage])
+
+  useEffect(() => {
+    const newShowReadMore = new Set<string>()
+    const checkSummaries = () => {
+      document.querySelectorAll('[data-summary-text]').forEach(p => {
+        const element = p as HTMLElement
+        // Check if text is actually being truncated by a meaningful amount
+        // We need at least 20px difference to consider showing "Read More"
+        const isOverflowing = element.scrollHeight > element.clientHeight + 20
         
-        const bookmarkedLinks = bookmarkChecks
-          .filter(check => check.isBookmarked)
-          .map(check => check.link)
+        // Also check if the text content is long enough to warrant truncation
+        const textContent = element.textContent || ''
+        const isLongEnoughText = textContent.length > 150 // More than ~2 lines worth of text
         
-        setBookmarkedItems(new Set(bookmarkedLinks))
-      } catch (error) {
-        console.error('Failed to check bookmarks:', error)
-      }
+        if (isOverflowing && isLongEnoughText) {
+          const link = element.dataset.summaryText
+          if (link) {
+            newShowReadMore.add(link)
+          }
+        }
+      })
+      setShowReadMore(newShowReadMore)
     }
-    
-    checkBookmarks()
-  }, [fetchedItems])
+
+    // We need to check the summaries after the DOM has been updated
+    const timeoutId = setTimeout(checkSummaries, 100) // Slightly longer delay for better detection
+
+    return () => clearTimeout(timeoutId)
+  }, [paginatedItems, paginatedBookmarks, expandedSummaries])
 
   const handleViewBookmarks = async () => {
     try {
@@ -206,14 +237,9 @@ export default function Home() {
   }) => {
     const totalPages = Math.ceil(totalItems / itemsPerPage)
     
-console.log('Pagination:', { currentPage, totalItems, itemsPerPage, totalPages })
-    
     if (totalPages <= 1) {
-      console.log('Pagination hidden: totalPages =', totalPages)
       return null
     }
-    
-    console.log('Pagination component rendering with', totalPages, 'pages')
     
     
     return (
@@ -233,10 +259,7 @@ console.log('Pagination:', { currentPage, totalItems, itemsPerPage, totalPages }
         {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
           <button
             key={page}
-            onClick={() => {
-              console.log('Setting page to:', page)
-              setCurrentPage(page)
-            }}
+            onClick={() => setCurrentPage(page)}
             className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
               currentPage === page
                 ? 'bg-blue-600 text-white border-blue-600'
@@ -275,7 +298,10 @@ console.log('Pagination:', { currentPage, totalItems, itemsPerPage, totalPages }
         },
         body: JSON.stringify({
           selectedDays,
-          topics: allTopics
+          topics: allTopics,
+          maxResults,
+          researchRatio,
+          useAdvancedFiltering
         })
       })
       
@@ -411,6 +437,73 @@ console.log('Pagination:', { currentPage, totalItems, itemsPerPage, totalPages }
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Advanced Search Controls */}
+        <div className="bg-blue-50 rounded-lg p-6 mb-8">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-bold text-gray-800">Search Settings</h2>
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={useAdvancedFiltering}
+                onChange={(e) => setUseAdvancedFiltering(e.target.checked)}
+                className="mr-2 rounded focus:ring-2 focus:ring-blue-500"
+              />
+              <span className="text-sm font-medium text-gray-700">Use Smart Balanced Search</span>
+            </label>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Max Results Control */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Number of Results: {maxResults}
+              </label>
+              <input
+                type="range"
+                min="5"
+                max="50"
+                step="5"
+                value={maxResults}
+                onChange={(e) => setMaxResults(Number(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>5</span>
+                <span>25</span>
+                <span>50</span>
+              </div>
+            </div>
+            
+            {/* Research/Industry Balance Control */}
+            <div className={useAdvancedFiltering ? '' : 'opacity-50'}>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Content Balance: {Math.round(researchRatio * 100)}% Research / {Math.round((1 - researchRatio) * 100)}% Industry
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={researchRatio}
+                onChange={(e) => setResearchRatio(Number(e.target.value))}
+                disabled={!useAdvancedFiltering}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>All Industry</span>
+                <span>Balanced</span>
+                <span>All Research</span>
+              </div>
+            </div>
+          </div>
+          
+          {useAdvancedFiltering && (
+            <div className="mt-4 text-xs text-blue-700 bg-blue-100 p-3 rounded">
+              🎯 <strong>Smart Balanced Search:</strong> Prioritizes keyword matches first, then adds semantic matches by relevance score. Research papers use a higher similarity threshold to ensure quality, while industry content uses a lower threshold for variety.
+            </div>
+          )}
         </div>
 
         {/* Interest Topics Section */}
@@ -579,38 +672,9 @@ console.log('Pagination:', { currentPage, totalItems, itemsPerPage, totalPages }
             </div>
             
             <div className="space-y-4">
-              {(() => {
-                const filteredItems = fetchedItems
-                  .filter(item => selectedTag ? item.source === selectedTag : true)
-                  .sort((a, b) => {
-                    const aBookmarked = bookmarkedItems.has(a.link)
-                    const bBookmarked = bookmarkedItems.has(b.link)
-                    // Show non-bookmarked items first, bookmarked items last
-                    if (aBookmarked && !bBookmarked) return 1
-                    if (!aBookmarked && bBookmarked) return -1
-                    return 0
-                  })
-                
-                console.log('Results pagination:', { 
-                  totalItems: filteredItems.length, 
-                  currentPage, 
-                  itemsPerPage,
-                  showingAll: filteredItems.length <= itemsPerPage
-                })
-                
+              {paginatedItems.map((item, index) => {
                 const startIndex = (currentPage - 1) * itemsPerPage
-                const endIndex = startIndex + itemsPerPage
-                const paginatedItems = filteredItems.slice(startIndex, endIndex)
-                
-                console.log('Pagination slice:', { 
-                  startIndex, 
-                  endIndex, 
-                  originalCount: filteredItems.length,
-                  paginatedCount: paginatedItems.length,
-                  shouldPaginate: filteredItems.length > itemsPerPage
-                })
-                
-                return paginatedItems.map((item, index) => (
+                return (
                 <div
                   key={`${item.link}-${startIndex + index}`}
                   className="bg-white rounded-lg p-6 border border-gray-200 hover:shadow-lg transition-all duration-300"
@@ -662,13 +726,20 @@ console.log('Pagination:', { currentPage, totalItems, itemsPerPage, totalPages }
                         ) : (
                           // Truncated summary
                           <div>
-                            <p>
-                              {item.summary.length > 200 
-                                ? `${item.summary.substring(0, 200)}...` 
-                                : item.summary
-                              }
+                            <p 
+                              className="line-clamp-2 overflow-hidden text-ellipsis"
+                              style={{
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                lineHeight: '1.5em',
+                                maxHeight: '3em' // 2 lines * 1.5em line height
+                              }}
+                              data-summary-text={item.link}
+                            >
+                              {item.summary}
                             </p>
-                            {item.summary.length > 200 && (
+                            {showReadMore.has(item.link) && (
                               <button
                                 onClick={() => toggleSummaryExpansion(item.link)}
                                 className="mt-2 text-blue-600 hover:text-blue-800 text-xs font-medium focus:outline-none"
@@ -698,23 +769,17 @@ console.log('Pagination:', { currentPage, totalItems, itemsPerPage, totalPages }
                     </a>
                   </div>
                 </div>
-                ))
-              })()}
+                )
+              })}
             </div>
             
             {/* Pagination for Results */}
-            {(() => {
-              const filteredCount = fetchedItems.filter(item => selectedTag ? item.source === selectedTag : true).length
-              console.log('Pagination component call:', { filteredCount, itemsPerPage, shouldShow: filteredCount > itemsPerPage })
-              return (
-                <PaginationControls
-                  currentPage={currentPage}
-                  setCurrentPage={setCurrentPage}
-                  totalItems={filteredCount}
-                  itemsPerPage={itemsPerPage}
-                />
-              )
-            })()}
+            <PaginationControls
+              currentPage={currentPage}
+              setCurrentPage={setCurrentPage}
+              totalItems={fetchedItems.filter(item => selectedTag ? item.source === selectedTag : true).length}
+              itemsPerPage={itemsPerPage}
+            />
           </div>
         )}
 
@@ -762,15 +827,7 @@ console.log('Pagination:', { currentPage, totalItems, itemsPerPage, totalPages }
             ) : (
               <>
                 <div className="space-y-4">
-                  {(() => {
-                    const filteredBookmarks = bookmarkedCards
-                      .filter(item => selectedTag ? item.source === selectedTag : true)
-                    
-                    const startIndex = (bookmarksPage - 1) * itemsPerPage
-                    const endIndex = startIndex + itemsPerPage
-                    const paginatedBookmarks = filteredBookmarks.slice(startIndex, endIndex)
-                    
-                    return paginatedBookmarks.map((item, index) => {
+                  {paginatedBookmarks.map((item, index) => {
                       const bookmarkStartIndex = (bookmarksPage - 1) * itemsPerPage
                       return (
                   <div
@@ -823,13 +880,20 @@ console.log('Pagination:', { currentPage, totalItems, itemsPerPage, totalPages }
                           ) : (
                             // Truncated summary
                             <div>
-                              <p>
-                                {item.summary.length > 200 
-                                  ? `${item.summary.substring(0, 200)}...` 
-                                  : item.summary
-                                }
+                              <p 
+                                className="line-clamp-2 overflow-hidden text-ellipsis"
+                                style={{
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: 'vertical',
+                                  lineHeight: '1.5em',
+                                  maxHeight: '3em' // 2 lines * 1.5em line height
+                                }}
+                                data-summary-text={item.link}
+                              >
+                                {item.summary}
                               </p>
-                              {item.summary.length > 200 && (
+                              {showReadMore.has(item.link) && (
                                 <button
                                   onClick={() => toggleSummaryExpansion(item.link)}
                                   className="mt-2 text-blue-600 hover:text-blue-800 text-xs font-medium focus:outline-none"
@@ -858,8 +922,7 @@ console.log('Pagination:', { currentPage, totalItems, itemsPerPage, totalPages }
                     </div>
                   </div>
                       )
-                    })
-                  })()}
+                    })}
                 </div>
                 
                 {/* Pagination for Bookmarks */}

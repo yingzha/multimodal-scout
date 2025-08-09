@@ -90,17 +90,6 @@ def cleanup_cache(days: int = 30):
         print(f"Error cleaning up cache: {e}")
 
 
-def cleanup_non_english_summaries():
-    """Clean up non-English summaries and their embeddings."""
-    try:
-        removed_count = db_manager.invalidate_non_english_summaries()
-        print(f"Removed {removed_count} non-English summaries and their embeddings")
-        print("These summaries will be regenerated in English on next fetch.")
-        
-    except Exception as e:
-        print(f"Error cleaning up non-English summaries: {e}")
-
-
 def main():
     parser = argparse.ArgumentParser(description="Cache Management Utility")
     parser.add_argument('command', choices=[

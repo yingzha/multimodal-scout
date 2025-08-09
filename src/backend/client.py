@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Centralized AI client initialization for Google Gemini.
+Centralized LLM client initialization for Google Gemini.
 """
 
 import os

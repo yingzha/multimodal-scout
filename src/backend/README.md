@@ -5,11 +5,13 @@ A Python-based content scouting system that scrapes, summarizes, and filters sou
 ## Features
 
 - **Multi-source scraping**: Hacker News stories and Hugging Face trending papers
-- **AI-powered summarization**: Generates summaries using Google's API
-- **Intelligent filtering**: Keyword and semantic search capabilities
-- **Scalable caching**: PostgreSQL database with fallback to JSON
-- **Date-based queries**: Search and manage summaries by creation date
-- **Cache management**: Built-in tools for cleanup and analytics
+- **AI-powered summarization**: Generates summaries using Google Gemini API
+- **Smart Balanced Filtering**: Advanced filtering with separate semantic thresholds for research (0.65) vs industry (0.55) content
+- **Configurable results**: User-adjustable result limits (5-50) and research/industry balance ratios
+- **Intelligent search**: Keyword search prioritized first, then semantic search by relevance score
+- **Comprehensive caching**: PostgreSQL database for summaries and embeddings with persistent storage
+- **Real-time progress**: Server-Sent Events (SSE) for streaming progress updates
+- **Cache management**: Built-in CLI tools for cleanup, search, and analytics
 
 ## Quick Start with Docker
 
@@ -163,20 +165,26 @@ INTERESTED_KEYWORDS = [
 
 ### Core Components
 
-- **`merger.py`**: Main pipeline orchestration
-- **`scraper.py`**: Web scraping for sources
-- **`search.py`**: Keyword and semantic search
-- **`cache.py`**: Caching interface with database/JSON fallback
-- **`db_cache.py`**: PostgreSQL database operations
-- **`cache_manager.py`**: CLI cache management tool
+- **`merger.py`**: Main pipeline orchestration with advanced filtering logic
+- **`scraper.py`**: Web scraping for sources (Hugging Face, Hacker News)
+- **`search.py`**: Keyword and semantic search with embedding generation and caching
+- **`app.py`**: FastAPI server with streaming endpoints and Smart Balanced Search
+- **`database.py`**: SQLAlchemy models for PostgreSQL (summaries, embeddings, bookmarks)
+- **`db_cache.py`**: Database operations for summary and embedding caching
+- **`cache_manager.py`**: CLI cache management tool with statistics and cleanup
+- **`constants.py`**: Configuration including semantic search thresholds
 
 ### Data Flow
 
-1. **Scraping**: Collect sources from multiple platforms
-2. **Enrichment**: Generate AI summaries (cached in PostgreSQL)
-3. **Filtering**: Apply keyword and semantic search
-4. **Storage**: Persist results with date indexing
-5. **Management**: Cleanup and analytics via CLI tools
+1. **Scraping**: Collect sources from Hugging Face and Hacker News
+2. **Enrichment**: Generate AI summaries using Google Gemini (cached in PostgreSQL)
+3. **Advanced Filtering**: 
+   - Priority 1: Keyword search results (research first, then industry)
+   - Priority 2: Semantic search with separate thresholds (research: 0.65, industry: 0.55)
+   - Smart balancing: Configurable research/industry ratios with overflow handling
+4. **Embedding Caching**: Store Google Gemini embeddings to optimize future searches
+5. **Result Delivery**: Return balanced, ordered results with real-time progress updates
+6. **Management**: CLI tools for cache cleanup, statistics, and content search
 
 ## Example Workflows
 

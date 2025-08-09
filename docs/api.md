@@ -42,14 +42,23 @@ Currently, no authentication is required for API access.
 ### Content Fetching
 
 **POST /api/fetch**
-- **Description**: Fetch and filter articles based on topics and time range
+- **Description**: Fetch and filter articles based on topics and time range with optional Smart Balanced Search
 - **Request Body**:
   ```json
   {
     "selectedDays": 7,
-    "topics": ["multimodal agents", "computer vision", "custom topic"]
+    "topics": ["multimodal agents", "computer vision", "custom topic"],
+    "maxResults": 10,
+    "researchRatio": 0.5,
+    "useAdvancedFiltering": true
   }
   ```
+- **Parameters**:
+  - `selectedDays` (required): Number of days to look back (1-7)
+  - `topics` (required): Array of keywords to search for
+  - `maxResults` (optional): Maximum results to return (5-50, default: 10)
+  - `researchRatio` (optional): Ratio of research vs industry content (0.0-1.0, default: 0.5)
+  - `useAdvancedFiltering` (optional): Enable Smart Balanced Search (default: false)
 - **Response**:
   ```json
   {
@@ -65,6 +74,24 @@ Currently, no authentication is required for API access.
     "total_count": 15,
     "sources": ["Hugging Face", "Hacker News"]
   }
+  ```
+
+**POST /api/fetch-stream**
+- **Description**: Streaming version of `/api/fetch` with real-time progress updates via Server-Sent Events (SSE)
+- **Request Body**: Same as `/api/fetch`
+- **Response**: Server-Sent Events stream with progress updates and final result
+- **Content-Type**: `text/event-stream`
+- **Event Types**:
+  - `status`: General status messages
+  - `progress`: Progress updates with percentage (0-100)
+  - `complete`: Processing complete
+  - `error`: Error occurred
+  - `result`: Final filtered results
+- **Example Events**:
+  ```
+  data: {"type": "status", "message": "Starting fetch..."}
+  data: {"type": "progress", "message": "Generating summaries...", "processed": 50, "total": 100}
+  data: {"type": "result", "data": {"items": [...], "total_count": 10}}
   ```
 
 ### Bookmark Management

@@ -206,5 +206,11 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# Caches
-summary_cache.json
+# CLAUDE.md
+CLAUDE.local.md
+
+# Next.js build artifacts
+src/frontend/.next/
+src/frontend/out/
+src/frontend/.next/
+.next/
