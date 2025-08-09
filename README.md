@@ -42,20 +42,27 @@ That's it! The system will automatically start scraping and processing content.
 ## How to Use
 
 1. **Set your interests**: Add custom keywords to the default multimodal AI topics
+   - Default topics are locked (🔒) but you can add your own
+   - Get real-time feedback when adding keywords (duplicate detection, validation)
 2. **Choose time range**: Select 1, 3, or 7 days of content
-3. **Fetch content**: Click "Fetch Top Items" to discover relevant articles
-   - Watch real-time progress as the system scrapes sources
+3. **Fetch content**: Click "🔍 Fetch Top Items" to discover relevant articles
+   - Watch real-time progress with detailed status updates
    - See AI summary generation progress for Hacker News articles
-   - Get notified when processing is complete
+   - Progress bar shows completion percentage during processing
 4. **Review results**: Browse AI-filtered content with intelligent summaries
+   - Click article tags to filter by category (Research, General, etc.)
+   - Expand/collapse summaries with "Read more" functionality
+   - See filtered result counts and clear filters easily
 5. **Bookmark articles**: Click ☆ to save articles for later review
-6. **Manage bookmarks**: Use "View My Bookmarks" to see and organize saved articles
+6. **Manage bookmarks**: Use "📚 View My Bookmarks" to see and organize saved articles
+   - Tag filtering also works in bookmarks view
+   - Remove bookmarks with ★ and × buttons
 
 ## Key Features
 
 ### 🤖 **AI-Powered Content Processing**
 - **Intelligent Summaries**: Automatically generates summaries for Hacker News articles using Google Gemini AI
-- **Semantic Search**: Uses sentence-transformers for finding semantically similar content
+- **Semantic Search**: Uses Google Gemini embeddings for finding semantically similar content
 - **Smart Caching**: Stores generated summaries to avoid reprocessing
 
 ### 📡 **Real-Time User Experience**
@@ -113,8 +120,6 @@ Frontend (Next.js)          Backend (FastAPI)           External Services
 
 - 📖 [API Documentation](docs/api.md)
 - 🛠 [Development Setup](docs/development.md)
-- 🚀 [Deployment Guide](docs/deployment.md)
-- 🎨 [Frontend Architecture](docs/frontend.md)
 
 ## Contributing
 
@@ -130,4 +135,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Built with FastAPI, Next.js, PostgreSQL, Google Gemini AI, and sentence-transformers ✨**
+**Built with FastAPI, Next.js, PostgreSQL, and Google Gemini AI ✨**
