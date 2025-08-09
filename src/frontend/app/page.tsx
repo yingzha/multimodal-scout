@@ -20,6 +20,9 @@ export default function Home() {
   const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set())
   const [keywordMessage, setKeywordMessage] = useState('')
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [bookmarksPage, setBookmarksPage] = useState(1)
+  const itemsPerPage = 10
 
   // Fetch default topics from backend
   const fetchDefaultTopics = async () => {
@@ -161,6 +164,7 @@ export default function Home() {
         setShowResults(false) // Hide search results when showing bookmarks
         setExpandedSummaries(new Set()) // Clear expanded state when switching views
         setSelectedTag(null) // Clear tag filter when switching to bookmarks
+        setBookmarksPage(1) // Reset to first page when showing bookmarks
       }
     } catch (error) {
       console.error('Failed to fetch bookmarks:', error)
@@ -172,6 +176,7 @@ export default function Home() {
     setBookmarkedCards([])
     setExpandedSummaries(new Set()) // Clear expanded state when hiding bookmarks
     setSelectedTag(null) // Clear tag filter when hiding bookmarks
+    setBookmarksPage(1) // Reset bookmarks page when hiding
   }
 
   const toggleSummaryExpansion = (itemLink: string) => {
@@ -188,6 +193,64 @@ export default function Home() {
 
   const handleTagFilter = (tag: string) => {
     setSelectedTag(selectedTag === tag ? null : tag) // Toggle tag selection
+    setCurrentPage(1) // Reset to first page when filtering
+    setBookmarksPage(1) // Reset bookmarks page too
+  }
+
+  // Pagination component
+  const PaginationControls = ({ currentPage, setCurrentPage, totalItems, itemsPerPage }: {
+    currentPage: number
+    setCurrentPage: (page: number) => void
+    totalItems: number
+    itemsPerPage: number
+  }) => {
+    const totalPages = Math.ceil(totalItems / itemsPerPage)
+    
+// console.log('Pagination:', { currentPage, totalItems, itemsPerPage, totalPages })
+    
+    if (totalPages <= 1) return null
+    
+    
+    return (
+      <div className="flex justify-center items-center gap-2 mt-6 p-4 bg-gray-100 rounded-lg">
+        <span className="text-sm text-gray-700 mr-4">
+          Page {currentPage} of {totalPages} ({totalItems} items)
+        </span>
+        
+        <button
+          onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+          disabled={currentPage === 1}
+          className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg disabled:bg-gray-400 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
+        >
+          Previous
+        </button>
+        
+        {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+          <button
+            key={page}
+            onClick={() => {
+              // console.log('Setting page to:', page)
+              setCurrentPage(page)
+            }}
+            className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+              currentPage === page
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'border-gray-300 hover:bg-gray-50 bg-white'
+            }`}
+          >
+            {page}
+          </button>
+        ))}
+        
+        <button
+          onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+          disabled={currentPage === totalPages}
+          className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg disabled:bg-gray-400 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
+        >
+          Next
+        </button>
+      </div>
+    )
   }
 
   const handleFetchItems = async () => {
@@ -276,6 +339,7 @@ export default function Home() {
                   setShowBookmarks(false) // Hide bookmarks when showing fresh search results
                   setExpandedSummaries(new Set()) // Clear expanded state for new results
                   setSelectedTag(null) // Clear tag filter for new results
+                  setCurrentPage(1) // Reset to first page for new results
                   setProgress(100)
                   setProgressMessage('Complete!')
                   break
@@ -510,17 +574,31 @@ export default function Home() {
             </div>
             
             <div className="space-y-4">
-              {fetchedItems
-                .filter(item => selectedTag ? item.source === selectedTag : true)
-                .sort((a, b) => {
-                  const aBookmarked = bookmarkedItems.has(a.link)
-                  const bBookmarked = bookmarkedItems.has(b.link)
-                  // Show non-bookmarked items first, bookmarked items last
-                  if (aBookmarked && !bBookmarked) return 1
-                  if (!aBookmarked && bBookmarked) return -1
-                  return 0
-                })
-                .map((item, index) => (
+              {(() => {
+                const filteredItems = fetchedItems
+                  .filter(item => selectedTag ? item.source === selectedTag : true)
+                  .sort((a, b) => {
+                    const aBookmarked = bookmarkedItems.has(a.link)
+                    const bBookmarked = bookmarkedItems.has(b.link)
+                    // Show non-bookmarked items first, bookmarked items last
+                    if (aBookmarked && !bBookmarked) return 1
+                    if (!aBookmarked && bBookmarked) return -1
+                    return 0
+                  })
+                
+                // console.log('Results pagination:', { 
+                //   totalItems: filteredItems.length, 
+                //   currentPage, 
+                //   itemsPerPage 
+                // })
+                
+                const startIndex = (currentPage - 1) * itemsPerPage
+                const endIndex = startIndex + itemsPerPage
+                const paginatedItems = filteredItems.slice(startIndex, endIndex)
+                
+                // console.log('Pagination slice:', { startIndex, endIndex, paginatedCount: paginatedItems.length })
+                
+                return paginatedItems.map((item, index) => (
                 <div
                   key={index}
                   className="bg-white rounded-lg p-6 border border-gray-200 hover:shadow-lg transition-all duration-300"
@@ -608,8 +686,17 @@ export default function Home() {
                     </a>
                   </div>
                 </div>
-              ))}
+                ))
+              })()}
             </div>
+            
+            {/* Pagination for Results */}
+            <PaginationControls
+              currentPage={currentPage}
+              setCurrentPage={setCurrentPage}
+              totalItems={fetchedItems.filter(item => selectedTag ? item.source === selectedTag : true).length}
+              itemsPerPage={itemsPerPage}
+            />
           </div>
         )}
 
@@ -655,10 +742,17 @@ export default function Home() {
                 </div>
               </div>
             ) : (
-              <div className="space-y-4">
-                {bookmarkedCards
-                  .filter(item => selectedTag ? item.source === selectedTag : true)
-                  .map((item, index) => (
+              <>
+                <div className="space-y-4">
+                  {(() => {
+                    const filteredBookmarks = bookmarkedCards
+                      .filter(item => selectedTag ? item.source === selectedTag : true)
+                    
+                    const startIndex = (bookmarksPage - 1) * itemsPerPage
+                    const endIndex = startIndex + itemsPerPage
+                    const paginatedBookmarks = filteredBookmarks.slice(startIndex, endIndex)
+                    
+                    return paginatedBookmarks.map((item, index) => (
                   <div
                     key={index}
                     className="bg-white rounded-lg p-6 border border-gray-200 hover:shadow-lg transition-all duration-300"
@@ -743,8 +837,18 @@ export default function Home() {
                       </span>
                     </div>
                   </div>
-                ))}
-              </div>
+                    ))
+                  })()}
+                </div>
+                
+                {/* Pagination for Bookmarks */}
+                <PaginationControls
+                  currentPage={bookmarksPage}
+                  setCurrentPage={setBookmarksPage}
+                  totalItems={bookmarkedCards.filter(item => selectedTag ? item.source === selectedTag : true).length}
+                  itemsPerPage={itemsPerPage}
+                />
+              </>
             )}
           </div>
         )}

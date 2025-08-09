@@ -47,19 +47,19 @@ That's it! Docker automatically:
 
 ```bash
 # View cache statistics
-docker-compose exec backend python src/backend/cache_manager.py stats
+docker-compose exec backend python -m src.backend.cache_manager stats
 
 # Search summaries by content
-docker-compose exec backend python src/backend/cache_manager.py search --query "AI" --limit 5
+docker-compose exec backend python -m src.backend.cache_manager search --query "AI" --limit 5
 
 # View recent summaries
-docker-compose exec backend python src/backend/cache_manager.py recent --days 7
+docker-compose exec backend python -m src.backend.cache_manager recent --days 7
 
 # Clean up old summaries (older than 30 days)
-docker-compose exec backend python src/backend/cache_manager.py cleanup --days 30
+docker-compose exec backend python -m src.backend.cache_manager cleanup --days 30
 
 # Migrate existing JSON cache to database
-docker-compose exec backend python src/backend/cache_manager.py migrate
+docker-compose exec backend python -m src.backend.cache_manager migrate
 ```
 
 ### Database Operations
@@ -82,7 +82,7 @@ docker-compose exec backend alembic history
 
 ```bash
 # Run one-off commands
-docker-compose exec backend python src/backend/scraper.py
+docker-compose exec backend python -m src.backend.scraper
 
 # Access container shell for debugging
 docker-compose exec backend bash
@@ -187,20 +187,20 @@ INTERESTED_KEYWORDS = [
 docker-compose up -d
 
 # Check what's been processed
-docker-compose exec backend python src/backend/cache_manager.py stats
+docker-compose exec backend python -m src.backend.cache_manager stats
 
 # Search for specific topics
-docker-compose exec backend python src/backend/cache_manager.py search --query "machine learning"
+docker-compose exec backend python -m src.backend.cache_manager search --query "machine learning"
 
 # View recent activity
-docker-compose exec backend python src/backend/cache_manager.py recent --days 3
+docker-compose exec backend python -m src.backend.cache_manager recent --days 3
 ```
 
 ### Weekly Maintenance
 
 ```bash
 # Clean up old data
-docker-compose exec backend python src/backend/cache_manager.py cleanup --days 30
+docker-compose exec backend python -m src.backend.cache_manager cleanup --days 30
 
 # Check system health
 docker-compose ps

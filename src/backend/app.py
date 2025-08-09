@@ -16,6 +16,7 @@ from .constants import INTERESTED_KEYWORDS
 from .scraper import scrape_huggingface_trending_papers, scrape_hacker_news
 from .logger import logger
 from .merger import filter_sources, enrich_sources_with_summaries
+from .search import keyword_search, semantic_search
 from .schema import SourceSchema
 from .database import db_manager
 from .cache import get_summary_from_cache, add_summary_to_cache
@@ -36,9 +37,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def enrich_sources_with_progress(sources: List[SourceSchema]):
+def enrich_sources_with_progress(sources: List[SourceSchema], phase_start: int, phase_weight: int, total_weight: int):
     """
     Generates summaries for sources that are missing them, yielding progress updates.
+    Uses unified progress tracking across phases.
     """
     sources_needing_summaries = [source for source in sources if not source.summary]
     total_sources = len(sources_needing_summaries)
@@ -47,21 +49,26 @@ def enrich_sources_with_progress(sources: List[SourceSchema]):
         yield f"data: {json.dumps({'type': 'info', 'message': 'All sources already have summaries'})}\n\n"
         return
     
-    yield f"data: {json.dumps({'type': 'start', 'message': f'Starting summary generation for {total_sources} sources...', 'total': total_sources})}\n\n"
+    yield f"data: {json.dumps({'type': 'status', 'message': f'Starting summary generation for {total_sources} sources...'})}\n\n"
     
     processed = 0
     for source in sources_needing_summaries:
         processed += 1
         
+        # Calculate unified progress
+        phase_progress = (processed / total_sources) * phase_weight
+        unified_progress = phase_start + phase_progress
+        progress_percent = int((unified_progress / total_weight) * 100)
+        
         # Check cache first
         cached_summary = get_summary_from_cache(str(source.link))
         if cached_summary:
             source.summary = cached_summary
-            yield f"data: {json.dumps({'type': 'progress', 'message': f'Found cached summary for: {source.title[:50]}...', 'processed': processed, 'total': total_sources})}\n\n"
+            yield f"data: {json.dumps({'type': 'progress', 'message': f'Found cached summary for: {source.title[:50]}...', 'processed': progress_percent, 'total': 100})}\n\n"
             continue
         
         # Generate new summary
-        yield f"data: {json.dumps({'type': 'progress', 'message': f'Generating summary for: {source.title[:50]}...', 'processed': processed, 'total': total_sources})}\n\n"
+        yield f"data: {json.dumps({'type': 'progress', 'message': f'Generating summary for: {source.title[:50]}...', 'processed': progress_percent, 'total': 100})}\n\n"
         
         new_summary = generate_summary_from_link(source.source_link)
         if new_summary is None:
@@ -70,11 +77,64 @@ def enrich_sources_with_progress(sources: List[SourceSchema]):
         if new_summary:
             source.summary = new_summary
             add_summary_to_cache(str(source.link), new_summary)
-            yield f"data: {json.dumps({'type': 'progress', 'message': f'✓ Generated summary for: {source.title[:50]}...', 'processed': processed, 'total': total_sources})}\n\n"
+            yield f"data: {json.dumps({'type': 'progress', 'message': f'✓ Generated summary for: {source.title[:50]}...', 'processed': progress_percent, 'total': 100})}\n\n"
         else:
-            yield f"data: {json.dumps({'type': 'warning', 'message': f'⚠ Could not generate summary for: {source.title[:50]}...', 'processed': processed, 'total': total_sources})}\n\n"
+            yield f"data: {json.dumps({'type': 'warning', 'message': f'⚠ Could not generate summary for: {source.title[:50]}...', 'processed': progress_percent, 'total': 100})}\n\n"
+
+def filter_sources_with_progress(sources: List[SourceSchema], keywords: List[str], phase_start: int, phase_weight: int, total_weight: int):
+    """
+    Filters sources using keyword and semantic search with progress updates.
+    Uses unified progress tracking across phases.
+    """
+    from .merger import SEMANTIC_SIMILARITY_THRESHOLD
     
-    yield f"data: {json.dumps({'type': 'complete', 'message': f'Summary generation complete! Processed {total_sources} sources.', 'processed': total_sources, 'total': total_sources})}\n\n"
+    # --- Pass 1: Keyword Search (fast) ---
+    yield f"data: {json.dumps({'type': 'status', 'message': 'Running keyword search...'})}\n\n"
+    keyword_matches = keyword_search(sources, keywords)
+    
+    # Update progress for keyword search completion (takes 10% of this phase)
+    keyword_progress = phase_start + (phase_weight * 0.1)
+    progress_percent = int((keyword_progress / total_weight) * 100)
+    yield f"data: {json.dumps({'type': 'progress', 'message': f'Found {len(keyword_matches)} sources via keyword search', 'processed': progress_percent, 'total': 100})}\n\n"
+
+    matched_links = {source.link for source in keyword_matches}
+
+    # --- Pass 2: Semantic Search (slow, embedding generation) ---
+    semantic_candidates = [
+        source for source in sources
+        if source.link not in matched_links
+        and source.summary  # Ensure there is a summary to search on
+    ]
+    
+    if semantic_candidates:
+        yield f"data: {json.dumps({'type': 'status', 'message': f'Running semantic search on {len(semantic_candidates)} sources with summaries...'})}\n\n"
+        
+        # Semantic search takes 90% of this phase
+        semantic_start = phase_start + (phase_weight * 0.1)
+        semantic_weight = phase_weight * 0.9
+        
+        # Start semantic search
+        semantic_progress = semantic_start
+        progress_percent = int((semantic_progress / total_weight) * 100)
+        yield f"data: {json.dumps({'type': 'progress', 'message': 'Generating embeddings for semantic search...', 'processed': progress_percent, 'total': 100})}\n\n"
+        
+        # Process semantic search
+        semantic_matches = semantic_search(semantic_candidates, keywords, threshold=SEMANTIC_SIMILARITY_THRESHOLD)
+        
+        # Complete semantic search
+        semantic_complete = phase_start + phase_weight
+        progress_percent = int((semantic_complete / total_weight) * 100)
+        yield f"data: {json.dumps({'type': 'progress', 'message': f'Semantic search complete! Found {len(semantic_matches)} additional matches.', 'processed': progress_percent, 'total': 100})}\n\n"
+    else:
+        semantic_matches = []
+        # Still advance progress if no semantic search needed
+        complete_progress = phase_start + phase_weight
+        progress_percent = int((complete_progress / total_weight) * 100)
+        yield f"data: {json.dumps({'type': 'progress', 'message': 'No sources available for semantic search (no summaries)', 'processed': progress_percent, 'total': 100})}\n\n"
+    
+    # Combine results
+    filtered_sources = keyword_matches + semantic_matches
+    yield f"data: {json.dumps({'type': 'status', 'message': f'Total filtered results: {len(filtered_sources)} sources'})}\n\n"
 
 class FetchRequest(BaseModel):
     """Request model for fetching top items"""
@@ -255,21 +315,43 @@ async def fetch_top_items_stream(request: FetchRequest):
             except Exception as e:
                 yield f"data: {json.dumps({'type': 'error', 'message': f'Failed to fetch Hacker News items: {str(e)}'})}\n\n"
             
+            # Define phase weights for unified progress
+            # Phase 1: Scraping (already completed) - 10%
+            # Phase 2: Summary generation - 70% (most time-consuming)  
+            # Phase 3: Filtering (keyword + semantic search) - 20%
+            total_weight = 100
+            scraping_weight = 10  # Already done
+            summary_weight = 70
+            filtering_weight = 20
+            
+            current_progress = scraping_weight  # Start after scraping
+            
             # Enrich sources with progress updates
             if all_sources:
                 yield f"data: {json.dumps({'type': 'status', 'message': f'Processing {len(all_sources)} sources for summary enrichment...'})}\n\n"
+                yield f"data: {json.dumps({'type': 'start', 'message': 'Starting unified processing pipeline...', 'total': 100})}\n\n"
                 
-                # Use the progress-aware enrichment function
-                for progress_update in enrich_sources_with_progress(all_sources):
+                # Phase 2: Summary generation (70% of total progress)
+                for progress_update in enrich_sources_with_progress(all_sources, current_progress, summary_weight, total_weight):
                     yield progress_update
+                
+                current_progress += summary_weight  # Now at 80%
             
-            # Filter sources based on topics
+            # Filter sources based on topics with progress updates
             if all_topics and all_sources:
-                yield f"data: {json.dumps({'type': 'status', 'message': f'Filtering {len(all_sources)} items with topics...'})}\n\n"
+                yield f"data: {json.dumps({'type': 'status', 'message': f'Starting topic filtering for {len(all_sources)} items...'})}\n\n"
+                
+                # Phase 3: Filtering (20% of total progress)
+                for progress_update in filter_sources_with_progress(all_sources, all_topics, current_progress, filtering_weight, total_weight):
+                    yield progress_update
+                
+                # Get the actual filtered sources using the original function
                 filtered_sources = filter_sources(all_sources, all_topics)
-                yield f"data: {json.dumps({'type': 'status', 'message': f'Filtered down to {len(filtered_sources)} relevant items'})}\n\n"
+                current_progress = total_weight  # Now at 100%
             else:
                 filtered_sources = all_sources[:20]  # Limit to 20 items if no filtering
+                # Still advance to 100% even if no filtering
+                yield f"data: {json.dumps({'type': 'progress', 'message': 'No topic filtering requested - using first 20 items', 'processed': 100, 'total': 100})}\n\n"
             
             # Convert to response format
             items = []
@@ -287,6 +369,9 @@ async def fetch_top_items_stream(request: FetchRequest):
                     'source': source_tag,
                     'created_at': source.date.isoformat() if hasattr(source, 'date') and source.date else datetime.now().isoformat()
                 })
+            
+            # Final completion message
+            yield f"data: {json.dumps({'type': 'complete', 'message': f'Processing complete! Found {len(items)} relevant items.', 'processed': 100, 'total': 100})}\n\n"
             
             # Final result
             result = {
