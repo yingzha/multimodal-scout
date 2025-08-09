@@ -1,4 +1,5 @@
 import os
+import re
 from typing import Optional
 
 from google import genai
@@ -8,18 +9,7 @@ from pydantic import HttpUrl
 
 from .constants import GEMINI_MODEL_NAME, USER_AGENT
 from .logger import logger
-
-# --- API Key Configuration ---
-# It's highly recommended to set your GOOGLE_API_KEY as an environment variable
-# for security. The library will automatically pick it up.
-# Example: export GOOGLE_API_KEY="your_api_key_here"
-try:
-    client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
-    AI_ENABLED = True
-    logger.info("Google Generative AI configured successfully.")
-except KeyError:
-    logger.warning("GOOGLE_API_KEY environment variable not set. AI features will be disabled.")
-    AI_ENABLED = False
+from .client import genai_client, AI_ENABLED
 
 
 def _fetch_article_text(link: HttpUrl) -> Optional[str]:
@@ -41,6 +31,48 @@ def _fetch_article_text(link: HttpUrl) -> Optional[str]:
         return None
 
 
+def _is_non_english_summary(text: str) -> bool:
+    """
+    Basic heuristic to detect if a summary might not be in English.
+    Checks for common non-English patterns and character sets.
+    """
+    if not text:
+        return False
+    
+    # Check for common non-English character patterns
+    # Chinese/Japanese/Korean characters
+    if re.search(r'[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]', text):
+        return True
+    
+    # Arabic characters
+    if re.search(r'[\u0600-\u06ff]', text):
+        return True
+    
+    # Cyrillic characters
+    if re.search(r'[\u0400-\u04ff]', text):
+        return True
+    
+    # Common French words (basic check)
+    french_patterns = ['le ', 'la ', 'les ', 'de ', 'du ', 'des ', 'un ', 'une ', 'et ', 'est ', 'dans ', 'sur ', 'avec ', 'pour ', 'par ', 'comme ', 'plus ', 'mais ', 'qui ', 'que ', 'ce ', 'cette ', 'ces ']
+    french_count = sum(1 for pattern in french_patterns if pattern in text.lower())
+    if french_count > 3:  # If more than 3 French words detected
+        return True
+    
+    # Common German words (basic check)  
+    german_patterns = ['der ', 'die ', 'das ', 'den ', 'dem ', 'des ', 'ein ', 'eine ', 'einen ', 'und ', 'ist ', 'in ', 'mit ', 'von ', 'zu ', 'für ', 'auf ', 'als ', 'bei ', 'nach ', 'über ', 'durch ', 'um ']
+    german_count = sum(1 for pattern in german_patterns if pattern in text.lower())
+    if german_count > 3:  # If more than 3 German words detected
+        return True
+    
+    # Common Spanish words (basic check)
+    spanish_patterns = ['el ', 'la ', 'los ', 'las ', 'de ', 'del ', 'un ', 'una ', 'y ', 'es ', 'en ', 'con ', 'por ', 'para ', 'como ', 'más ', 'pero ', 'que ', 'se ', 'su ', 'sus ', 'este ', 'esta ', 'estos ', 'estas ']
+    spanish_count = sum(1 for pattern in spanish_patterns if pattern in text.lower())
+    if spanish_count > 3:  # If more than 3 Spanish words detected
+        return True
+    
+    return False
+
+
 def generate_summary_from_link(link: HttpUrl) -> Optional[str]:
     """Generates a summary for a given URL using the Gemini API."""
     if not AI_ENABLED:
@@ -54,9 +86,33 @@ def generate_summary_from_link(link: HttpUrl) -> Optional[str]:
         return article_text
 
     try:
-        prompt = f"Please provide a concise, one-paragraph summary of the following article text:\n\n---\n\n{article_text[:4000]}"
-        response = client.models.generate_content(model=GEMINI_MODEL_NAME, contents=[prompt])
-        return response.text.strip()
+        prompt = f"""Please provide a concise, one-paragraph summary of the following article text in English only. 
+        
+Regardless of the source language, always respond in English. Focus on the key points and main insights.
+
+Article text:
+---
+{article_text[:4000]}"""
+        
+        response = genai_client.models.generate_content(model=GEMINI_MODEL_NAME, contents=[prompt])
+        summary = response.text.strip()
+        
+        # Validate that the summary is in English by checking for common non-English patterns
+        if _is_non_english_summary(summary):
+            logger.warning(f"Generated summary appears to be non-English, regenerating...")
+            # Try again with more explicit English instruction
+            english_prompt = f"""IMPORTANT: You must respond in English only. Do not use any other language.
+
+Summarize this article in English, even if the source is in another language:
+
+{article_text[:4000]}
+
+Provide a concise English summary focusing on the main points."""
+            
+            response = genai_client.models.generate_content(model=GEMINI_MODEL_NAME, contents=[english_prompt])
+            summary = response.text.strip()
+        
+        return summary
     except Exception as e:
         logger.error(f"Error generating summary with Gemini: {e}")
         return None

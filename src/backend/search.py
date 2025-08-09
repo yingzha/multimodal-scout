@@ -7,26 +7,7 @@ from typing import List
 from .logger import logger
 from .schema import SourceSchema
 from .database import db_manager
-
-# --- Semantic Search Setup with Google Gemini ---
-logger.info("Initializing Google Gemini embedding for semantic search...")
-try:
-    from google import genai
-    import os
-    
-    # Check API key
-    api_key = os.getenv('GOOGLE_API_KEY')
-    if not api_key:
-        raise ValueError("GOOGLE_API_KEY environment variable not set")
-    
-    # Initialize client
-    genai_client = genai.Client(api_key=api_key)
-    SEMANTIC_SEARCH_ENABLED = True
-    logger.info("Google Gemini embedding initialized successfully")
-except Exception as e:
-    logger.warning(f"Could not initialize Google Gemini embedding. Semantic search disabled. Error: {e}")
-    genai_client = None
-    SEMANTIC_SEARCH_ENABLED = False
+from .client import genai_client, AI_ENABLED as SEMANTIC_SEARCH_ENABLED
 
 
 def _normalize_text(text: str) -> str:

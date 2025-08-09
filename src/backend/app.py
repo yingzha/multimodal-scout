@@ -19,7 +19,7 @@ from .merger import filter_sources, enrich_sources_with_summaries
 from .search import keyword_search, semantic_search
 from .schema import SourceSchema
 from .database import db_manager
-from .cache import get_summary_from_cache, add_summary_to_cache
+from .db_cache import get_summary_from_db as get_summary_from_cache, add_summary_to_db as add_summary_to_cache
 from .utils import generate_summary_from_link
 
 app = FastAPI(

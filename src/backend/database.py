@@ -229,6 +229,68 @@ class DatabaseManager:
             raise e
         finally:
             session.close()
+    
+    def invalidate_summary_cache(self, url: str) -> bool:
+        """Remove a summary from cache by URL, returns True if removed"""
+        session = self.get_session()
+        try:
+            from .db_cache import remove_summary_from_cache
+            # Remove from both summary cache and embedding cache
+            removed = remove_summary_from_cache(url)
+            return removed
+        except Exception as e:
+            raise e
+        finally:
+            session.close()
+    
+    def invalidate_embedding_cache(self, text_hash: str) -> bool:
+        """Remove an embedding from cache by text hash"""
+        session = self.get_session()
+        try:
+            embedding = session.query(EmbeddingCache).filter(EmbeddingCache.text_hash == text_hash).first()
+            if embedding:
+                session.delete(embedding)
+                session.commit()
+                return True
+            return False
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+    
+    def invalidate_non_english_summaries(self) -> int:
+        """Detect and remove non-English summaries from cache"""
+        from .db_cache import get_all_cached_summaries
+        from .utils import _is_non_english_summary
+        from .search import _get_text_hash
+        
+        try:
+            cached_summaries = get_all_cached_summaries()
+            removed_count = 0
+            
+            for url, summary in cached_summaries.items():
+                if _is_non_english_summary(summary):
+                    # Remove summary from cache
+                    if self.invalidate_summary_cache(url):
+                        removed_count += 1
+                        self._log(f"Removed non-English summary for: {url}")
+                        
+                        # Also remove associated embedding
+                        text_hash = _get_text_hash(summary)
+                        if self.invalidate_embedding_cache(text_hash):
+                            self._log(f"Removed associated embedding for: {url}")
+            
+            return removed_count
+        except Exception as e:
+            self._log(f"Error invalidating non-English summaries: {e}", level="error")
+            raise e
+    
+    def _log(self, message: str, level: str = "info"):
+        """Helper method to log messages without circular imports"""
+        import logging
+        logger = logging.getLogger(__name__)
+        getattr(logger, level)(message)
 
     def close(self):
         """Close database connection"""

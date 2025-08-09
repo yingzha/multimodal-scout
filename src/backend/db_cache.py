@@ -114,6 +114,25 @@ def search_summaries(query: str, limit: int = 10) -> List[Dict[str, str]]:
         ]
 
 
+def get_all_cached_summaries() -> Dict[str, str]:
+    """Get all cached summaries as a dictionary of url -> summary"""
+    with get_db_session() as session:
+        results = session.query(SummaryCache).all()
+        return {entry.url: entry.summary for entry in results}
+
+
+def remove_summary_from_cache(url: str) -> bool:
+    """Remove a summary from cache by URL, returns True if removed"""
+    with get_db_session() as session:
+        entry = session.query(SummaryCache).filter(SummaryCache.url == url).first()
+        if entry:
+            session.delete(entry)
+            session.commit()
+            logger.info(f"Removed cached summary for URL: {url}")
+            return True
+        return False
+
+
 def initialize_database():
     """Create database tables if they don't exist."""
     try:

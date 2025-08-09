@@ -18,36 +18,7 @@ from .db_cache import (
     initialize_database
 )
 from .database import db_manager
-from .cache import load_cache, CACHE_FILE_PATH
 from .logger import logger
-
-
-def migrate_json_to_db() -> Dict[str, Any]:
-    """Migrate existing JSON cache to database."""
-    try:
-        json_cache = load_cache()
-        if not json_cache:
-            return {"status": "no_data", "message": "No JSON cache data found"}
-        
-        # Import db functions
-        from db_cache import add_summary_to_db
-        
-        migrated_count = 0
-        for url, summary in json_cache.items():
-            try:
-                add_summary_to_db(url, summary)
-                migrated_count += 1
-            except Exception as e:
-                logger.error(f"Failed to migrate {url}: {e}")
-        
-        return {
-            "status": "success",
-            "migrated_count": migrated_count,
-            "total_count": len(json_cache)
-        }
-        
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
 
 
 def print_cache_stats():
@@ -119,10 +90,21 @@ def cleanup_cache(days: int = 30):
         print(f"Error cleaning up cache: {e}")
 
 
+def cleanup_non_english_summaries():
+    """Clean up non-English summaries and their embeddings."""
+    try:
+        removed_count = db_manager.invalidate_non_english_summaries()
+        print(f"Removed {removed_count} non-English summaries and their embeddings")
+        print("These summaries will be regenerated in English on next fetch.")
+        
+    except Exception as e:
+        print(f"Error cleaning up non-English summaries: {e}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Cache Management Utility")
     parser.add_argument('command', choices=[
-        'stats', 'recent', 'search', 'cleanup', 'migrate', 'init'
+        'stats', 'recent', 'search', 'cleanup', 'init'
     ], help='Command to execute')
     
     parser.add_argument('--days', type=int, default=7, 
@@ -164,10 +146,6 @@ def main():
         
     elif args.command == 'cleanup':
         cleanup_cache(args.days)
-        
-    elif args.command == 'migrate':
-        result = migrate_json_to_db()
-        print(f"Migration result: {result}")
 
 
 if __name__ == "__main__":
