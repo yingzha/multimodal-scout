@@ -214,3 +214,5 @@ src/frontend/.next/
 src/frontend/out/
 src/frontend/.next/
 .next/
+src/frontend/node_modules/
+src/frontend/tsconfig.tsbuildinfo

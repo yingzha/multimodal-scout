@@ -28,7 +28,6 @@ export default function Home() {
   const [showReadMore, setShowReadMore] = useState<Set<string>>(new Set())
   const [maxResults, setMaxResults] = useState(10)
   const [researchRatio, setResearchRatio] = useState(0.5)
-  const [useAdvancedFiltering, setUseAdvancedFiltering] = useState(true)
 
   // Fetch default topics from backend
   const fetchDefaultTopics = async () => {
@@ -300,8 +299,7 @@ export default function Home() {
           selectedDays,
           topics: allTopics,
           maxResults,
-          researchRatio,
-          useAdvancedFiltering
+          researchRatio
         })
       })
       
@@ -411,101 +409,6 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Time Range Selector */}
-        <div className="flex items-center justify-center mb-12 space-x-4">
-          <span className="text-gray-700 text-lg italic">Retrieve content from the last</span>
-          <input
-            type="number"
-            value={selectedDays}
-            onChange={(e) => setSelectedDays(Number(e.target.value))}
-            className="w-16 px-3 py-2 border border-gray-300 rounded-md text-center focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-            min="1"
-          />
-          <span className="text-gray-700 text-lg">days</span>
-          <div className="flex space-x-2">
-            {[1, 3, 7].map((days) => (
-              <button
-                key={days}
-                onClick={() => setSelectedDays(days)}
-                className={`w-10 h-10 rounded-full font-medium transition-colors ${
-                  selectedDays === days
-                    ? 'bg-green-600 text-white'
-                    : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
-                }`}
-              >
-                {days}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Advanced Search Controls */}
-        <div className="bg-blue-50 rounded-lg p-6 mb-8">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-bold text-gray-800">Search Settings</h2>
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={useAdvancedFiltering}
-                onChange={(e) => setUseAdvancedFiltering(e.target.checked)}
-                className="mr-2 rounded focus:ring-2 focus:ring-blue-500"
-              />
-              <span className="text-sm font-medium text-gray-700">Use Smart Balanced Search</span>
-            </label>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Max Results Control */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Number of Results: {maxResults}
-              </label>
-              <input
-                type="range"
-                min="5"
-                max="50"
-                step="5"
-                value={maxResults}
-                onChange={(e) => setMaxResults(Number(e.target.value))}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <div className="flex justify-between text-xs text-gray-500 mt-1">
-                <span>5</span>
-                <span>25</span>
-                <span>50</span>
-              </div>
-            </div>
-            
-            {/* Research/Industry Balance Control */}
-            <div className={useAdvancedFiltering ? '' : 'opacity-50'}>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Content Balance: {Math.round(researchRatio * 100)}% Research / {Math.round((1 - researchRatio) * 100)}% Industry
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.1"
-                value={researchRatio}
-                onChange={(e) => setResearchRatio(Number(e.target.value))}
-                disabled={!useAdvancedFiltering}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed"
-              />
-              <div className="flex justify-between text-xs text-gray-500 mt-1">
-                <span>All Industry</span>
-                <span>Balanced</span>
-                <span>All Research</span>
-              </div>
-            </div>
-          </div>
-          
-          {useAdvancedFiltering && (
-            <div className="mt-4 text-xs text-blue-700 bg-blue-100 p-3 rounded">
-              🎯 <strong>Smart Balanced Search:</strong> Prioritizes keyword matches first, then adds semantic matches by relevance score. Research papers use a higher similarity threshold to ensure quality, while industry content uses a lower threshold for variety.
-            </div>
-          )}
-        </div>
-
         {/* Interest Topics Section */}
         <div className="bg-orange-100 rounded-lg p-8 mb-12">
           <div className="flex justify-between items-center mb-6">
@@ -585,6 +488,90 @@ export default function Home() {
               {keywordMessage}
             </div>
           )}
+        </div>
+
+        {/* Search Settings Section */}
+        <div className="bg-blue-50 rounded-lg p-6 mb-8">
+          <h2 className="text-lg font-bold text-gray-800 mb-6">Search Settings</h2>
+          
+          {/* Time Range Selector */}
+          <div className="mb-6">
+            <div className="flex items-center justify-center space-x-4">
+              <span className="text-gray-700 font-medium">Retrieve content from the last</span>
+              <input
+                type="number"
+                value={selectedDays}
+                onChange={(e) => setSelectedDays(Number(e.target.value))}
+                className="w-16 px-3 py-2 border border-gray-300 rounded-md text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                min="1"
+              />
+              <span className="text-gray-700 font-medium">days</span>
+              <div className="flex space-x-2">
+                {[1, 3, 7].map((days) => (
+                  <button
+                    key={days}
+                    onClick={() => setSelectedDays(days)}
+                    className={`w-10 h-10 rounded-full text-sm font-medium transition-colors ${
+                      selectedDays === days
+                        ? 'bg-green-600 text-white shadow-lg ring-2 ring-green-300'
+                        : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                    }`}
+                  >
+                    {days}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          
+          {/* Number of Results and Content Balance - Side by Side */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-16 mb-6">
+            {/* Number of Results */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Number of Results: {maxResults}
+              </label>
+              <input
+                type="range"
+                min="5"
+                max="50"
+                step="5"
+                value={maxResults}
+                onChange={(e) => setMaxResults(Number(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-2">
+                <span>5</span>
+                <span>25</span>
+                <span>50</span>
+              </div>
+            </div>
+            
+            {/* Content Balance */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Content Balance: {Math.round(researchRatio * 100)}% Research / {Math.round((1 - researchRatio) * 100)}% Industry
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={researchRatio}
+                onChange={(e) => setResearchRatio(Number(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-2">
+                <span>All Industry</span>
+                <span>Balanced</span>
+                <span>All Research</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="text-xs text-blue-700 bg-blue-100 p-3 rounded">
+            🎯 <strong>Smart Balanced Search:</strong> Prioritizes keyword matches first, then adds semantic matches by relevance score. Research papers use a higher similarity threshold to ensure quality, while industry content uses a lower threshold for variety.
+          </div>
         </div>
 
         {/* Action Buttons */}

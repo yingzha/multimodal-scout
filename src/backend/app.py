@@ -165,7 +165,6 @@ class FetchRequest(BaseModel):
     topics: List[str]
     maxResults: int = 10  # Default to 10 results
     researchRatio: float = 0.5  # Default to 50/50 research/industry balance
-    useAdvancedFiltering: bool = False  # Option to use new advanced filtering
 
 class TopicResponse(BaseModel):
     """Response model for default topics"""
@@ -263,19 +262,15 @@ async def fetch_top_items(request: FetchRequest):
             logger.info(f"Enriching {len(all_sources)} sources with summaries...")
             all_sources = enrich_sources_with_summaries(all_sources)
         
-        # Filter sources based on topics using the filtering logic
+        # Filter sources based on topics using advanced filtering
         if all_topics and all_sources:
             logger.info(f"Filtering {len(all_sources)} items with topics: {all_topics}")
-            if request.useAdvancedFiltering:
-                filtered_sources = filter_sources_advanced(
-                    all_sources, all_topics, 
-                    max_results=request.maxResults,
-                    research_ratio=request.researchRatio
-                )
-                logger.info(f"Advanced filtered down to {len(filtered_sources)} relevant items")
-            else:
-                filtered_sources = filter_sources(all_sources, all_topics)
-                logger.info(f"Filtered down to {len(filtered_sources)} relevant items")
+            filtered_sources = filter_sources_advanced(
+                all_sources, all_topics, 
+                max_results=request.maxResults,
+                research_ratio=request.researchRatio
+            )
+            logger.info(f"Advanced filtered down to {len(filtered_sources)} relevant items")
         else:
             filtered_sources = all_sources[:request.maxResults]  # Limit to requested items if no filtering
         
@@ -381,21 +376,18 @@ async def fetch_top_items_stream(request: FetchRequest):
                 filtered_sources = None
                 for progress_update in filter_sources_with_progress(
                     all_sources, all_topics, current_progress, filtering_weight, total_weight, 
-                    use_advanced=request.useAdvancedFiltering, 
+                    use_advanced=True, 
                     max_results=request.maxResults, 
                     research_ratio=request.researchRatio
                 ):
                     yield progress_update
                 
-                # Get the filtered sources using the appropriate function (since progress function doesn't return them)
-                if request.useAdvancedFiltering:
-                    filtered_sources = filter_sources_advanced(
-                        all_sources, all_topics, 
-                        max_results=request.maxResults,
-                        research_ratio=request.researchRatio
-                    )
-                else:
-                    filtered_sources = filter_sources(all_sources, all_topics)
+                # Get the filtered sources using advanced filtering (since progress function doesn't return them)
+                filtered_sources = filter_sources_advanced(
+                    all_sources, all_topics, 
+                    max_results=request.maxResults,
+                    research_ratio=request.researchRatio
+                )
                 current_progress = total_weight  # Now at 100%
             else:
                 filtered_sources = all_sources[:request.maxResults]  # Limit to requested items if no filtering

@@ -64,11 +64,12 @@ services:
       - "3000:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://backend:8000
-      - NODE_ENV=production
+      - NODE_ENV=development
     volumes:
       - ./src/frontend:/app
       - /app/node_modules
       - /app/.next
+    command: npm run dev
 
 volumes:
   postgres_data:
