@@ -62,12 +62,42 @@ docker-compose up -d --build
 
 ## Testing
 
-```bash
-# Backend tests
-docker-compose exec backend pytest
+### Backend Tests
 
-# Frontend build test
+```bash
+# Run all backend tests
+docker-compose run --rm backend uv run python tests/backend/test_app.py
+docker-compose run --rm backend uv run python tests/backend/test_database.py
+docker-compose run --rm backend uv run python tests/backend/test_pipeline.py
+docker-compose run --rm backend uv run python tests/backend/test_search.py
+docker-compose run --rm backend uv run python tests/backend/test_scrapers.py
+
+# Run with pytest (after adding pytest to dependencies)
+docker-compose run --rm backend uv add --dev pytest
+docker-compose run --rm backend uv run pytest tests/backend/
+```
+
+### Frontend Tests
+
+```bash
+# Build test
 docker-compose exec frontend npm run build
+
+# Type checking
+docker-compose exec frontend npx tsc --noEmit
+```
+
+### Integration Tests
+
+```bash
+# Test API endpoints
+curl -s http://localhost:8000/api/topics
+curl -s -X POST "http://localhost:8000/api/fetch" \
+  -H "Content-Type: application/json" \
+  -d '{"selectedDays": 1, "maxResults": 2, "topics": ["ai"], "researchRatio": 0.5}'
+
+# Test frontend-backend connectivity
+curl -s -I http://localhost:3000
 ```
 
 That's it! Docker handles all the environment complexity.

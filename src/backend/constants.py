@@ -21,3 +21,11 @@ INTERESTED_KEYWORDS = [
     'video processing',
     'multimodal agents',
 ]
+
+# --- Search Configuration ---
+# Default similarity threshold for general semantic search
+SEMANTIC_SIMILARITY_THRESHOLD = 0.6
+# Higher threshold for research papers to be more selective
+RESEARCH_THRESHOLD = 0.65
+# Lower threshold for industry content to include more variety
+INDUSTRY_THRESHOLD = 0.55

@@ -66,13 +66,14 @@ That's it! The system will automatically start scraping and processing content.
 ## Key Features
 
 ### 🤖 **AI-Powered Content Processing**
-- **Intelligent Summaries**: Automatically generates summaries for Hacker News articles using Google Gemini AI
+- **Intelligent Summaries**: Automatically generates summaries for Hacker News articles using Google Gemini AI with database caching
 - **Advanced Semantic Search**: Uses Google Gemini embeddings with separate thresholds for research (0.65) vs industry (0.55) content
-- **Smart Balanced Filtering**: Prioritizes keyword matches, then adds semantic matches by relevance score with configurable research/industry balance
-- **Comprehensive Caching**: Stores generated summaries and embeddings to avoid reprocessing
+- **Smart Balanced Filtering**: New pipeline architecture prioritizes keyword matches, then adds semantic matches by relevance score with configurable research/industry balance
+- **Comprehensive Caching**: Stores generated summaries and embeddings in PostgreSQL to avoid reprocessing and improve performance
 
 ### 📡 **Real-Time User Experience**
-- **Streaming Progress Updates**: Server-Sent Events (SSE) provide live feedback during processing
+- **Streaming Progress Updates**: Server-Sent Events (SSE) provide live feedback during processing with visual progress bars
+- **Enhanced Button States**: Loading animations, color changes, and spinner feedback for better UX
 - **Progress Transparency**: Users see exactly what's happening (scraping, generating summaries, filtering)
 - **Performance Indicators**: Clear messaging about processing times and expectations
 

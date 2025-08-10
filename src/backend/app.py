@@ -10,16 +10,12 @@ from typing import List, Dict, Any
 from pydantic import BaseModel
 import json
 from datetime import datetime
+import asyncio
 
 from .constants import INTERESTED_KEYWORDS
-from .scraper import scrape_huggingface_trending_papers, scrape_hacker_news
 from .logger import logger
-from .merger import filter_sources, filter_sources_advanced, enrich_sources_with_summaries
-from .search import keyword_search, semantic_search
-from .schema import SourceSchema
 from .database import db_manager
-from .db_cache import get_summary_from_db as get_summary_from_cache, add_summary_to_db as add_summary_to_cache
-from .utils import generate_summary_from_link
+from .pipeline import process_content_pipeline
 
 app = FastAPI(
     title="Multimodal Scout API",
@@ -36,128 +32,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def enrich_sources_with_progress(sources: List[SourceSchema], phase_start: int, phase_weight: int, total_weight: int):
-    """
-    Generates summaries for sources that are missing them, yielding progress updates.
-    Uses unified progress tracking across phases.
-    """
-    sources_needing_summaries = [source for source in sources if not source.summary]
-    total_sources = len(sources_needing_summaries)
-    
-    if total_sources == 0:
-        yield f"data: {json.dumps({'type': 'info', 'message': 'All sources already have summaries'})}\n\n"
-        return
-    
-    yield f"data: {json.dumps({'type': 'status', 'message': f'Starting summary generation for {total_sources} sources...'})}\n\n"
-    
-    processed = 0
-    for source in sources_needing_summaries:
-        processed += 1
-        
-        # Calculate unified progress
-        phase_progress = (processed / total_sources) * phase_weight
-        unified_progress = phase_start + phase_progress
-        progress_percent = int((unified_progress / total_weight) * 100)
-        
-        # Check cache first
-        cached_summary = get_summary_from_cache(str(source.link))
-        if cached_summary:
-            source.summary = cached_summary
-            yield f"data: {json.dumps({'type': 'progress', 'message': f'Found cached summary for: {source.title[:50]}...', 'processed': progress_percent, 'total': 100})}\n\n"
-            continue
-        
-        # Generate new summary
-        yield f"data: {json.dumps({'type': 'progress', 'message': f'Generating summary for: {source.title[:50]}...', 'processed': progress_percent, 'total': 100})}\n\n"
-        
-        new_summary = generate_summary_from_link(source.source_link)
-        if new_summary is None:
-            new_summary = generate_summary_from_link(source.link)
-            
-        if new_summary:
-            source.summary = new_summary
-            add_summary_to_cache(str(source.link), new_summary)
-            yield f"data: {json.dumps({'type': 'progress', 'message': f'✓ Generated summary for: {source.title[:50]}...', 'processed': progress_percent, 'total': 100})}\n\n"
-        else:
-            yield f"data: {json.dumps({'type': 'warning', 'message': f'⚠ Could not generate summary for: {source.title[:50]}...', 'processed': progress_percent, 'total': 100})}\n\n"
 
-def filter_sources_with_progress(sources: List[SourceSchema], keywords: List[str], phase_start: int, phase_weight: int, total_weight: int, use_advanced: bool = False, max_results: int = 10, research_ratio: float = 0.5):
-    """
-    Filters sources using keyword and semantic search with progress updates.
-    Uses unified progress tracking across phases.
-    """
-    if use_advanced:
-        # Use advanced filtering with progress tracking
-        yield f"data: {json.dumps({'type': 'status', 'message': 'Applying smart balanced filtering...'})}\n\n"
-        
-        # Show progress during advanced filtering
-        progress_25 = phase_start + (phase_weight * 0.25)
-        progress_percent = int((progress_25 / total_weight) * 100)
-        yield f"data: {json.dumps({'type': 'progress', 'message': 'Running keyword search and categorizing sources...', 'processed': progress_percent, 'total': 100})}\n\n"
-        
-        progress_50 = phase_start + (phase_weight * 0.5)
-        progress_percent = int((progress_50 / total_weight) * 100)
-        yield f"data: {json.dumps({'type': 'progress', 'message': 'Applying semantic search with different thresholds...', 'processed': progress_percent, 'total': 100})}\n\n"
-        
-        progress_75 = phase_start + (phase_weight * 0.75)
-        progress_percent = int((progress_75 / total_weight) * 100)
-        yield f"data: {json.dumps({'type': 'progress', 'message': 'Balancing research and industry results...', 'processed': progress_percent, 'total': 100})}\n\n"
-        
-        filtered_sources = filter_sources_advanced(sources, keywords, max_results, research_ratio)
-        
-        complete_progress = phase_start + phase_weight
-        progress_percent = int((complete_progress / total_weight) * 100)
-        yield f"data: {json.dumps({'type': 'progress', 'message': f'Smart filtering complete! Found {len(filtered_sources)} balanced results.', 'processed': progress_percent, 'total': 100})}\n\n"
-        
-    else:
-        # Use traditional filtering
-        from .merger import SEMANTIC_SIMILARITY_THRESHOLD
-        
-        # --- Pass 1: Keyword Search (fast) ---
-        yield f"data: {json.dumps({'type': 'status', 'message': 'Running keyword search...'})}\n\n"
-        keyword_matches = keyword_search(sources, keywords)
-        
-        # Update progress for keyword search completion (takes 10% of this phase)
-        keyword_progress = phase_start + (phase_weight * 0.1)
-        progress_percent = int((keyword_progress / total_weight) * 100)
-        yield f"data: {json.dumps({'type': 'progress', 'message': f'Found {len(keyword_matches)} sources via keyword search', 'processed': progress_percent, 'total': 100})}\n\n"
-
-        matched_links = {source.link for source in keyword_matches}
-
-        # --- Pass 2: Semantic Search (slow, embedding generation) ---
-        semantic_candidates = [
-            source for source in sources
-            if source.link not in matched_links
-            and source.summary  # Ensure there is a summary to search on
-        ]
-        
-        if semantic_candidates:
-            yield f"data: {json.dumps({'type': 'status', 'message': f'Running semantic search on {len(semantic_candidates)} sources with summaries...'})}\n\n"
-            
-            # Semantic search takes 90% of this phase
-            semantic_start = phase_start + (phase_weight * 0.1)
-            semantic_weight = phase_weight * 0.9
-            
-            # Start semantic search
-            semantic_progress = semantic_start
-            progress_percent = int((semantic_progress / total_weight) * 100)
-            yield f"data: {json.dumps({'type': 'progress', 'message': 'Generating embeddings for semantic search...', 'processed': progress_percent, 'total': 100})}\n\n"
-            
-            # Process semantic search
-            semantic_matches = semantic_search(semantic_candidates, keywords, threshold=SEMANTIC_SIMILARITY_THRESHOLD)
-            
-            # Complete semantic search
-            semantic_complete = phase_start + phase_weight
-            progress_percent = int((semantic_complete / total_weight) * 100)
-            yield f"data: {json.dumps({'type': 'progress', 'message': f'Semantic search complete! Found {len(semantic_matches)} additional matches.', 'processed': progress_percent, 'total': 100})}\n\n"
-        else:
-            semantic_matches = []
-            # Still advance progress if no semantic search needed
-            complete_progress = phase_start + phase_weight
-            progress_percent = int((complete_progress / total_weight) * 100)
-            yield f"data: {json.dumps({'type': 'progress', 'message': 'No sources available for semantic search (no summaries)', 'processed': progress_percent, 'total': 100})}\n\n"
-        
-        filtered_sources = keyword_matches + semantic_matches
-        yield f"data: {json.dumps({'type': 'status', 'message': f'Total filtered results: {len(filtered_sources)} sources'})}\n\n"
 
 class FetchRequest(BaseModel):
     """Request model for fetching top items"""
@@ -219,216 +94,67 @@ async def get_default_topics():
 async def fetch_top_items(request: FetchRequest):
     """
     Fetch top items from various sources based on topics and time range.
-    
-    Args:
-        request: Contains selectedDays and topics list
-        
-    Returns:
-        Aggregated items from Hugging Face and Hacker News
+    This is the non-streaming version that uses the core pipeline.
     """
     try:
         logger.info(f"Fetching items for {request.selectedDays} days with topics: {request.topics}")
         
-        # Combine default topics with custom topics for filtering
-        all_topics = request.topics
-        
-        all_sources = []
-        source_names = []
-        
-        try:
-            # Fetch Hugging Face papers
-            logger.info("Scraping Hugging Face trending papers...")
-            hf_papers = scrape_huggingface_trending_papers()
-            if hf_papers:
-                all_sources.extend(hf_papers)
-                source_names.append("Hugging Face")
-                logger.info(f"Found {len(hf_papers)} Hugging Face papers")
-        except Exception as e:
-            logger.error(f"Failed to fetch Hugging Face papers: {e}")
-        
-        try:
-            # Fetch Hacker News items
-            logger.info("Scraping Hacker News...")
-            hn_items = scrape_hacker_news()
-            if hn_items:
-                all_sources.extend(hn_items)
-                source_names.append("Hacker News")
-                logger.info(f"Found {len(hn_items)} Hacker News items")
-        except Exception as e:
-            logger.error(f"Failed to fetch Hacker News items: {e}")
-        
-        # Enrich sources with AI-generated summaries if they are missing
-        if all_sources:
-            logger.info(f"Enriching {len(all_sources)} sources with summaries...")
-            all_sources = enrich_sources_with_summaries(all_sources)
-        
-        # Filter sources based on topics using advanced filtering
-        if all_topics and all_sources:
-            logger.info(f"Filtering {len(all_sources)} items with topics: {all_topics}")
-            filtered_sources = filter_sources_advanced(
-                all_sources, all_topics, 
-                max_results=request.maxResults,
-                research_ratio=request.researchRatio
-            )
-            logger.info(f"Advanced filtered down to {len(filtered_sources)} relevant items")
-        else:
-            filtered_sources = all_sources[:request.maxResults]  # Limit to requested items if no filtering
-        
-        # Convert to response format
-        items = []
-        for source in filtered_sources[:request.maxResults]:  # Limit to requested max results
-            # Use tags instead of source, with fallback
-            source_tag = "General"
-            if hasattr(source, 'tags') and source.tags:
-                # Use the first tag, capitalize it
-                source_tag = source.tags[0].capitalize() if source.tags[0] else "General"
-            
-            items.append(ItemResponse(
-                title=source.title,
-                link=str(source.link),  # Convert HttpUrl to string
-                summary=source.summary or "No summary available",
-                source=source_tag,
-                created_at=source.date.isoformat() if hasattr(source, 'date') and source.date else datetime.now().isoformat()
-            ))
-        
-        logger.info(f"Successfully prepared {len(items)} items for response")
-        
-        return FetchResponse(
-            items=items,
-            total_count=len(items),
-            sources=list(set(source_names))
+        pipeline_generator = process_content_pipeline(
+            topics=request.topics,
+            max_results=request.maxResults,
+            research_ratio=request.researchRatio
         )
         
+        final_result = None
+        # The pipeline is a generator, so we iterate through it to get the final result.
+        # In the non-streaming case, we ignore progress events and just wait for the 'result' event.
+        for event in pipeline_generator:
+            if event['type'] == 'result':
+                final_result = event['data']
+                break
+        
+        if final_result:
+            logger.info(f"Successfully prepared {len(final_result['items'])} items for response")
+            return FetchResponse(
+                items=final_result['items'],
+                total_count=final_result['total_count'],
+                sources=final_result['sources']
+            )
+        else:
+            logger.error("Pipeline did not return a final result.")
+            raise HTTPException(status_code=500, detail="Failed to fetch items: Pipeline finished without result.")
+
     except Exception as e:
-        logger.error(f"Failed to fetch items: {e}")
+        logger.error(f"Failed to fetch items: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to fetch items: {str(e)}")
 
 @app.post("/api/fetch-stream")
 async def fetch_top_items_stream(request: FetchRequest):
     """
-    Fetch top items with streaming progress updates for summary generation.
+    Fetch top items with streaming progress updates using the core pipeline.
     Uses Server-Sent Events (SSE) to provide real-time progress.
     """
-    def generate_stream():
+    async def generate_stream():
         try:
             logger.info(f"Starting streaming fetch for {request.selectedDays} days with topics: {request.topics}")
             
-            # Combine default topics with custom topics for filtering
-            all_topics = request.topics
-            
-            all_sources = []
-            source_names = []
-            
-            # Initial status update
-            yield f"data: {json.dumps({'type': 'status', 'message': 'Fetching sources from Hugging Face and Hacker News...'})}\n\n"
-            
-            try:
-                # Fetch Hugging Face papers
-                logger.info("Scraping Hugging Face trending papers...")
-                hf_papers = scrape_huggingface_trending_papers()
-                if hf_papers:
-                    all_sources.extend(hf_papers)
-                    source_names.append("Hugging Face")
-                    yield f"data: {json.dumps({'type': 'status', 'message': f'Found {len(hf_papers)} Hugging Face papers'})}\n\n"
-            except Exception as e:
-                yield f"data: {json.dumps({'type': 'error', 'message': f'Failed to fetch Hugging Face papers: {str(e)}'})}\n\n"
-            
-            try:
-                # Fetch Hacker News items
-                logger.info("Scraping Hacker News...")
-                hn_items = scrape_hacker_news()
-                if hn_items:
-                    all_sources.extend(hn_items)
-                    source_names.append("Hacker News")
-                    yield f"data: {json.dumps({'type': 'status', 'message': f'Found {len(hn_items)} Hacker News items'})}\n\n"
-            except Exception as e:
-                yield f"data: {json.dumps({'type': 'error', 'message': f'Failed to fetch Hacker News items: {str(e)}'})}\n\n"
-            
-            # Define phase weights for unified progress
-            # Phase 1: Scraping (already completed) - 10%
-            # Phase 2: Summary generation - 70% (most time-consuming)  
-            # Phase 3: Filtering (keyword + semantic search) - 20%
-            total_weight = 100
-            scraping_weight = 10  # Already done
-            summary_weight = 70
-            filtering_weight = 20
-            
-            current_progress = scraping_weight  # Start after scraping
-            
-            # Enrich sources with progress updates
-            if all_sources:
-                yield f"data: {json.dumps({'type': 'status', 'message': f'Processing {len(all_sources)} sources for summary enrichment...'})}\n\n"
-                yield f"data: {json.dumps({'type': 'start', 'message': 'Starting unified processing pipeline...', 'total': 100})}\n\n"
-                
-                # Phase 2: Summary generation (70% of total progress)
-                for progress_update in enrich_sources_with_progress(all_sources, current_progress, summary_weight, total_weight):
-                    yield progress_update
-                
-                current_progress += summary_weight  # Now at 80%
-            
-            # Filter sources based on topics with progress updates
-            if all_topics and all_sources:
-                yield f"data: {json.dumps({'type': 'status', 'message': f'Starting topic filtering for {len(all_sources)} items...'})}\n\n"
-                
-                # Phase 3: Filtering (20% of total progress)
-                # The filtering is now done inside filter_sources_with_progress
-                # We need to get the results from it
-                filtered_sources = None
-                for progress_update in filter_sources_with_progress(
-                    all_sources, all_topics, current_progress, filtering_weight, total_weight, 
-                    use_advanced=True, 
-                    max_results=request.maxResults, 
-                    research_ratio=request.researchRatio
-                ):
-                    yield progress_update
-                
-                # Get the filtered sources using advanced filtering (since progress function doesn't return them)
-                filtered_sources = filter_sources_advanced(
-                    all_sources, all_topics, 
-                    max_results=request.maxResults,
-                    research_ratio=request.researchRatio
-                )
-                current_progress = total_weight  # Now at 100%
-            else:
-                filtered_sources = all_sources[:request.maxResults]  # Limit to requested items if no filtering
-                # Still advance to 100% even if no filtering
-                yield f"data: {json.dumps({'type': 'progress', 'message': f'No topic filtering requested - using first {request.maxResults} items', 'processed': 100, 'total': 100})}\n\n"
-            
-            # Convert to response format
-            items = []
-            for source in filtered_sources:
-                # Use tags instead of source, with fallback
-                source_tag = "General"
-                if hasattr(source, 'tags') and source.tags:
-                    # Use the first tag, capitalize it
-                    source_tag = source.tags[0].capitalize() if source.tags[0] else "General"
-                
-                items.append({
-                    'title': source.title,
-                    'link': str(source.link),  # Convert HttpUrl to string
-                    'summary': source.summary or "No summary available",
-                    'source': source_tag,
-                    'created_at': source.date.isoformat() if hasattr(source, 'date') and source.date else datetime.now().isoformat()
-                })
-            
-            # Final completion message
-            yield f"data: {json.dumps({'type': 'complete', 'message': f'Processing complete! Found {len(items)} relevant items.', 'processed': 100, 'total': 100})}\n\n"
-            
-            # Final result
-            result = {
-                'type': 'result',
-                'data': {
-                    'items': items,
-                    'total_count': len(items),
-                    'sources': list(set(source_names))
-                }
-            }
-            yield f"data: {json.dumps(result)}\n\n"
+            pipeline_generator = process_content_pipeline(
+                topics=request.topics,
+                max_results=request.maxResults,
+                research_ratio=request.researchRatio
+            )
+
+            for event in pipeline_generator:
+                yield f"data: {json.dumps(event)}\n\n"
+                # Add a small sleep to allow the client to process the event
+                await asyncio.sleep(0.01)
+
             yield "data: [DONE]\n\n"
             
         except Exception as e:
-            logger.error(f"Failed to fetch items in stream: {e}")
-            yield f"data: {json.dumps({'type': 'error', 'message': f'Failed to fetch items: {str(e)}'})}\n\n"
+            logger.error(f"Failed to fetch items in stream: {e}", exc_info=True)
+            error_event = {'type': 'error', 'message': f'An unexpected error occurred: {str(e)}'}
+            yield f"data: {json.dumps(error_event)}\n\n"
     
     return StreamingResponse(
         generate_stream(),
@@ -437,10 +163,9 @@ async def fetch_top_items_stream(request: FetchRequest):
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Allow-Headers": "*",
         }
     )
+
 
 @app.post("/api/bookmarks", response_model=BookmarkResponse)
 async def add_bookmark(request: BookmarkRequest):

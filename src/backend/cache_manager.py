@@ -10,13 +10,6 @@ import sys
 from datetime import datetime, timedelta
 from typing import Dict, Any
 
-from .db_cache import (
-    get_summaries_by_date_range,
-    cleanup_old_summaries,
-    get_cache_stats,
-    search_summaries,
-    initialize_database
-)
 from .database import db_manager
 from .logger import logger
 
@@ -24,17 +17,15 @@ from .logger import logger
 def print_cache_stats():
     """Print cache statistics."""
     try:
-        stats = get_cache_stats()
+        stats = db_manager.get_summary_cache_stats()
         print("=== Summary Cache Statistics ===")
         print(f"Total summaries: {stats['total_summaries']}")
         print(f"Recent summaries (7 days): {stats['recent_summaries_7_days']}")
         
-        # Calculate storage info
         if stats['total_summaries'] > 0:
             avg_per_day = stats['recent_summaries_7_days'] / 7
             print(f"Average per day: {avg_per_day:.1f}")
         
-        # Embedding cache stats
         embedding_stats = db_manager.get_embedding_cache_stats()
         print("\n=== Embedding Cache Statistics ===")
         print(f"Total embeddings: {embedding_stats['total_embeddings']}")
@@ -48,7 +39,7 @@ def print_recent_summaries(days: int = 7):
     """Print recent summaries."""
     try:
         start_date = datetime.now() - timedelta(days=days)
-        summaries = get_summaries_by_date_range(start_date)
+        summaries = db_manager.get_summaries_by_date(start_date)
         
         print(f"=== Recent Summaries (Last {days} days) ===")
         for summary in summaries:
@@ -63,7 +54,7 @@ def print_recent_summaries(days: int = 7):
 def search_cache(query: str, limit: int = 5):
     """Search cache for summaries containing query."""
     try:
-        results = search_summaries(query, limit)
+        results = db_manager.search_summaries(query, limit)
         
         print(f"=== Search Results for '{query}' ===")
         if not results:
@@ -83,7 +74,7 @@ def search_cache(query: str, limit: int = 5):
 def cleanup_cache(days: int = 30):
     """Clean up old cache entries."""
     try:
-        deleted_count = cleanup_old_summaries(days)
+        deleted_count = db_manager.cleanup_summaries(days)
         print(f"Cleaned up {deleted_count} summaries older than {days} days")
         
     except Exception as e:
@@ -105,23 +96,20 @@ def main():
     
     args = parser.parse_args()
     
-    # Initialize database for all commands except init
-    if args.command != 'init':
-        try:
-            initialize_database()
-        except Exception as e:
-            print(f"Database initialization failed: {e}")
-            sys.exit(1)
-    
     if args.command == 'init':
         try:
-            initialize_database()
+            db_manager.create_tables()
             print("Database initialized successfully")
         except Exception as e:
             print(f"Database initialization failed: {e}")
             sys.exit(1)
-            
-    elif args.command == 'stats':
+    else:
+        # All other commands require the database to be initialized.
+        # This is implicitly handled by the db_manager instance, but an explicit check
+        # could be added here if necessary.
+        pass
+
+    if args.command == 'stats':
         print_cache_stats()
         
     elif args.command == 'recent':
@@ -135,6 +123,7 @@ def main():
         
     elif args.command == 'cleanup':
         cleanup_cache(args.days)
+
 
 
 if __name__ == "__main__":

@@ -579,24 +579,31 @@ export default function Home() {
           <button
             onClick={handleFetchItems}
             disabled={isLoading}
-            className={`relative px-8 py-4 text-white text-xl font-semibold rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors overflow-hidden ${
+            className={`relative px-8 py-4 text-white text-xl font-semibold rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-300 overflow-hidden ${
               isLoading 
-                ? 'bg-gray-400 cursor-not-allowed' 
-                : 'bg-gray-500 hover:bg-gray-600'
+                ? 'bg-blue-500 focus:ring-blue-500 shadow-lg transform scale-105' 
+                : 'bg-gray-500 hover:bg-gray-600 focus:ring-gray-500 hover:shadow-lg hover:transform hover:scale-105'
             }`}
           >
             {/* Progress Bar Background inside button */}
             {isLoading && (
               <div 
-                className="absolute top-0 left-0 h-full bg-gray-600 transition-all duration-300 ease-out"
+                className="absolute top-0 left-0 h-full bg-blue-600 transition-all duration-500 ease-out"
                 style={{ width: `${progress}%` }}
               />
             )}
             
+            {/* Loading spinner overlay */}
+            {isLoading && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            )}
+            
             {/* Button Text */}
-            <span className="relative z-10">
+            <span className={`relative z-10 transition-opacity duration-300 ${isLoading ? 'opacity-75' : 'opacity-100'}`}>
               {isLoading 
-                ? (showDetailedProgress ? `🔍 Fetch Top Items ${progress}%` : '🔍 Fetching...') 
+                ? (showDetailedProgress ? `🔍 Processing... ${progress}%` : '🔍 Fetching...') 
                 : '🔍 Fetch Top Items'
               }
             </span>

@@ -1,5 +1,4 @@
 import re
-import hashlib
 import numpy as np
 from typing import List
 
@@ -17,19 +16,16 @@ def _normalize_text(text: str) -> str:
     return re.sub(r'[^\w\s]', '', text.lower())
 
 
-def _get_text_hash(text: str) -> str:
-    """Get SHA256 hash of text for caching"""
-    return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
 
 def _get_embedding(text: str) -> np.ndarray:
     """Get embedding for text using Google Gemini with database caching."""
     if not SEMANTIC_SEARCH_ENABLED or not genai_client:
         return np.array([])
     
-    # Check cache first
-    text_hash = _get_text_hash(text)
+    # Check cache first using the new abstracted method
     try:
-        cached_embedding = db_manager.get_embedding_from_cache(text_hash)
+        cached_embedding = db_manager.get_embedding_for_text(text)
         if cached_embedding is not None:
             logger.info(f"Using cached embedding for text: {text[:50]}...")
             return np.array(cached_embedding)
@@ -43,27 +39,22 @@ def _get_embedding(text: str) -> np.ndarray:
             contents=text
         )
         
-        # The result has embeddings list, each with values
         if hasattr(result, 'embeddings') and len(result.embeddings) > 0:
-            embedding = result.embeddings[0]  # First embedding
+            embedding = result.embeddings[0]
             if hasattr(embedding, 'values'):
                 embedding_values = list(embedding.values)
-                embedding_array = np.array(embedding_values)
                 
-                # Cache the embedding
+                # Cache the new embedding using the new abstracted method
                 try:
-                    db_manager.add_embedding_to_cache(text, text_hash, embedding_values, "gemini-embedding-001")
+                    db_manager.add_embedding_for_text(text, embedding_values, "gemini-embedding-001")
                     logger.info(f"Generated and cached new embedding for text: {text[:50]}...")
                 except Exception as e:
                     logger.warning(f"Failed to cache embedding: {e}")
                 
-                return embedding_array
-            else:
-                logger.error(f"Embedding has no 'values' attribute: {embedding}")
-                return np.array([])
-        else:
-            logger.error(f"No embeddings found in result: {result}")
-            return np.array([])
+                return np.array(embedding_values)
+
+        logger.error(f"No embeddings found in result: {result}")
+        return np.array([])
             
     except Exception as e:
         logger.error(f"Failed to get embedding for text '{text[:50]}...': {e}")

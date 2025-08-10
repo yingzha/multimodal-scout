@@ -2,14 +2,18 @@ import unittest
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
-from src.backend.scraper import (scrape_hacker_news,
-                                 scrape_huggingface_trending_papers)
+from feedparser.util import FeedParserDict
+
+from src.backend.scraper import (
+    scrape_hacker_news,
+    scrape_huggingface_trending_papers
+)
 from src.backend.schema import SourceSchema
 
 # Mock data for Hugging Face - a simplified HTML structure
-MOCK_HF_HTML = """
+MOCK_HF_HTML = '''
 <html><body>
-    <div class="SVELTE_HYDRATER contents" data-props='{
+    <div class="SVELTE_HYDRATER contents" data-props='{ 
         "dailyPapers": [
             {
                 "paper": {
@@ -30,34 +34,34 @@ MOCK_HF_HTML = """
         ]
     }'></div>
 </body></html>
-"""
+'''
 
 # Mock data for Hacker News (simulating feedparser's parsed output)
-MOCK_HN_FEED = {
+MOCK_HN_FEED = FeedParserDict({
     'bozo': 0,
     'entries': [
-        {
+        FeedParserDict({
             'title': 'Mock HN Story',
             'author': 'testuser',
             'link': 'https://example.com/story',
             'comments': 'https://news.ycombinator.com/item?id=12345',
             'published': 'Mon, 28 Oct 2023 15:00:00 +0000'
-        },
-        {
+        }),
+        FeedParserDict({
             'title': 'Another Story No Comments',
             'author': 'anotheruser',
             'link': 'https://example.com/another',
             'published': 'Mon, 28 Oct 2023 16:00:00 +0000'
-        },
-        {
+        }),
+        FeedParserDict({
             'title': 'A Research Paper [pdf]',
             'author': 'scientist',
             'link': 'https://arxiv.org/abs/1234.5678',
             'comments': 'https://news.ycombinator.com/item?id=54321',
             'published': 'Mon, 28 Oct 2023 17:00:00 +0000'
-        }
+        })
     ]
-}
+})
 
 
 class TestScrapers(unittest.TestCase):

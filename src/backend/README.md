@@ -165,14 +165,15 @@ INTERESTED_KEYWORDS = [
 
 ### Core Components
 
-- **`merger.py`**: Main pipeline orchestration with advanced filtering logic
+- **`pipeline.py`**: Main content processing pipeline with advanced filtering logic
 - **`scraper.py`**: Web scraping for sources (Hugging Face, Hacker News)
 - **`search.py`**: Keyword and semantic search with embedding generation and caching
 - **`app.py`**: FastAPI server with streaming endpoints and Smart Balanced Search
 - **`database.py`**: SQLAlchemy models for PostgreSQL (summaries, embeddings, bookmarks)
-- **`db_cache.py`**: Database operations for summary and embedding caching
 - **`cache_manager.py`**: CLI cache management tool with statistics and cleanup
+- **`utils.py`**: Utility functions including AI summary generation
 - **`constants.py`**: Configuration including semantic search thresholds
+- **`merger.py`**: Legacy merger functionality (being phased out)
 
 ### Data Flow
 
