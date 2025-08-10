@@ -186,12 +186,18 @@ async def get_bookmarks():
         bookmarks = db_manager.get_bookmarks()
         bookmark_items = []
         for bookmark in bookmarks:
+            # Handle both old and new schema gracefully
+            summary_edited = getattr(bookmark, 'summary_edited', None)
+            display_summary = summary_edited or bookmark.summary or "No summary available"
+            is_edited = bool(summary_edited)
+            
             bookmark_items.append(ItemResponse(
                 title=bookmark.title,
                 link=bookmark.link,
-                summary=bookmark.summary or "No summary available",
+                summary=display_summary,
                 source=bookmark.source_tag,
-                created_at=bookmark.bookmarked_at.isoformat()
+                created_at=bookmark.bookmarked_at.isoformat(),
+                summary_edited=is_edited
             ))
         return FetchResponse(
             items=bookmark_items,
@@ -201,6 +207,23 @@ async def get_bookmarks():
     except Exception as e:
         logger.error(f"Failed to get bookmarks: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get bookmarks: {str(e)}")
+
+@app.put("/api/bookmarks/summary")
+async def update_bookmark_summary(link: str, summary: str):
+    """Update a bookmark's summary"""
+    try:
+        logger.info(f"Updating summary for bookmark: {link}")
+        success = db_manager.update_bookmark_summary(link, summary)
+        if success:
+            return BookmarkResponse(
+                success=True,
+                message="Bookmark summary updated successfully"
+            )
+        else:
+            raise HTTPException(status_code=404, detail="Bookmark not found")
+    except Exception as e:
+        logger.error(f"Failed to update bookmark summary: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update bookmark summary: {str(e)}")
 
 @app.post("/api/upload-link", response_model=UploadLinkResponse)
 async def upload_link(request: UploadLinkRequest):

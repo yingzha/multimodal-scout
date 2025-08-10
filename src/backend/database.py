@@ -86,6 +86,7 @@ class Bookmark(Base):
     link = Column(String, nullable=False, index=True)
     source_tag = Column(String, nullable=False)
     summary = Column(Text, nullable=True)
+    summary_edited = Column(String, nullable=True)
     bookmarked_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
 class DatabaseManager:
@@ -186,7 +187,14 @@ class DatabaseManager:
             existing = session.query(Bookmark).filter(Bookmark.link == link).first()
             if existing:
                 return str(existing.id)
-            new_bookmark = Bookmark(title=title, link=link, source_tag=source_tag, summary=summary)
+            
+            # Handle both old and new schema
+            try:
+                new_bookmark = Bookmark(title=title, link=link, source_tag=source_tag, summary=summary, summary_edited=None)
+            except TypeError:
+                # If summary_edited field doesn't exist, create without it
+                new_bookmark = Bookmark(title=title, link=link, source_tag=source_tag, summary=summary)
+            
             session.add(new_bookmark)
             session.commit()
             return str(new_bookmark.id)
@@ -198,6 +206,23 @@ class DatabaseManager:
                 session.delete(bookmark)
                 session.commit()
                 return True
+            return False
+
+    def update_bookmark_summary(self, link: str, summary: str) -> bool:
+        with self.get_session() as session:
+            bookmark = session.query(Bookmark).filter(Bookmark.link == link).first()
+            if bookmark:
+                # Handle case where summary_edited column might not exist yet
+                try:
+                    bookmark.summary_edited = summary
+                    session.commit()
+                    return True
+                except Exception as e:
+                    logger.error(f"Failed to update summary_edited field, trying summary field: {e}")
+                    # Fallback to updating the summary field if summary_edited doesn't exist
+                    bookmark.summary = summary
+                    session.commit()
+                    return True
             return False
 
     def is_bookmarked(self, link: str) -> bool:
@@ -219,6 +244,7 @@ class DatabaseManager:
                 "link": b.link,
                 "source_tag": b.source_tag,
                 "summary": b.summary or "",
+                "summary_edited": getattr(b, 'summary_edited', None),
                 "bookmarked_at": b.bookmarked_at.isoformat()
             } for b in results]
 
@@ -249,6 +275,7 @@ class DatabaseManager:
                 "link": b.link,
                 "source_tag": b.source_tag,
                 "summary": b.summary or "",
+                "summary_edited": getattr(b, 'summary_edited', None),
                 "bookmarked_at": b.bookmarked_at.isoformat()
             } for b in results]
 

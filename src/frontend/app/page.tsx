@@ -22,16 +22,21 @@ export default function Home() {
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [bookmarksPage, setBookmarksPage] = useState(1)
-  const itemsPerPage = 10
   const [paginatedItems, setPaginatedItems] = useState<any[]>([])
   const [paginatedBookmarks, setPaginatedBookmarks] = useState<any[]>([])
   const [showReadMore, setShowReadMore] = useState<Set<string>>(new Set())
   const [maxResults, setMaxResults] = useState(10)
+  const itemsPerPage = maxResults
   const [researchRatio, setResearchRatio] = useState(0.5)
   const [uploadUrl, setUploadUrl] = useState('')
   const [isUploading, setIsUploading] = useState(false)
   const [uploadMessage, setUploadMessage] = useState('')
   const [deleteConfirmItem, setDeleteConfirmItem] = useState<any>(null)
+  const [deleteConfirmPosition, setDeleteConfirmPosition] = useState<{top: number, left: number} | null>(null)
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
+  const [editingSummary, setEditingSummary] = useState<string | null>(null)
+  const [editedSummaryText, setEditedSummaryText] = useState('')
+  const [isUpdatingSummary, setIsUpdatingSummary] = useState(false)
 
   // Fetch default topics from backend
   const fetchDefaultTopics = async () => {
@@ -137,13 +142,6 @@ export default function Home() {
   useEffect(() => {
     const filtered = fetchedItems
       .filter(item => selectedTag ? item.source === selectedTag : true)
-      .sort((a, b) => {
-        const aBookmarked = bookmarkedItems.has(a.link)
-        const bBookmarked = bookmarkedItems.has(b.link)
-        if (aBookmarked && !bBookmarked) return 1
-        if (!aBookmarked && bBookmarked) return -1
-        return 0
-      })
 
     const startIndex = (currentPage - 1) * itemsPerPage
     const endIndex = startIndex + itemsPerPage
@@ -242,6 +240,43 @@ export default function Home() {
       console.error('Failed to delete bookmark:', error)
     } finally {
       setDeleteConfirmItem(null)
+      setDeleteConfirmPosition(null)
+    }
+  }
+
+  const handleEditSummary = (item: any) => {
+    setEditingSummary(item.link)
+    setEditedSummaryText(item.summary)
+  }
+
+  const handleCancelEditSummary = () => {
+    setEditingSummary(null)
+    setEditedSummaryText('')
+  }
+
+  const handleSaveSummary = async (link: string) => {
+    if (!editedSummaryText.trim()) {
+      return
+    }
+
+    setIsUpdatingSummary(true)
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const response = await fetch(`${apiUrl}/api/bookmarks/summary?link=${encodeURIComponent(link)}&summary=${encodeURIComponent(editedSummaryText)}`, {
+        method: 'PUT'
+      })
+
+      if (response.ok) {
+        // Refresh bookmarks to show updated summary
+        if (showBookmarks) {
+          handleViewBookmarks()
+        }
+        handleCancelEditSummary()
+      }
+    } catch (error) {
+      console.error('Failed to update summary:', error)
+    } finally {
+      setIsUpdatingSummary(false)
     }
   }
 
@@ -583,9 +618,23 @@ export default function Home() {
           )}
         </div>
 
+        {/* Advanced Search Settings Toggle */}
+        <div className="mb-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showAdvancedSettings}
+              onChange={(e) => setShowAdvancedSettings(e.target.checked)}
+              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+            />
+            <span className="text-gray-700 font-medium">Advanced Search Settings</span>
+          </label>
+        </div>
+
         {/* Search Settings Section */}
-        <div className="bg-blue-50 rounded-lg p-6 mb-8">
-          <h2 className="text-lg font-bold text-gray-800 mb-6">Search Settings</h2>
+        {showAdvancedSettings && (
+          <div className="bg-blue-50 rounded-lg p-6 mb-8">
+            <h2 className="text-lg font-bold text-gray-800 mb-6">Search Settings</h2>
           
           {/* Time Range Selector */}
           <div className="mb-6">
@@ -663,9 +712,15 @@ export default function Home() {
           </div>
           
           <div className="text-xs text-blue-700 bg-blue-100 p-3 rounded">
-            🎯 <strong>Smart Balanced Search:</strong> Prioritizes keyword matches first, then adds semantic matches by relevance score. Research papers use a higher similarity threshold to ensure quality, while industry content uses a lower threshold for variety.
+            <div className="flex items-start gap-2">
+              <span className="flex-shrink-0">🎯</span>
+              <div>
+                <strong>Smart Balanced Search:</strong> Prioritizes keyword matches first, then adds semantic matches by relevance score. Research papers use a higher similarity threshold to ensure quality, while industry content uses a lower threshold for variety.
+              </div>
+            </div>
           </div>
         </div>
+        )}
 
         {/* Action Buttons */}
         <div className="flex justify-center gap-6">
@@ -951,8 +1006,13 @@ export default function Home() {
                     </div>
                   )}
                 </div>
-                <div className="mt-6 text-xs text-gray-600 bg-blue-100 p-3 rounded text-left">
-                  💡 <strong>Smart Processing:</strong> We'll automatically scrape the content, generate a summary, and categorize it as Research, Industry, or General based on the content type.
+                <div className="mt-6 text-xs text-gray-600 bg-blue-100 p-3 rounded">
+                  <div className="flex items-start gap-2">
+                    <span className="flex-shrink-0">💡</span>
+                    <div>
+                      <strong>Smart Processing:</strong> Upload your own link and we'll automatically scrape the content, generate a summary, and categorize it as Research, Industry, or General based on the content type.
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -990,7 +1050,14 @@ export default function Home() {
                       <div className="flex items-center gap-2">
                         <span className="text-yellow-600">★</span>
                         <button
-                          onClick={() => setDeleteConfirmItem(item)}
+                          onClick={(e) => {
+                            const rect = e.currentTarget.getBoundingClientRect()
+                            setDeleteConfirmPosition({
+                              top: rect.bottom + window.scrollY + 10,
+                              left: rect.left + window.scrollX - 200
+                            })
+                            setDeleteConfirmItem(item)
+                          }}
                           className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-red-500 rounded-full focus:outline-none transition-colors"
                           title="Remove bookmark"
                         >
@@ -1006,45 +1073,99 @@ export default function Home() {
                     {/* Summary Section for Bookmarks */}
                     {item.summary && item.summary !== "No summary available" && item.summary.trim() !== "" && (
                       <div className="mb-4">
-                        <div className="text-gray-700 text-sm leading-relaxed">
-                          {expandedSummaries.has(item.link) ? (
-                            // Full summary
-                            <div>
-                              <p>{item.summary}</p>
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-gray-600">Summary</span>
+                            {item.summary_edited && (
+                              <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
+                                User edited
+                              </span>
+                            )}
+                          </div>
+                          {editingSummary !== item.link && (
+                            <button
+                              onClick={() => handleEditSummary(item)}
+                              className="text-xs text-gray-500 hover:text-blue-600 focus:outline-none"
+                              title="Edit summary"
+                            >
+                              ✏️ Edit
+                            </button>
+                          )}
+                        </div>
+                        
+                        {editingSummary === item.link ? (
+                          // Editing mode
+                          <div className="space-y-3">
+                            <textarea
+                              value={editedSummaryText}
+                              onChange={(e) => setEditedSummaryText(e.target.value)}
+                              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm leading-relaxed"
+                              rows={4}
+                              placeholder="Edit the summary..."
+                            />
+                            <div className="flex gap-2">
                               <button
-                                onClick={() => toggleSummaryExpansion(item.link)}
-                                className="mt-2 text-blue-600 hover:text-blue-800 text-xs font-medium focus:outline-none"
+                                onClick={() => handleSaveSummary(item.link)}
+                                disabled={isUpdatingSummary || !editedSummaryText.trim()}
+                                className={`px-3 py-1 text-sm rounded-lg focus:outline-none transition-colors ${
+                                  isUpdatingSummary || !editedSummaryText.trim()
+                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                                }`}
                               >
-                                Show less ↑
+                                {isUpdatingSummary ? 'Saving...' : 'Save'}
+                              </button>
+                              <button
+                                onClick={handleCancelEditSummary}
+                                disabled={isUpdatingSummary}
+                                className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 focus:outline-none transition-colors"
+                              >
+                                Cancel
                               </button>
                             </div>
-                          ) : (
-                            // Truncated summary
-                            <div>
-                              <p 
-                                className="line-clamp-2 overflow-hidden text-ellipsis"
-                                style={{
-                                  display: '-webkit-box',
-                                  WebkitLineClamp: 2,
-                                  WebkitBoxOrient: 'vertical',
-                                  lineHeight: '1.5em',
-                                  maxHeight: '3em' // 2 lines * 1.5em line height
-                                }}
-                                data-summary-text={item.link}
-                              >
-                                {item.summary}
-                              </p>
-                              {showReadMore.has(item.link) && (
+                          </div>
+                        ) : (
+                          // Display mode
+                          <div className="text-gray-700 text-sm leading-relaxed">
+                            {expandedSummaries.has(item.link) ? (
+                              // Full summary
+                              <div>
+                                <p>{item.summary}</p>
                                 <button
                                   onClick={() => toggleSummaryExpansion(item.link)}
                                   className="mt-2 text-blue-600 hover:text-blue-800 text-xs font-medium focus:outline-none"
                                 >
-                                  Read more ↓
+                                  Show less ↑
                                 </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
+                              </div>
+                            ) : (
+                              // Truncated summary
+                              <div>
+                                <p 
+                                  className="line-clamp-2 overflow-hidden text-ellipsis"
+                                  style={{
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: 'vertical',
+                                    lineHeight: '1.5em',
+                                    maxHeight: '3em' // 2 lines * 1.5em line height
+                                  }}
+                                  data-summary-text={item.link}
+                                >
+                                  {item.summary}
+                                </p>
+                                {showReadMore.has(item.link) && (
+                                  <button
+                                    onClick={() => toggleSummaryExpansion(item.link)}
+                                    className="mt-2 text-blue-600 hover:text-blue-800 text-xs font-medium focus:outline-none"
+                                  >
+                                    Read more ↓
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                     
@@ -1079,29 +1200,45 @@ export default function Home() {
         )}
 
         {/* Delete Confirmation Dialog */}
-        {deleteConfirmItem && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-4 max-w-sm mx-4">
+        {deleteConfirmItem && deleteConfirmPosition && (
+          <div 
+            className="fixed inset-0 z-50"
+            onClick={() => {
+              setDeleteConfirmItem(null)
+              setDeleteConfirmPosition(null)
+            }}
+          >
+            <div 
+              className="absolute bg-white rounded-lg p-4 max-w-sm shadow-2xl border border-gray-300"
+              style={{
+                top: `${deleteConfirmPosition.top}px`,
+                left: `${Math.max(10, Math.min(deleteConfirmPosition.left, window.innerWidth - 250))}px`
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex justify-between items-center mb-3">
                 <h3 className="text-lg font-semibold text-gray-900">
                   Delete Bookmark?
                 </h3>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => setDeleteConfirmItem(null)}
-                    className="px-3 py-1 text-sm text-gray-600 bg-gray-100 rounded hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
+                    onClick={() => {
+                      setDeleteConfirmItem(null)
+                      setDeleteConfirmPosition(null)
+                    }}
+                    className="px-3 py-1 text-sm text-gray-800 bg-gray-200 rounded hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={confirmDelete}
-                    className="px-3 py-1 text-sm text-white bg-red-600 rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors font-medium shadow-md"
+                    className="px-3 py-1 text-sm text-gray-800 bg-gray-100 rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors font-medium shadow-md"
                   >
                     Delete
                   </button>
                 </div>
               </div>
-              <p className="text-gray-600 text-sm">
+              <p className="text-blue-600 text-sm">
                 Are you sure you want to delete "<strong>{deleteConfirmItem.title}</strong>"?
               </p>
             </div>

@@ -36,6 +36,7 @@ class ItemResponse(BaseModel):
     summary: str
     source: str
     created_at: str
+    summary_edited: bool = False
 
 class FetchResponse(BaseModel):
     """Response model for fetched items"""
