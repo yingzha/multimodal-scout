@@ -3,7 +3,7 @@
 # Hacker News scraper - runs every hour at minute 0
 0 * * * * cd /app && python -m src.backend.run_scraper backend.scraper.scrape_hacker_news >> /var/log/cron.log 2>&1
 #
-# Hugging Face scraper - runs every 2 hours at minute 0
-0 */2 * * * cd /app && python -m src.backend.run_scraper backend.scraper.scrape_huggingface_trending_papers >> /var/log/cron.log 2>&1
+# Hugging Face scraper - runs every 6 hours at minute 0
+0 */6 * * * cd /app && python -m src.backend.run_scraper backend.scraper.scrape_huggingface_trending_papers >> /var/log/cron.log 2>&1
 #
 # Empty line at end (required for cron)

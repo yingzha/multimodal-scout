@@ -112,23 +112,5 @@ class TestDatabaseManager(unittest.TestCase):
         removed = self.mock_db_manager.remove_summary("http://nonexistent.com")
         self.assertFalse(removed)
 
-    @patch('src.backend.database.DatabaseManager.get_all_summaries')
-    @patch('src.backend.utils._is_non_english_summary')
-    @patch('src.backend.database.DatabaseManager.invalidate_summary_cache')
-    @patch('src.backend.database.DatabaseManager.invalidate_embedding_cache')
-    def test_invalidate_non_english_summaries(self, mock_invalidate_embedding, mock_invalidate_summary, mock_is_non_english, mock_get_all_summaries):
-        mock_get_all_summaries.return_value = {
-            "http://eng.com": "This is an English summary.",
-            "http://non-eng.com": "Ceci est un résumé français."
-        }
-        mock_is_non_english.side_effect = lambda x: x == "Ceci est un résumé français."
-        mock_invalidate_summary.return_value = True
-        mock_invalidate_embedding.return_value = True
-
-        removed_count = self.mock_db_manager.invalidate_non_english_summaries()
-        self.assertEqual(removed_count, 1)
-        mock_invalidate_summary.assert_called_once_with("http://non-eng.com")
-        mock_invalidate_embedding.assert_called_once()
-
 if __name__ == '__main__':
     unittest.main()

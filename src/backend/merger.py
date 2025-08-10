@@ -43,9 +43,6 @@ def filter_sources(
     return keyword_matches + semantic_matches
 
 
-
-
-
 def enrich_sources_with_summaries(sources: List[SourceSchema]) -> List[SourceSchema]:
     """
     Generates summaries for sources that are missing them, using a cache to

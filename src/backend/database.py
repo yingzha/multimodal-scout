@@ -3,8 +3,8 @@ import hashlib
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict
 
-from sqlalchemy import create_engine, Column, String, DateTime, Text, Float, desc
-from sqlalchemy.types import JSON
+from sqlalchemy import create_engine, Column, String, DateTime, Text, Float, desc, String as SQLString
+from sqlalchemy.types import JSON, TypeDecorator
 import json
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.ext.declarative import declarative_base
@@ -13,6 +13,34 @@ from sqlalchemy.dialects.postgresql import UUID
 import uuid
 
 from .logger import logger
+
+
+class EmbeddingArrayType(TypeDecorator):
+    """Custom type to handle embedding arrays for both PostgreSQL and SQLite."""
+    impl = Text
+    cache_ok = True
+    
+    def load_dialect_impl(self, dialect):
+        if dialect.name == 'postgresql':
+            return dialect.type_descriptor(ARRAY(Float))
+        else:
+            return dialect.type_descriptor(Text())
+    
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return value
+        if dialect.name == 'postgresql':
+            return value  # PostgreSQL handles lists directly
+        else:
+            return json.dumps(value)  # SQLite stores as JSON string
+    
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return value
+        if dialect.name == 'postgresql':
+            return value  # PostgreSQL returns lists directly
+        else:
+            return json.loads(value)  # SQLite parses JSON string
 
 Base = declarative_base()
 
@@ -46,7 +74,7 @@ class EmbeddingCache(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     text = Column(Text, nullable=False, index=True)
     text_hash = Column(String(64), unique=True, nullable=False, index=True)
-    embedding = Column(ARRAY(Float), nullable=False)
+    embedding = Column(EmbeddingArrayType(), nullable=False)
     model_name = Column(String, nullable=False, default="gemini-embedding-001")
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
@@ -73,8 +101,6 @@ class DatabaseManager:
 
     def create_tables(self):
         Base.metadata.create_all(bind=self.engine)
-
-    # --- Summary Cache Methods (from db_cache.py) ---
 
     def get_summary(self, url: str) -> Optional[str]:
         with self.get_session() as session:
@@ -182,27 +208,111 @@ class DatabaseManager:
         with self.get_session() as session:
             return session.query(Bookmark).order_by(Bookmark.bookmarked_at.desc()).limit(limit).all()
 
+    def get_bookmarks_by_date(self, start_date: datetime, end_date: Optional[datetime] = None) -> List[Dict[str, str]]:
+        with self.get_session() as session:
+            query = session.query(Bookmark).filter(Bookmark.bookmarked_at >= start_date)
+            if end_date:
+                query = query.filter(Bookmark.bookmarked_at <= end_date)
+            results = query.order_by(desc(Bookmark.bookmarked_at)).all()
+            return [{
+                "title": b.title,
+                "link": b.link,
+                "source_tag": b.source_tag,
+                "summary": b.summary or "",
+                "bookmarked_at": b.bookmarked_at.isoformat()
+            } for b in results]
+
+    def cleanup_bookmarks(self, days_to_keep: int = 90) -> int:
+        """Clean up old bookmarks."""
+        cutoff_date = datetime.utcnow() - timedelta(days=days_to_keep)
+        with self.get_session() as session:
+            deleted_count = session.query(Bookmark).filter(Bookmark.bookmarked_at < cutoff_date).delete()
+            session.commit()
+            logger.info(f"Cleaned up {deleted_count} old bookmarks (older than {days_to_keep} days)")
+            return deleted_count
+
+    def get_bookmark_cache_stats(self) -> Dict[str, int]:
+        with self.get_session() as session:
+            total_count = session.query(Bookmark).count()
+            week_ago = datetime.utcnow() - timedelta(days=7)
+            recent_count = session.query(Bookmark).filter(Bookmark.bookmarked_at >= week_ago).count()
+            return {"total_bookmarks": total_count, "recent_bookmarks_7_days": recent_count}
+
+    def search_bookmarks(self, query: str, limit: int = 10) -> List[Dict[str, str]]:
+        with self.get_session() as session:
+            results = session.query(Bookmark).filter(
+                Bookmark.title.ilike(f"%{query}%") | 
+                Bookmark.summary.ilike(f"%{query}%")
+            ).order_by(desc(Bookmark.bookmarked_at)).limit(limit).all()
+            return [{
+                "title": b.title,
+                "link": b.link,
+                "source_tag": b.source_tag,
+                "summary": b.summary or "",
+                "bookmarked_at": b.bookmarked_at.isoformat()
+            } for b in results]
+
     # --- Embedding Cache Methods ---
 
     def get_embedding_from_cache(self, text_hash: str) -> Optional[List[float]]:
         with self.get_session() as session:
             cached = session.query(EmbeddingCache).filter(EmbeddingCache.text_hash == text_hash).first()
             if cached:
-                return cached.embedding  # Already a list from PostgreSQL array
+                return cached.embedding  # EmbeddingArrayType handles conversion automatically
 
     def add_embedding_to_cache(self, text: str, text_hash: str, embedding: List[float], model_name: str) -> None:
         with self.get_session() as session:
             existing = session.query(EmbeddingCache).filter(EmbeddingCache.text_hash == text_hash).first()
             if not existing:
-                new_cache = EmbeddingCache(text=text, text_hash=text_hash, embedding=embedding, model_name=model_name)  # Direct list assignment
+                new_cache = EmbeddingCache(text=text, text_hash=text_hash, embedding=embedding, model_name=model_name)  # EmbeddingArrayType handles conversion
                 session.add(new_cache)
                 session.commit()
 
     def get_embedding_cache_stats(self) -> dict:
         with self.get_session() as session:
-            total_embeddings = session.query(EmbeddingCache).count()
+            total_count = session.query(EmbeddingCache).count()
+            week_ago = datetime.utcnow() - timedelta(days=7)
+            recent_count = session.query(EmbeddingCache).filter(EmbeddingCache.created_at >= week_ago).count()
             models_used = session.query(EmbeddingCache.model_name).distinct().all()
-            return {'total_embeddings': total_embeddings, 'models_used': [m[0] for m in models_used]}
+            return {
+                'total_embeddings': total_count, 
+                'recent_embeddings_7_days': recent_count,
+                'models_used': [m[0] for m in models_used]
+            }
+
+    def get_embeddings_by_date(self, start_date: datetime, end_date: Optional[datetime] = None) -> List[Dict[str, str]]:
+        with self.get_session() as session:
+            query = session.query(EmbeddingCache).filter(EmbeddingCache.created_at >= start_date)
+            if end_date:
+                query = query.filter(EmbeddingCache.created_at <= end_date)
+            results = query.order_by(desc(EmbeddingCache.created_at)).all()
+            return [{
+                "text": e.text[:100] + "..." if len(e.text) > 100 else e.text,
+                "text_hash": e.text_hash,
+                "model_name": e.model_name,
+                "created_at": e.created_at.isoformat()
+            } for e in results]
+
+    def cleanup_embeddings(self, days_to_keep: int = 30) -> int:
+        """Clean up old embedding cache entries."""
+        cutoff_date = datetime.utcnow() - timedelta(days=days_to_keep)
+        with self.get_session() as session:
+            deleted_count = session.query(EmbeddingCache).filter(EmbeddingCache.created_at < cutoff_date).delete()
+            session.commit()
+            logger.info(f"Cleaned up {deleted_count} old embeddings (older than {days_to_keep} days)")
+            return deleted_count
+
+    def search_embeddings(self, query: str, limit: int = 10) -> List[Dict[str, str]]:
+        with self.get_session() as session:
+            results = session.query(EmbeddingCache).filter(
+                EmbeddingCache.text.ilike(f"%{query}%")
+            ).order_by(desc(EmbeddingCache.created_at)).limit(limit).all()
+            return [{
+                "text": e.text[:100] + "..." if len(e.text) > 100 else e.text,
+                "text_hash": e.text_hash,
+                "model_name": e.model_name,
+                "created_at": e.created_at.isoformat()
+            } for e in results]
 
     def _get_text_hash(self, text: str) -> str:
         """Get SHA256 hash of text for caching."""
@@ -229,23 +339,19 @@ class DatabaseManager:
             if embedding:
                 session.delete(embedding)
                 session.commit()
+                logger.info(f"Removed cached embedding for text hash: {text_hash}")
                 return True
             return False
 
-    def invalidate_non_english_summaries(self) -> int:
-        from .utils import _is_non_english_summary
-        
-        cached_summaries = self.get_all_summaries()
-        removed_count = 0
-        for url, summary in cached_summaries.items():
-            if _is_non_english_summary(summary):
-                if self.invalidate_summary_cache(url):
-                    removed_count += 1
-                    logger.info(f"Removed non-English summary for: {url}")
-                    text_hash = self._get_text_hash(summary)
-                    if self.invalidate_embedding_cache(text_hash):
-                        logger.info(f"Removed associated embedding for: {url}")
-        return removed_count
+    def remove_embedding(self, text_hash: str) -> bool:
+        """Alias for invalidate_embedding_cache for consistency."""
+        return self.invalidate_embedding_cache(text_hash)
+
+    def get_all_embeddings(self) -> Dict[str, List[float]]:
+        """Get all embeddings as a dictionary of text_hash -> embedding."""
+        with self.get_session() as session:
+            results = session.query(EmbeddingCache).all()
+            return {entry.text_hash: entry.embedding for entry in results}
 
     def close(self):
         self.engine.dispose()

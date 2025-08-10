@@ -55,3 +55,16 @@ class BookmarkResponse(BaseModel):
     success: bool
     message: str
     bookmark_id: str = None
+
+class UploadLinkRequest(BaseModel):
+    """Request model for uploading user links"""
+    url: HttpUrl
+
+class UploadLinkResponse(BaseModel):
+    """Response model for upload link operations"""
+    success: bool
+    message: str
+    bookmark_id: str = None
+    title: str = None
+    summary: str = None
+    source_tag: str = None

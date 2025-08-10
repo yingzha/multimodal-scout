@@ -8,6 +8,7 @@ A modern, responsive web interface built with Next.js 14 and TypeScript that pro
 - **⚡ Real-Time Progress**: Streaming updates during content processing with visual feedback
 - **📊 Advanced Search Settings**: Configurable time ranges, result counts, and research/industry balance
 - **📚 Bookmark System**: Save articles with persistent storage and easy management
+- **📤 Upload Links**: Add your own URLs with automatic processing and smart categorization
 - **🔍 Content Filtering**: Filter results by content type (Research, Industry, etc.)
 - **📱 Responsive Design**: Works seamlessly on desktop and mobile devices
 - **🚀 Optimized UX**: Enhanced button states, loading animations, and smooth interactions
@@ -93,6 +94,8 @@ The application uses React's built-in state management with hooks:
 
 ### 📚 **Bookmark Experience**
 - **One-Click Bookmarking**: Star/unstar articles with visual feedback
+- **Upload Links**: Dedicated upload form with URL validation and processing feedback
+- **AI Processing**: Automatic title extraction, summary generation, and smart categorization
 - **Bookmark Management**: Dedicated view with filtering and removal
 - **Persistence**: Bookmarks saved across sessions
 - **Tag Filtering**: Filter by content type in both results and bookmarks
@@ -113,6 +116,7 @@ The frontend communicates with the FastAPI backend through:
 - `POST /api/bookmarks` - Bookmark management
 - `DELETE /api/bookmarks` - Remove bookmarks
 - `GET /api/bookmarks` - Fetch saved bookmarks
+- `POST /api/upload-link` - Process and bookmark user-uploaded URLs
 
 ### Real-Time Communication
 - `POST /api/fetch-stream` - Server-Sent Events for real-time progress

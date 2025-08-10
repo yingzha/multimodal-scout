@@ -15,7 +15,8 @@ from .constants import INTERESTED_KEYWORDS
 from .logger import logger
 from .database import db_manager
 from .pipeline import process_content_pipeline
-from .schema import FetchRequest, TopicResponse, ItemResponse, FetchResponse, BookmarkRequest, BookmarkResponse
+from .schema import FetchRequest, TopicResponse, ItemResponse, FetchResponse, BookmarkRequest, BookmarkResponse, UploadLinkRequest, UploadLinkResponse
+from .utils import generate_summary_from_link, extract_title_from_url, categorize_content, _fetch_article_text
 
 
 app = FastAPI(
@@ -200,6 +201,64 @@ async def get_bookmarks():
     except Exception as e:
         logger.error(f"Failed to get bookmarks: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get bookmarks: {str(e)}")
+
+@app.post("/api/upload-link", response_model=UploadLinkResponse)
+async def upload_link(request: UploadLinkRequest):
+    """Process and bookmark a user-uploaded link"""
+    try:
+        url = str(request.url)
+        logger.info(f"Processing uploaded link: {url}")
+        
+        # Check if already bookmarked
+        if db_manager.is_bookmarked(url):
+            return UploadLinkResponse(
+                success=False,
+                message="This link is already bookmarked"
+            )
+        
+        # Extract title
+        title = extract_title_from_url(request.url)
+        if not title:
+            title = f"Article from {request.url.host}"
+        
+        # Extract content for categorization
+        article_text = _fetch_article_text(request.url)
+        if not article_text:
+            article_text = ""
+        
+        # Generate summary
+        summary = generate_summary_from_link(request.url)
+        if not summary:
+            summary = "No summary available"
+        
+        # Categorize content
+        source_tag = categorize_content(title, article_text, url)
+        
+        # Add to bookmarks
+        bookmark_id = db_manager.add_bookmark(
+            title=title,
+            link=url,
+            source_tag=source_tag,
+            summary=summary
+        )
+        
+        # Also cache the summary for future reference
+        db_manager.add_summary(url, summary)
+        
+        logger.info(f"Successfully processed and bookmarked: {title} (Category: {source_tag})")
+        
+        return UploadLinkResponse(
+            success=True,
+            message=f"Link processed and added to bookmarks as '{source_tag}' content",
+            bookmark_id=bookmark_id,
+            title=title,
+            summary=summary,
+            source_tag=source_tag
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to process uploaded link: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to process link: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

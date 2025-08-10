@@ -28,6 +28,10 @@ export default function Home() {
   const [showReadMore, setShowReadMore] = useState<Set<string>>(new Set())
   const [maxResults, setMaxResults] = useState(10)
   const [researchRatio, setResearchRatio] = useState(0.5)
+  const [uploadUrl, setUploadUrl] = useState('')
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadMessage, setUploadMessage] = useState('')
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState<any>(null)
 
   // Fetch default topics from backend
   const fetchDefaultTopics = async () => {
@@ -195,6 +199,8 @@ export default function Home() {
         setExpandedSummaries(new Set()) // Clear expanded state when switching views
         setSelectedTag(null) // Clear tag filter when switching to bookmarks
         setBookmarksPage(1) // Reset to first page when showing bookmarks
+        setUploadUrl('') // Clear any previous URL
+        setUploadMessage('') // Clear any previous message
       }
     } catch (error) {
       console.error('Failed to fetch bookmarks:', error)
@@ -207,6 +213,93 @@ export default function Home() {
     setExpandedSummaries(new Set()) // Clear expanded state when hiding bookmarks
     setSelectedTag(null) // Clear tag filter when hiding bookmarks
     setBookmarksPage(1) // Reset bookmarks page when hiding
+    setUploadUrl('') // Clear URL
+    setUploadMessage('') // Clear message
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteConfirmItem) return
+    
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const response = await fetch(`${apiUrl}/api/bookmarks?link=${encodeURIComponent(deleteConfirmItem.link)}`, {
+        method: 'DELETE'
+      })
+      
+      if (response.ok) {
+        // Remove from bookmark state
+        setBookmarkedItems(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(deleteConfirmItem.link)
+          return newSet
+        })
+        // Refresh bookmarks view if currently shown
+        if (showBookmarks) {
+          handleViewBookmarks()
+        }
+      }
+    } catch (error) {
+      console.error('Failed to delete bookmark:', error)
+    } finally {
+      setDeleteConfirmItem(null)
+    }
+  }
+
+  const handleUploadLink = async () => {
+    if (!uploadUrl.trim()) {
+      setUploadMessage('Please enter a valid URL')
+      setTimeout(() => setUploadMessage(''), 3000)
+      return
+    }
+
+    // Basic URL validation
+    try {
+      new URL(uploadUrl)
+    } catch {
+      setUploadMessage('Please enter a valid URL (starting with http:// or https://)')
+      setTimeout(() => setUploadMessage(''), 3000)
+      return
+    }
+
+    setIsUploading(true)
+    setUploadMessage('Processing your link...')
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const response = await fetch(`${apiUrl}/api/upload-link`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: uploadUrl.trim()
+        })
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        if (result.success) {
+          setUploadMessage('Link uploaded and processed successfully!')
+          setUploadUrl('')
+          // Refresh bookmarks to show the new item
+          if (showBookmarks) {
+            handleViewBookmarks()
+          }
+        } else {
+          // Handle cases where response is OK but success=false (like duplicate links)
+          setUploadMessage(result.message || 'Failed to upload link')
+        }
+      } else {
+        const errorData = await response.json()
+        setUploadMessage(errorData.detail || 'Failed to upload link')
+      }
+    } catch (error) {
+      console.error('Failed to upload link:', error)
+      setUploadMessage('Failed to upload link. Please try again.')
+    } finally {
+      setIsUploading(false)
+      setTimeout(() => setUploadMessage(''), 5000)
+    }
   }
 
   const toggleSummaryExpansion = (itemLink: string) => {
@@ -810,12 +903,66 @@ export default function Home() {
               </button>
             </div>
             
+            {/* Upload Link Section */}
+            <div className="mb-6">
+              <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Upload a Link</h3>
+                <div className="space-y-4">
+                  <div className="flex gap-3">
+                    <input
+                      type="url"
+                      value={uploadUrl}
+                      onChange={(e) => setUploadUrl(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && !isUploading && handleUploadLink()}
+                      placeholder="https://example.com/article"
+                      className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
+                      disabled={isUploading}
+                    />
+                    <button
+                      onClick={handleUploadLink}
+                      disabled={isUploading}
+                      className={`px-4 py-2 text-white text-sm font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-all duration-200 ${
+                        isUploading
+                          ? 'bg-gray-300 cursor-not-allowed opacity-50'
+                          : 'bg-gray-500 hover:bg-gray-600 shadow-lg hover:shadow-xl hover:scale-105'
+                      }`}
+                    >
+                      {isUploading ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Processing...
+                        </div>
+                      ) : (
+                        'Add'
+                      )}
+                    </button>
+                  </div>
+                  {uploadMessage && (
+                    <div className={`text-sm font-medium p-3 rounded-lg ${
+                      uploadMessage.includes('successfully')
+                        ? 'text-green-700 bg-green-100 border border-green-200'
+                        : uploadMessage.includes('Processing')
+                        ? 'text-blue-700 bg-blue-100 border border-blue-200'
+                        : uploadMessage.includes('already been added') || uploadMessage.includes('already bookmarked')
+                        ? 'text-orange-700 bg-orange-100 border border-orange-200'
+                        : 'text-red-700 bg-red-100 border border-red-200'
+                    }`}>
+                      {uploadMessage}
+                    </div>
+                  )}
+                </div>
+                <div className="mt-6 text-xs text-gray-600 bg-blue-100 p-3 rounded text-left">
+                  💡 <strong>Smart Processing:</strong> We'll automatically scrape the content, generate a summary, and categorize it as Research, Industry, or General based on the content type.
+                </div>
+              </div>
+            </div>
+
             {bookmarkedCards.length === 0 ? (
               <div className="text-center py-12">
                 <div className="text-gray-600 text-lg mb-2">📚</div>
                 <div className="text-gray-600">No bookmarks yet</div>
                 <div className="text-gray-500 text-sm mt-1">
-                  Start bookmarking articles by clicking the ☆ icon
+                  Start bookmarking articles by clicking the ☆ icon or upload your own links
                 </div>
               </div>
             ) : (
@@ -843,7 +990,7 @@ export default function Home() {
                       <div className="flex items-center gap-2">
                         <span className="text-yellow-600">★</span>
                         <button
-                          onClick={() => handleBookmark(item)}
+                          onClick={() => setDeleteConfirmItem(item)}
                           className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-red-500 rounded-full focus:outline-none transition-colors"
                           title="Remove bookmark"
                         >
@@ -928,6 +1075,36 @@ export default function Home() {
                 />
               </>
             )}
+          </div>
+        )}
+
+        {/* Delete Confirmation Dialog */}
+        {deleteConfirmItem && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-4 max-w-sm mx-4">
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Delete Bookmark?
+                </h3>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setDeleteConfirmItem(null)}
+                    className="px-3 py-1 text-sm text-gray-600 bg-gray-100 rounded hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmDelete}
+                    className="px-3 py-1 text-sm text-white bg-red-600 rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors font-medium shadow-md"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+              <p className="text-gray-600 text-sm">
+                Are you sure you want to delete "<strong>{deleteConfirmItem.title}</strong>"?
+              </p>
+            </div>
           </div>
         )}
       </div>

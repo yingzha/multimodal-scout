@@ -10,6 +10,7 @@ Multimodal Scout scrapes content from Hugging Face trending papers and Hacker Ne
 - 🧠 **AI-Powered Summaries** for Hacker News articles using Google Gemini
 - 🎯 **Smart Balanced Search** with advanced filtering, content balancing, and configurable result limits
 - 📚 **Bookmark** articles you want to read later with persistent storage
+- 📤 **Upload Your Own Links** with automatic content processing, summary generation, and smart categorization
 - ⏰ **Stay updated** with configurable time ranges (1-7 days)
 - 📊 **Real-time Progress** tracking during content processing
 
@@ -59,7 +60,11 @@ That's it! The system will automatically start scraping and processing content.
    - Expand/collapse summaries with improved "Read more" functionality (only for long text)
    - See filtered result counts and clear filters easily
 5. **Bookmark articles**: Click ☆ to save articles for later review
-6. **Manage bookmarks**: Use "📚 View My Bookmarks" to see and organize saved articles
+6. **Upload your own content**: In the bookmarks view, use "📤 Upload Your Own Link"
+   - Paste any URL to automatically extract title, generate summary, and categorize content
+   - AI intelligently tags content as Research, Industry, or General
+   - Content is processed and added to your bookmarks instantly
+7. **Manage bookmarks**: Use "📚 View My Bookmarks" to see and organize saved articles
    - Tag filtering also works in bookmarks view
    - Remove bookmarks with ★ and × buttons
 
@@ -69,6 +74,8 @@ That's it! The system will automatically start scraping and processing content.
 - **Intelligent Summaries**: Automatically generates summaries for Hacker News articles using Google Gemini AI with database caching
 - **Advanced Semantic Search**: Uses Google Gemini embeddings with separate thresholds for research (0.65) vs industry (0.55) content
 - **Smart Balanced Filtering**: New pipeline architecture prioritizes keyword matches, then adds semantic matches by relevance score with configurable research/industry balance
+- **User Content Processing**: Upload any URL to automatically extract title, scrape content, generate AI summary, and categorize as Research/Industry/General
+- **Smart Content Categorization**: AI analyzes URL patterns and content to intelligently classify uploaded links
 - **Comprehensive Caching**: Stores generated summaries and embeddings in PostgreSQL to avoid reprocessing and improve performance
 
 ### 📡 **Real-Time User Experience**

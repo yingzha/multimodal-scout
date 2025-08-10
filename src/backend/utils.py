@@ -115,3 +115,84 @@ Provide a concise English summary focusing on the main points."""
     except Exception as e:
         logger.error(f"Error generating summary with Gemini: {e}")
         return None
+
+
+def extract_title_from_url(url: HttpUrl) -> Optional[str]:
+    """Extract title from a webpage."""
+    try:
+        response = requests.get(str(url), headers={'User-Agent': USER_AGENT}, timeout=20)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        title_tag = soup.find('title')
+        if title_tag:
+            return title_tag.get_text().strip()
+        
+        # Fallback to h1 tag
+        h1_tag = soup.find('h1')
+        if h1_tag:
+            return h1_tag.get_text().strip()
+            
+        return None
+    except requests.RequestException as e:
+        logger.error(f"Error extracting title from {url}: {e}")
+        return None
+
+
+def categorize_content(title: str, content: str, url: str) -> str:
+    """Categorize content as Research, Industry, or General based on various signals."""
+    if not AI_ENABLED:
+        return "General"
+        
+    try:
+        # Check for obvious research indicators in URL and title
+        research_indicators = [
+            'arxiv.org', 'papers.nips.cc', 'aclanthology.org', 'openreview.net',
+            'proceedings.', 'conference', 'journal', 'acm.org', 'ieee.org',
+            'research.', 'paper', 'arxiv', 'doi.org', 'scholar.google'
+        ]
+        
+        industry_indicators = [
+            'blog', 'medium.com', 'dev.to', 'hackernews', 'techcrunch',
+            'venturebeat', 'wired.com', 'theverge.com', 'arstechnica',
+            'company.', 'startup', 'product', 'release', 'announcement'
+        ]
+        
+        url_lower = url.lower()
+        title_lower = title.lower()
+        
+        # Strong signals from URL and title
+        for indicator in research_indicators:
+            if indicator in url_lower or indicator in title_lower:
+                return "Research"
+                
+        for indicator in industry_indicators:
+            if indicator in url_lower or indicator in title_lower:
+                return "Industry"
+        
+        # Use AI to categorize based on content
+        prompt = f"""Analyze the following article and categorize it as exactly one of: "Research", "Industry", or "General"
+
+Guidelines:
+- Research: Academic papers, research findings, scientific studies, conference proceedings, peer-reviewed content
+- Industry: Product announcements, company news, startup updates, industry analysis, commercial applications
+- General: Tutorials, opinion pieces, general news, educational content
+
+Title: {title}
+Content preview: {content[:1000]}
+
+Respond with only one word: Research, Industry, or General"""
+
+        response = genai_client.models.generate_content(model=GEMINI_MODEL_NAME, contents=[prompt])
+        category = response.text.strip()
+        
+        # Validate the response
+        if category in ["Research", "Industry", "General"]:
+            return category
+        else:
+            logger.warning(f"AI returned invalid category '{category}', defaulting to General")
+            return "General"
+            
+    except Exception as e:
+        logger.error(f"Error categorizing content: {e}")
+        return "General"
