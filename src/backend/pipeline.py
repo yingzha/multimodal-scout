@@ -167,6 +167,15 @@ def process_content_pipeline(
         sources_needing_summaries = [source for source in all_sources if not source.summary]
         total_to_summarize = len(sources_needing_summaries)
         
+        # Get all edited summaries once at the beginning for efficiency
+        bookmarks = db_manager.get_bookmarks()
+        edited_summaries_map = {}
+        for bookmark in bookmarks:
+            edited_summary = getattr(bookmark, 'summary_edited', None)
+            if edited_summary:
+                edited_summaries_map[bookmark.link] = edited_summary
+        logger.info(f"Found {len(edited_summaries_map)} edited summaries in bookmarks")
+        
         if total_to_summarize > 0:
             yield {'type': 'status', 'message': f'Starting summary generation for {total_to_summarize} sources...'}
             processed_summaries = 0
@@ -176,7 +185,17 @@ def process_content_pipeline(
                 unified_progress = current_progress + phase_progress
                 progress_percent = int((unified_progress / total_weight) * 100)
 
-                cached_summary = db_manager.get_summary(str(source.link))
+                source_link = str(source.link)
+                
+                # Check for edited summary from bookmarks first (fast lookup)
+                if source_link in edited_summaries_map:
+                    source.summary = edited_summaries_map[source_link]
+                    yield {'type': 'progress', 'message': f'Found edited summary for: {source.title[:50]}...', 'processed': progress_percent, 'total': 100}
+                    logger.info(f"Using edited summary for: {source.title[:50]}")
+                    continue
+                
+                # Check cached summary
+                cached_summary = db_manager.get_summary(source_link)
                 if cached_summary:
                     source.summary = cached_summary
                     yield {'type': 'progress', 'message': f'Found cached summary for: {source.title[:50]}...', 'processed': progress_percent, 'total': 100}

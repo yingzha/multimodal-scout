@@ -1,6 +1,10 @@
 from typing import List
 
 from .constants import INTERESTED_KEYWORDS, SEMANTIC_SIMILARITY_THRESHOLD
+from .schema import SourceSchema
+from .logger import logger
+from .database import db_manager
+from .utils import generate_summary_from_link
 
 
 def filter_sources(
@@ -58,7 +62,7 @@ def enrich_sources_with_summaries(sources: List[SourceSchema]) -> List[SourceSch
 
     for source in sources:
         if not source.summary:
-            cached_summary = get_summary_from_cache(str(source.link))
+            cached_summary = db_manager.get_summary(str(source.link))
             if cached_summary:
                 source.summary = cached_summary
                 logger.info(f"Found cached summary for: {source.title}")
@@ -69,7 +73,7 @@ def enrich_sources_with_summaries(sources: List[SourceSchema]) -> List[SourceSch
                     new_summary = generate_summary_from_link(source.link)
                 if new_summary:
                     source.summary = new_summary
-                    add_summary_to_cache(str(source.link), new_summary)
+                    db_manager.add_summary(str(source.link), new_summary)
                     logger.info(f"Added new summary for: {source.title}")
 
     return sources

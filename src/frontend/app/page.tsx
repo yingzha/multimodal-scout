@@ -736,7 +736,7 @@ export default function Home() {
             {/* Progress Bar Background inside button */}
             {isLoading && (
               <div 
-                className="absolute top-0 left-0 h-full bg-blue-600 transition-all duration-500 ease-out"
+                className="absolute top-0 left-0 h-full bg-purple-700 transition-all duration-500 ease-out opacity-80"
                 style={{ width: `${progress}%` }}
               />
             )}
@@ -749,7 +749,7 @@ export default function Home() {
             )}
             
             {/* Button Text */}
-            <span className={`relative z-10 transition-opacity duration-300 ${isLoading ? 'opacity-75' : 'opacity-100'}`}>
+            <span className="relative z-10">
               {isLoading 
                 ? (showDetailedProgress ? `🔍 Processing... ${progress}%` : '🔍 Fetching...') 
                 : '🔍 Fetch Top Items'
@@ -1078,18 +1078,21 @@ export default function Home() {
                             <span className="text-xs font-medium text-gray-600">Summary</span>
                             {item.summary_edited && (
                               <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
-                                User edited
+                                edited
                               </span>
                             )}
                           </div>
                           {editingSummary !== item.link && (
-                            <button
+                            <span
                               onClick={() => handleEditSummary(item)}
-                              className="text-xs text-gray-500 hover:text-blue-600 focus:outline-none"
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { handleEditSummary(item); } }}
+                              role="button"
+                              tabIndex={0}
                               title="Edit summary"
+                              className="text-xs text-gray-400 hover:text-gray-600 cursor-pointer focus:outline-none hover:bg-gray-200 rounded-full p-1"
                             >
-                              ✏️ Edit
-                            </button>
+                              ✏️
+                            </span>
                           )}
                         </div>
                         
@@ -1107,10 +1110,10 @@ export default function Home() {
                               <button
                                 onClick={() => handleSaveSummary(item.link)}
                                 disabled={isUpdatingSummary || !editedSummaryText.trim()}
-                                className={`px-3 py-1 text-sm rounded-lg focus:outline-none transition-colors ${
+                                className={`px-4 py-2 text-sm font-semibold rounded-lg focus:outline-none transition-all duration-200 ${
                                   isUpdatingSummary || !editedSummaryText.trim()
-                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                                    ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                                    : 'bg-blue-200 text-blue-700 hover:bg-blue-300 shadow-md'
                                 }`}
                               >
                                 {isUpdatingSummary ? 'Saving...' : 'Save'}
