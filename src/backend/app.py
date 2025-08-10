@@ -7,7 +7,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from typing import List, Dict, Any
-from pydantic import BaseModel
 import json
 from datetime import datetime
 import asyncio
@@ -16,6 +15,8 @@ from .constants import INTERESTED_KEYWORDS
 from .logger import logger
 from .database import db_manager
 from .pipeline import process_content_pipeline
+from .schema import FetchRequest, TopicResponse, ItemResponse, FetchResponse, BookmarkRequest, BookmarkResponse
+
 
 app = FastAPI(
     title="Multimodal Scout API",
@@ -31,46 +32,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-
-class FetchRequest(BaseModel):
-    """Request model for fetching top items"""
-    selectedDays: int
-    topics: List[str]
-    maxResults: int = 10  # Default to 10 results
-    researchRatio: float = 0.5  # Default to 50/50 research/industry balance
-
-class TopicResponse(BaseModel):
-    """Response model for default topics"""
-    topics: List[str]
-
-class ItemResponse(BaseModel):
-    """Response model for individual items"""
-    title: str
-    link: str
-    summary: str
-    source: str
-    created_at: str
-
-class FetchResponse(BaseModel):
-    """Response model for fetched items"""
-    items: List[ItemResponse]
-    total_count: int
-    sources: List[str]
-
-class BookmarkRequest(BaseModel):
-    """Request model for bookmarking"""
-    title: str
-    link: str
-    source: str
-    summary: str = ""
-
-class BookmarkResponse(BaseModel):
-    """Response model for bookmark operations"""
-    success: bool
-    message: str
-    bookmark_id: str = None
 
 @app.get("/")
 async def root():

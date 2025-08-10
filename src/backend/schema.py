@@ -17,3 +17,41 @@ class SourceSchema(BaseModel):
     keywords: Optional[List[str]] = None
     tags: List[str] # A list of tags for categorization (e.g., 'research', 'industry').
     date: datetime
+
+class FetchRequest(BaseModel):
+    """Request model for fetching top items"""
+    selectedDays: int
+    topics: List[str]
+    maxResults: int = 10  # Default to 10 results
+    researchRatio: float = 0.5  # Default to 50/50 research/industry balance
+
+class TopicResponse(BaseModel):
+    """Response model for default topics"""
+    topics: List[str]
+
+class ItemResponse(BaseModel):
+    """Response model for individual items"""
+    title: str
+    link: str
+    summary: str
+    source: str
+    created_at: str
+
+class FetchResponse(BaseModel):
+    """Response model for fetched items"""
+    items: List[ItemResponse]
+    total_count: int
+    sources: List[str]
+
+class BookmarkRequest(BaseModel):
+    """Request model for bookmarking"""
+    title: str
+    link: str
+    source: str
+    summary: str = ""
+
+class BookmarkResponse(BaseModel):
+    """Response model for bookmark operations"""
+    success: bool
+    message: str
+    bookmark_id: str = None
