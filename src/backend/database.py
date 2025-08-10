@@ -46,7 +46,7 @@ class EmbeddingCache(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     text = Column(Text, nullable=False, index=True)
     text_hash = Column(String(64), unique=True, nullable=False, index=True)
-    embedding = Column(Text, nullable=False)
+    embedding = Column(ARRAY(Float), nullable=False)
     model_name = Column(String, nullable=False, default="gemini-embedding-001")
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
@@ -188,13 +188,13 @@ class DatabaseManager:
         with self.get_session() as session:
             cached = session.query(EmbeddingCache).filter(EmbeddingCache.text_hash == text_hash).first()
             if cached:
-                return json.loads(cached.embedding)
+                return cached.embedding  # Already a list from PostgreSQL array
 
     def add_embedding_to_cache(self, text: str, text_hash: str, embedding: List[float], model_name: str) -> None:
         with self.get_session() as session:
             existing = session.query(EmbeddingCache).filter(EmbeddingCache.text_hash == text_hash).first()
             if not existing:
-                new_cache = EmbeddingCache(text=text, text_hash=text_hash, embedding=json.dumps(embedding), model_name=model_name)
+                new_cache = EmbeddingCache(text=text, text_hash=text_hash, embedding=embedding, model_name=model_name)  # Direct list assignment
                 session.add(new_cache)
                 session.commit()
 
