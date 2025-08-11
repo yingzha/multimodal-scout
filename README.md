@@ -79,6 +79,13 @@ That's it! The system will automatically start scraping and processing content.
 - **Smart Content Categorization**: AI analyzes URL patterns and content to intelligently classify uploaded links
 - **Comprehensive Caching**: Stores generated summaries and embeddings in PostgreSQL to avoid reprocessing and improve performance
 
+### ⏰ **Automated Content Collection**
+- **Scheduled Scraping**: Automatic content collection via Docker cron service with robust environment variable handling
+- **Hourly Updates**: Hacker News content fetched every hour to keep information fresh
+- **Research Paper Monitoring**: Hugging Face trending papers collected every 6 hours for comprehensive coverage
+- **Enhanced Logging**: Detailed cron job monitoring with timestamps, performance metrics, and visual indicators
+- **Reliable Execution**: Fixed cron job environment issues with proper database connectivity and dependency management
+
 ### 📡 **Real-Time User Experience**
 - **Streaming Progress Updates**: Server-Sent Events (SSE) provide live feedback during processing with visual progress bars
 - **Enhanced Button States**: Loading animations, color changes, and spinner feedback for better UX
@@ -93,8 +100,9 @@ That's it! The system will automatically start scraping and processing content.
 ### 🔧 **Developer-Friendly Architecture**
 - **FastAPI Backend**: Modern Python API with automatic documentation
 - **Next.js Frontend**: React-based UI with TypeScript support
-- **Docker Containerization**: Easy deployment and development setup
-- **Microservices**: Separate services for web, API, database, and cron jobs
+- **Docker Containerization**: Easy deployment and development setup with hot reload support
+- **Microservices**: Separate services for web, API, database, and automated cron jobs
+- **Production-Ready Cron Jobs**: Dockerized scheduled tasks with proper environment isolation and comprehensive logging
 
 ## Architecture
 
@@ -121,20 +129,21 @@ Frontend (Next.js)          Backend (FastAPI)           External Services
                             │ • Caching   │                     
                             └─────────────┘                     
                                    ↓                            
-                            ┌─────────────┐                     
-                            │ PostgreSQL  │                     
-                            │ Database    │                     
-                            │             │                     
-                            │ • Bookmarks │                     
-                            │ • Summaries │                     
-                            │ • Cache     │                     
-                            └─────────────┘                     
+                            ┌─────────────┐      ┌─────────────┐
+                            │ PostgreSQL  │      │ Cron Jobs   │
+                            │ Database    │      │ (Docker)    │
+                            │             │      │             │
+                            │ • Bookmarks │      │ • HN Hourly │
+                            │ • Summaries │ ←──→ │ • HF 6hr    │
+                            │ • Cache     │      │ • Logging   │
+                            └─────────────┘      └─────────────┘
 ```
 
 ## Documentation
 
 - 📖 [API Documentation](docs/api.md)
 - 🛠 [Development Setup](docs/development.md)
+- ⏰ [Cron Jobs & Monitoring](docs/cron-jobs.md)
 
 ## Contributing
 

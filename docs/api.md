@@ -144,6 +144,54 @@ Currently, no authentication is required for API access.
   }
   ```
 
+**PUT /api/bookmarks/summary**
+- **Description**: Update the summary of a bookmarked item (user-edited summaries take priority in search results)
+- **Request Body**:
+  ```json
+  {
+    "link": "https://example.com/article",
+    "summary": "Updated summary text..."
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "message": "Summary updated successfully"
+  }
+  ```
+
+### Content Upload
+
+**POST /api/upload-link**  
+- **Description**: Upload and process a custom URL with automatic AI summary generation and categorization
+- **Request Body**:
+  ```json
+  {
+    "url": "https://example.com/article"
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "message": "Link processed and bookmarked successfully",
+    "processed_item": {
+      "title": "Extracted Article Title",
+      "link": "https://example.com/article", 
+      "summary": "AI-generated summary...",
+      "source": "Research",
+      "created_at": "2025-01-08T10:30:00Z"
+    }
+  }
+  ```
+- **Features**:
+  - Automatic title extraction from webpage
+  - AI-powered content summarization using Google Gemini
+  - Smart categorization as Research, Industry, or General
+  - Intelligent URL pattern analysis for source classification
+  - Automatic bookmark creation for processed content
+
 ## Interactive Documentation
 
 FastAPI automatically generates interactive API documentation:

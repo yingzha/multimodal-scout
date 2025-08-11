@@ -49,10 +49,6 @@ services:
       - DATABASE_URL=postgresql://scout_user:scout_password@postgres:5432/multimodal_scout
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - DEBUG=${DEBUG:-false}
-    volumes:
-      - ./src:/app/src
-      - ./alembic:/app/alembic
-      - ./alembic.ini:/app/alembic.ini
 
   frontend:
     build:

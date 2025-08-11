@@ -1,29 +1,44 @@
-FROM python:3.11-slim
+FROM python:3.10-slim
 
-# Install cron
-RUN apt-get update && apt-get install -y cron && rm -rf /var/lib/apt/lists/*
+# Install cron and build dependencies
+RUN apt-get update && apt-get install -y \
+    cron \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv and add to PATH
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    echo 'export PATH=$HOME/.local/bin:$PATH' >> ~/.bashrc
+
+# Add uv to PATH for current shell
+ENV PATH="/root/.local/bin:$PATH"
 
 # Set working directory
 WORKDIR /app
 
-# Copy requirements and install Python dependencies
-COPY pyproject.toml ./
-RUN pip install -e .
+# Copy Python dependencies
+COPY pyproject.toml uv.lock ./
+
+# Install dependencies with uv
+RUN uv sync --frozen
 
 # Copy source code
 COPY src/ ./src/
 COPY alembic/ ./alembic/
 COPY alembic.ini ./
 
-# Copy crontab file
+# Copy crontab file and environment script
 COPY crontab /etc/cron.d/scraper-cron
+COPY cron_env.sh /app/cron_env.sh
 
 # Give execution rights on the cron job and create log file
 RUN chmod 0644 /etc/cron.d/scraper-cron && \
+    chmod +x /app/cron_env.sh && \
     crontab /etc/cron.d/scraper-cron && \
     touch /var/log/cron.log
 
 # Scripts are run via python -m, no need to make them executable
 
-# Start cron and tail the log file
+# Start cron and tail the log file (outputs to docker logs)
 CMD ["sh", "-c", "cron && tail -f /var/log/cron.log"]
