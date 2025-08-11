@@ -58,10 +58,51 @@ def _apply_balanced_filtering(sources: List[SourceSchema], keywords: List[str], 
         reverse=True
     )
     
-    # Extract sources and limit results
-    limited_results = [source for source, score in sorted_sources[:max_results]]
+    # Apply research/industry balancing
+    research_count = int(max_results * research_ratio)
+    industry_count = max_results - research_count
     
-    logger.info(f"Filtered and limited to {len(limited_results)} results")
+    logger.info(f"Balancing results: {research_count} research, {industry_count} industry")
+    
+    # Separate by source type
+    research_sources = []
+    industry_sources = []
+    
+    for source, score in sorted_sources:
+        source_tag = "General"
+        if hasattr(source, 'tags') and source.tags:
+            source_tag = source.tags[0].capitalize() if source.tags[0] else "General"
+        
+        if source_tag.lower() == "research":
+            research_sources.append((source, score))
+        else:
+            industry_sources.append((source, score))
+    
+    # Take balanced amounts from each category
+    selected_research = research_sources[:research_count]
+    selected_industry = industry_sources[:industry_count]
+    
+    # If we don't have enough of one type, fill with the other
+    total_selected = len(selected_research) + len(selected_industry)
+    if total_selected < max_results:
+        remaining_slots = max_results - total_selected
+        if len(selected_research) < research_count:
+            # Need more research, take from industry
+            additional_industry = industry_sources[len(selected_industry):len(selected_industry) + remaining_slots]
+            selected_industry.extend(additional_industry)
+        elif len(selected_industry) < industry_count:
+            # Need more industry, take from research  
+            additional_research = research_sources[len(selected_research):len(selected_research) + remaining_slots]
+            selected_research.extend(additional_research)
+    
+    # Combine and re-sort by score
+    balanced_sources = selected_research + selected_industry
+    balanced_sources.sort(key=lambda x: (x[1], x[0].date), reverse=True)
+    
+    # Extract just the sources
+    limited_results = [source for source, score in balanced_sources]
+    
+    logger.info(f"Balanced filtering complete: {len([s for s in limited_results if hasattr(s, 'tags') and s.tags and s.tags[0].lower() == 'research'])} research, {len([s for s in limited_results if not hasattr(s, 'tags') or not s.tags or s.tags[0].lower() != 'research'])} industry/other")
     return limited_results
 
 
