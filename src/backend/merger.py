@@ -5,6 +5,7 @@ from .schema import SourceSchema
 from .logger import logger
 from .database import db_manager
 from .utils import generate_summary_from_link
+from .search import keyword_search, semantic_search_with_scores
 
 
 def filter_sources(
@@ -39,9 +40,10 @@ def filter_sources(
     ]
 
     logger.info(f"Running semantic search on {len(semantic_candidates)} remaining sources with summaries...")
-    semantic_matches = semantic_search(
+    semantic_results = semantic_search_with_scores(
         semantic_candidates, keywords, threshold=SEMANTIC_SIMILARITY_THRESHOLD
     )
+    semantic_matches = [result[0] for result in semantic_results]  # Extract just the sources
 
     # Combine results
     return keyword_matches + semantic_matches

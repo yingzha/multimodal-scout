@@ -1093,7 +1093,8 @@ export default function Home() {
                             <textarea
                               value={editedSummaryText}
                               onChange={(e) => setEditedSummaryText(e.target.value)}
-                              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm leading-relaxed"
+                              className="w-full p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm leading-relaxed text-left resize-none"
+                              style={{ textAlign: 'left', lineHeight: '1.6' }}
                               rows={4}
                               placeholder="Edit the summary..."
                             />

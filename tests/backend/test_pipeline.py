@@ -33,7 +33,7 @@ class TestPipeline(unittest.TestCase):
     @patch('src.backend.database.db_manager.get_summary')
     @patch('src.backend.database.db_manager.add_summary')
     @patch('src.backend.pipeline.generate_summary_from_link')
-    @patch('src.backend.pipeline._filter_sources_advanced')
+    @patch('src.backend.pipeline._apply_balanced_filtering')
     def test_process_content_pipeline_full_flow(self, mock_filter, mock_generate_summary, mock_add_summary, mock_get_summary, mock_scrape_hn, mock_scrape_hf):
         # --- Setup Mocks ---
         mock_scrape_hf.return_value = [mock_hf_paper]
