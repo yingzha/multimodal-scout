@@ -752,7 +752,7 @@ export default function Home() {
             <span className="relative z-10">
               {isLoading 
                 ? (showDetailedProgress ? `🔍 Processing... ${progress}%` : '🔍 Fetching...') 
-                : '🔍 Fetch Top Items'
+                : '🔍 Discover Content'
               }
             </span>
           </button>
@@ -761,7 +761,7 @@ export default function Home() {
             onClick={handleViewBookmarks}
             className="px-8 py-4 bg-gray-500 text-white text-xl font-semibold rounded-lg hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
           >
-            📚 View My Bookmarks
+            📚 My Bookmarks
           </button>
         </div>
 
