@@ -12,7 +12,7 @@ Multimodal Scout scrapes content from Hugging Face trending papers and Hacker Ne
 - 📚 **Bookmark** articles you want to read later with persistent storage
 - ✏️ **Edit Summaries** inline with user-edited indicators and priority in search results
 - 📤 **Upload Your Own Links** with automatic content processing, summary generation, and smart categorization
-- ⏰ **Stay updated** with configurable time ranges (1-7 days)
+- ⏰ **Stay updated** with flexible time ranges (any number of days, with quick presets)
 - 📊 **Real-time Progress** tracking during content processing
 
 ## Quick Start
@@ -47,7 +47,7 @@ That's it! The system will automatically start scraping and processing content.
    - Default topics are locked (🔒) but you can add your own
    - Get real-time feedback when adding keywords (duplicate detection, validation)
 2. **Configure search settings**: Customize your content discovery experience
-   - **Time range**: Retrieve content from the last 1, 3, or 7 days
+   - **Time range**: Retrieve content from the last N days (any number, with quick presets for 1, 3, or 7 days)
    - **Result count**: Choose 5-50 results (default: 10)
    - **Content balance**: Adjust research/industry ratio from 0-100% (default: 50/50)
    - Smart Balanced Search is always enabled with optimized thresholds

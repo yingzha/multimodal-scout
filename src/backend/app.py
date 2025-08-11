@@ -63,7 +63,8 @@ async def fetch_top_items(request: FetchRequest):
         pipeline_generator = process_content_pipeline(
             topics=request.topics,
             max_results=request.maxResults,
-            research_ratio=request.researchRatio
+            research_ratio=request.researchRatio,
+            selected_days=request.selectedDays
         )
         
         final_result = None
@@ -102,7 +103,8 @@ async def fetch_top_items_stream(request: FetchRequest):
             pipeline_generator = process_content_pipeline(
                 topics=request.topics,
                 max_results=request.maxResults,
-                research_ratio=request.researchRatio
+                research_ratio=request.researchRatio,
+                selected_days=request.selectedDays
             )
 
             for event in pipeline_generator:

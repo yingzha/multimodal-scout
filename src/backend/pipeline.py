@@ -13,7 +13,7 @@ suitable for streaming APIs.
 
 import json
 from typing import List, Dict, Any, Generator
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from .scraper import scrape_huggingface_trending_papers, scrape_hacker_news
 from .logger import logger
@@ -109,7 +109,8 @@ def _apply_balanced_filtering(sources: List[SourceSchema], keywords: List[str], 
 def process_content_pipeline(
     topics: List[str],
     max_results: int,
-    research_ratio: float
+    research_ratio: float,
+    selected_days: int = 7
 ) -> Generator[Dict[str, Any], None, None]:
     """
     The main processing pipeline.
@@ -139,6 +140,41 @@ def process_content_pipeline(
     except Exception as e:
         logger.error(f"Failed to fetch Hacker News items: {e}")
         yield {'type': 'error', 'message': f'Failed to fetch Hacker News items: {str(e)}'}
+
+    # Apply date filtering to only include content from the last N days
+    if all_sources and selected_days > 0:
+        cutoff_date = datetime.now() - timedelta(days=selected_days)
+        original_count = len(all_sources)
+        
+        filtered_sources = []
+        for source in all_sources:
+            source_date = source.date
+            # Handle both datetime objects and strings
+            if isinstance(source_date, str):
+                try:
+                    # Try parsing ISO format first
+                    source_date = datetime.fromisoformat(source_date.replace('Z', '+00:00'))
+                except ValueError:
+                    try:
+                        # Try parsing without timezone
+                        source_date = datetime.fromisoformat(source_date)
+                    except ValueError:
+                        logger.warning(f"Could not parse date {source_date} for {source.title}, keeping item")
+                        filtered_sources.append(source)
+                        continue
+            
+            # Make both dates timezone-naive for comparison
+            if source_date.tzinfo:
+                source_date = source_date.replace(tzinfo=None)
+            if cutoff_date.tzinfo:
+                cutoff_date = cutoff_date.replace(tzinfo=None)
+                
+            if source_date >= cutoff_date:
+                filtered_sources.append(source)
+        
+        all_sources = filtered_sources
+        logger.info(f"Date filtering: kept {len(all_sources)} of {original_count} sources from last {selected_days} days")
+        yield {'type': 'status', 'message': f'Filtered to {len(all_sources)} items from last {selected_days} days'}
 
     total_weight = 100
     scraping_weight = 10
