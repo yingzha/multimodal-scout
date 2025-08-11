@@ -955,8 +955,7 @@ export default function Home() {
             {/* Upload Link Section */}
             <div className="mb-4">
               <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
-                <h3 className="text-sm font-medium text-gray-900 mb-2">Upload a Link</h3>
-                <div className="space-y-4">
+                <div className="space-y-2">
                   <div className="flex gap-3">
                     <input
                       type="url"

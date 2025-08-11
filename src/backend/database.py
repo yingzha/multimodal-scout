@@ -149,20 +149,6 @@ class DatabaseManager:
             results = session.query(SummaryCache).filter(SummaryCache.summary.ilike(f"%{query}%")).order_by(desc(SummaryCache.created_at)).limit(limit).all()
             return [{"url": e.url, "summary": e.summary, "created_at": e.created_at.isoformat(), "updated_at": e.updated_at.isoformat()} for e in results]
 
-    def get_all_summaries(self) -> Dict[str, str]:
-        with self.get_session() as session:
-            results = session.query(SummaryCache).all()
-            return {entry.url: entry.summary for entry in results}
-
-    def remove_summary(self, url: str) -> bool:
-        with self.get_session() as session:
-            entry = session.query(SummaryCache).filter(SummaryCache.url == url).first()
-            if entry:
-                session.delete(entry)
-                session.commit()
-                logger.info(f"Removed cached summary for URL: {url}")
-                return True
-            return False
 
     # --- Source Methods ---
 
@@ -380,7 +366,14 @@ class DatabaseManager:
     # --- Invalidation Methods ---
 
     def invalidate_summary_cache(self, url: str) -> bool:
-        return self.remove_summary(url)
+        with self.get_session() as session:
+            entry = session.query(SummaryCache).filter(SummaryCache.url == url).first()
+            if entry:
+                session.delete(entry)
+                session.commit()
+                logger.info(f"Removed cached summary for URL: {url}")
+                return True
+            return False
 
     def invalidate_embedding_cache(self, text_hash: str) -> bool:
         with self.get_session() as session:
@@ -392,18 +385,6 @@ class DatabaseManager:
                 return True
             return False
 
-    def remove_embedding(self, text_hash: str) -> bool:
-        """Alias for invalidate_embedding_cache for consistency."""
-        return self.invalidate_embedding_cache(text_hash)
-
-    def get_all_embeddings(self) -> Dict[str, List[float]]:
-        """Get all embeddings as a dictionary of text_hash -> embedding."""
-        with self.get_session() as session:
-            results = session.query(EmbeddingCache).all()
-            return {entry.text_hash: entry.embedding for entry in results}
-
-    def close(self):
-        self.engine.dispose()
 
 # Global database manager instance
 db_manager = DatabaseManager()

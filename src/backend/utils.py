@@ -1,7 +1,6 @@
 import re
 from typing import Optional
 
-from google import genai
 import requests
 from bs4 import BeautifulSoup
 from pydantic import HttpUrl

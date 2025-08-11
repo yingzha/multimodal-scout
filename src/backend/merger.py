@@ -1,52 +1,10 @@
 from typing import List
 
-from .constants import INTERESTED_KEYWORDS, SEMANTIC_SIMILARITY_THRESHOLD
 from .schema import SourceSchema
 from .logger import logger
 from .database import db_manager
 from .utils import generate_summary_from_link
-from .search import keyword_search, semantic_search_with_scores
 
-
-def filter_sources(
-    sources: List[SourceSchema], keywords: List[str]
-) -> List[SourceSchema]:
-    """
-    Filters sources using a two-pass approach: keyword and semantic search.
-
-    1. A fast, normalized keyword search is run on all sources.
-    2. For sources with summaries that did not match via keywords,
-       a semantic search is performed to find conceptually similar content.
-
-    Args:
-        sources: A list of SourceSchema objects to filter.
-        keywords: A list of strings to search for.
-    Returns:
-        A new list of SourceSchema objects that match the criteria.
-    """
-    # --- Pass 1: Keyword Search ---
-    logger.info("Running keyword search...")
-    keyword_matches = keyword_search(sources, keywords)
-    logger.info(f"Found {len(keyword_matches)} sources via keyword search.")
-
-    matched_links = {source.link for source in keyword_matches}
-
-    # --- Pass 2: Semantic Search (on remaining sources with summaries) ---
-    # Identify candidates for semantic search
-    semantic_candidates = [
-        source for source in sources
-        if source.link not in matched_links
-        and source.summary  # Ensure there is a summary to search on
-    ]
-
-    logger.info(f"Running semantic search on {len(semantic_candidates)} remaining sources with summaries...")
-    semantic_results = semantic_search_with_scores(
-        semantic_candidates, keywords, threshold=SEMANTIC_SIMILARITY_THRESHOLD
-    )
-    semantic_matches = [result[0] for result in semantic_results]  # Extract just the sources
-
-    # Combine results
-    return keyword_matches + semantic_matches
 
 
 def enrich_sources_with_summaries(sources: List[SourceSchema]) -> List[SourceSchema]:
