@@ -116,65 +116,84 @@ def process_content_pipeline(
     The main processing pipeline.
     Yields progress updates and finally the results.
     """
-    all_sources = []
-    source_names = []
-
-    yield {'type': 'status', 'message': 'Fetching sources from Hugging Face and Hacker News...'}
+    # Get sources from database that were added in the last N days
+    cutoff_date = datetime.now() - timedelta(days=selected_days)
     
-    try:
-        hf_papers = scrape_huggingface_trending_papers()
-        if hf_papers:
-            all_sources.extend(hf_papers)
-            source_names.append("Hugging Face")
-            yield {'type': 'status', 'message': f'Found {len(hf_papers)} Hugging Face papers'}
-    except Exception as e:
-        logger.error(f"Failed to fetch Hugging Face papers: {e}")
-        yield {'type': 'error', 'message': f'Failed to fetch Hugging Face papers: {str(e)}'}
-
-    try:
-        hn_items = scrape_hacker_news()
-        if hn_items:
-            all_sources.extend(hn_items)
-            source_names.append("Hacker News")
-            yield {'type': 'status', 'message': f'Found {len(hn_items)} Hacker News items'}
-    except Exception as e:
-        logger.error(f"Failed to fetch Hacker News items: {e}")
-        yield {'type': 'error', 'message': f'Failed to fetch Hacker News items: {str(e)}'}
-
-    # Apply date filtering to only include content from the last N days
-    if all_sources and selected_days > 0:
-        cutoff_date = datetime.now() - timedelta(days=selected_days)
-        original_count = len(all_sources)
+    yield {'type': 'status', 'message': f'Fetching sources from database added in last {selected_days} days...'}
+    
+    # Query database for sources added in the specified time range
+    with db_manager.get_session() as session:
+        from .database import Source
+        db_sources = session.query(Source).filter(
+            Source.created_at >= cutoff_date
+        ).order_by(Source.created_at.desc()).all()
+    
+    if db_sources:
+        logger.info(f"Found {len(db_sources)} sources in database from last {selected_days} days")
+        yield {'type': 'status', 'message': f'Found {len(db_sources)} sources from last {selected_days} days'}
         
-        filtered_sources = []
-        for source in all_sources:
-            source_date = source.date
-            # Handle both datetime objects and strings
-            if isinstance(source_date, str):
-                try:
-                    # Try parsing ISO format first
-                    source_date = datetime.fromisoformat(source_date.replace('Z', '+00:00'))
-                except ValueError:
-                    try:
-                        # Try parsing without timezone
-                        source_date = datetime.fromisoformat(source_date)
-                    except ValueError:
-                        logger.warning(f"Could not parse date {source_date} for {source.title}, keeping item")
-                        filtered_sources.append(source)
-                        continue
-            
-            # Make both dates timezone-naive for comparison
-            if source_date.tzinfo:
-                source_date = source_date.replace(tzinfo=None)
-            if cutoff_date.tzinfo:
-                cutoff_date = cutoff_date.replace(tzinfo=None)
+        # Convert database records back to SourceSchema objects
+        all_sources = []
+        source_names = set()
+        
+        for db_source in db_sources:
+            try:
+                # Determine source name from tags
+                source_tag = "General"
+                if db_source.tags and len(db_source.tags) > 0:
+                    source_tag = db_source.tags[0].capitalize()
+                    if source_tag.lower() == 'research':
+                        source_names.add("Research Papers")
+                    elif source_tag.lower() == 'industry':
+                        source_names.add("Industry News")
                 
-            if source_date >= cutoff_date:
-                filtered_sources.append(source)
+                # Create SourceSchema object from database record
+                source_schema = SourceSchema(
+                    title=db_source.title,
+                    authors=db_source.authors or [],
+                    link=db_source.link,
+                    source_link=db_source.source_link,
+                    summary=db_source.summary,
+                    keywords=db_source.keywords,
+                    tags=db_source.tags or [],
+                    date=db_source.date
+                )
+                all_sources.append(source_schema)
+                
+            except Exception as e:
+                logger.warning(f"Failed to convert database record to schema: {e}")
+                continue
         
-        all_sources = filtered_sources
-        logger.info(f"Date filtering: kept {len(all_sources)} of {original_count} sources from last {selected_days} days")
-        yield {'type': 'status', 'message': f'Filtered to {len(all_sources)} items from last {selected_days} days'}
+        source_names = list(source_names)
+        logger.info(f"Converted {len(all_sources)} database records to source schemas")
+        
+    else:
+        # Fallback: if no recent database records, scrape fresh content
+        logger.info("No recent database records found, falling back to fresh scraping")
+        yield {'type': 'status', 'message': 'No recent database records, fetching fresh content...'}
+        
+        all_sources = []
+        source_names = []
+
+        try:
+            hf_papers = scrape_huggingface_trending_papers()
+            if hf_papers:
+                all_sources.extend(hf_papers)
+                source_names.append("Hugging Face")
+                yield {'type': 'status', 'message': f'Found {len(hf_papers)} fresh Hugging Face papers'}
+        except Exception as e:
+            logger.error(f"Failed to fetch Hugging Face papers: {e}")
+            yield {'type': 'error', 'message': f'Failed to fetch Hugging Face papers: {str(e)}'}
+
+        try:
+            hn_items = scrape_hacker_news()
+            if hn_items:
+                all_sources.extend(hn_items)
+                source_names.append("Hacker News")
+                yield {'type': 'status', 'message': f'Found {len(hn_items)} fresh Hacker News items'}
+        except Exception as e:
+            logger.error(f"Failed to fetch Hacker News items: {e}")
+            yield {'type': 'error', 'message': f'Failed to fetch Hacker News items: {str(e)}'}
 
     total_weight = 100
     scraping_weight = 10
