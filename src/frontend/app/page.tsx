@@ -31,6 +31,8 @@ export default function Home() {
   const [uploadUrl, setUploadUrl] = useState('')
   const [isUploading, setIsUploading] = useState(false)
   const [uploadMessage, setUploadMessage] = useState('')
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadProgressMessage, setUploadProgressMessage] = useState('')
   const [deleteConfirmItem, setDeleteConfirmItem] = useState<any>(null)
   const [deleteConfirmPosition, setDeleteConfirmPosition] = useState<{top: number, left: number} | null>(null)
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
@@ -294,10 +296,17 @@ export default function Home() {
     }
 
     setIsUploading(true)
+    setUploadProgress(0)
+    setUploadProgressMessage('Starting to process your link...')
     setUploadMessage('Processing your link...')
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      
+      // Simulate progress steps for user feedback
+      setUploadProgress(25)
+      setUploadProgressMessage('Fetching content from URL...')
+      
       const response = await fetch(`${apiUrl}/api/upload-link`, {
         method: 'POST',
         headers: {
@@ -307,9 +316,15 @@ export default function Home() {
           url: uploadUrl.trim()
         })
       })
+      
+      setUploadProgress(75)
+      setUploadProgressMessage('Generating summary and categorizing...')
 
       if (response.ok) {
         const result = await response.json()
+        setUploadProgress(100)
+        setUploadProgressMessage('Processing complete!')
+        
         if (result.success) {
           setUploadMessage('Link uploaded and processed successfully!')
           setUploadUrl('')
@@ -329,8 +344,12 @@ export default function Home() {
       console.error('Failed to upload link:', error)
       setUploadMessage('Failed to upload link. Please try again.')
     } finally {
-      setIsUploading(false)
-      setTimeout(() => setUploadMessage(''), 5000)
+      setTimeout(() => {
+        setIsUploading(false)
+        setUploadProgress(0)
+        setUploadProgressMessage('')
+        setUploadMessage('')
+      }, 2000)
     }
   }
 
@@ -921,12 +940,6 @@ export default function Home() {
           <div className="mt-12">
             <div className="flex justify-between items-center mb-6">
               <div className="flex items-center gap-3">
-                <div className="text-sm text-gray-600">
-                  {selectedTag 
-                    ? `${bookmarkedCards.filter(item => item.source === selectedTag).length} bookmarks for "${selectedTag}"` 
-                    : `${bookmarkedCards.length} bookmarks`
-                  }
-                </div>
                 {selectedTag && (
                   <div className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
                     <span>{selectedTag}</span>
@@ -950,7 +963,7 @@ export default function Home() {
             </div>
             
             {/* Upload Link Section */}
-            <div className="mb-6">
+            <div className="mb-4">
               <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Upload a Link</h3>
                 <div className="space-y-4">
@@ -983,6 +996,21 @@ export default function Home() {
                       )}
                     </button>
                   </div>
+                  {/* Upload Progress Bar */}
+                  {isUploading && (
+                    <div className="space-y-3">
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-blue-600 h-2 rounded-full transition-all duration-500 ease-out"
+                          style={{ width: `${uploadProgress}%` }}
+                        ></div>
+                      </div>
+                      <div className="text-sm text-blue-700 text-center font-medium">
+                        {uploadProgressMessage} ({uploadProgress}%)
+                      </div>
+                    </div>
+                  )}
+                  
                   {uploadMessage && (
                     <div className={`text-sm font-medium p-3 rounded-lg ${
                       uploadMessage.includes('successfully')
@@ -1006,6 +1034,14 @@ export default function Home() {
                   </div>
                 </div>
               </div>
+            </div>
+            
+            {/* Bookmark Count - moved below upload section */}
+            <div className="text-sm text-gray-600 mb-6">
+              {selectedTag 
+                ? `${bookmarkedCards.filter(item => item.source === selectedTag).length} bookmarks for "${selectedTag}"` 
+                : `${bookmarkedCards.length} bookmarks`
+              }
             </div>
 
             {bookmarkedCards.length === 0 ? (
@@ -1080,7 +1116,7 @@ export default function Home() {
                               role="button"
                               tabIndex={0}
                               title="Edit summary"
-                              className="text-xs text-gray-400 hover:text-gray-600 cursor-pointer focus:outline-none hover:bg-gray-200 rounded-full p-1"
+                              className="text-xs text-gray-400 hover:text-gray-600 cursor-pointer focus:outline-none hover:bg-gray-600 rounded-full p-1"
                             >
                               ✏️
                             </span>
@@ -1102,10 +1138,10 @@ export default function Home() {
                               <button
                                 onClick={() => handleSaveSummary(item.link)}
                                 disabled={isUpdatingSummary || !editedSummaryText.trim()}
-                                className={`px-4 py-2 text-sm font-semibold rounded-lg focus:outline-none transition-all duration-200 ${
+                                className={`px-4 py-2 text-sm rounded-lg focus:outline-none transition-all duration-200 ${
                                   isUpdatingSummary || !editedSummaryText.trim()
-                                    ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
-                                    : 'bg-blue-200 text-blue-700 hover:bg-blue-300 shadow-md'
+                                    ? 'bg-gray-200 text-gray-700 cursor-not-allowed'
+                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-200'
                                 }`}
                               >
                                 {isUpdatingSummary ? 'Saving...' : 'Save'}
@@ -1113,7 +1149,7 @@ export default function Home() {
                               <button
                                 onClick={handleCancelEditSummary}
                                 disabled={isUpdatingSummary}
-                                className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 focus:outline-none transition-colors"
+                                className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none transition-colors"
                               >
                                 Cancel
                               </button>
@@ -1227,7 +1263,7 @@ export default function Home() {
                   </button>
                   <button
                     onClick={confirmDelete}
-                    className="px-3 py-1 text-sm text-gray-800 bg-gray-100 rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors font-medium shadow-md"
+                    className="px-3 py-1 text-sm text-gray-900 bg-gray-200 rounded hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
                   >
                     Delete
                   </button>
