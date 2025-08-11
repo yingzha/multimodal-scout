@@ -22,103 +22,24 @@ from .search import keyword_search, semantic_search_with_scores
 from .database import db_manager
 from .utils import generate_summary_from_link
 from .constants import RESEARCH_THRESHOLD, INDUSTRY_THRESHOLD
+from .merger import filter_sources
 
 
-def _filter_sources_advanced(
-    sources: List[SourceSchema], 
-    keywords: List[str], 
-    max_results: int = 10,
-    research_ratio: float = 0.5
-) -> List[SourceSchema]:
+def _apply_balanced_filtering(sources: List[SourceSchema], keywords: List[str], max_results: int = 10, research_ratio: float = 0.5) -> List[SourceSchema]:
     """
-    Advanced filtering with balanced results and proper ordering.
-    (Moved from merger.py)
+    Apply balanced filtering using the existing filter_sources function with result limiting.
     """
-    logger.info("Running keyword search...")
-    keyword_matches = keyword_search(sources, keywords)
-    logger.info(f"Found {len(keyword_matches)} sources via keyword search.")
+    logger.info(f"Applying balanced filtering to {len(sources)} sources...")
     
-    keyword_research = []
-    keyword_industry = []
+    # Use the existing filter_sources function from merger.py
+    filtered_sources = filter_sources(sources, keywords)
     
-    for source in keyword_matches:
-        if hasattr(source, 'tags') and source.tags and 'research' in source.tags:
-            keyword_research.append(source)
-        else:
-            keyword_industry.append(source)
+    # Sort by date (most recent first) and limit results
+    sorted_sources = sorted(filtered_sources, key=lambda s: s.date, reverse=True)
+    limited_results = sorted_sources[:max_results]
     
-    matched_links = {source.link for source in keyword_matches}
-    
-    semantic_candidates = [
-        source for source in sources
-        if source.link not in matched_links
-        and source.summary
-    ]
-    
-    research_candidates = []
-    industry_candidates = []
-    
-    for source in semantic_candidates:
-        if hasattr(source, 'tags') and source.tags and 'research' in source.tags:
-            research_candidates.append(source)
-        else:
-            industry_candidates.append(source)
-    
-    logger.info(f"Running semantic search on {len(research_candidates)} research and {len(industry_candidates)} industry sources...")
-    
-    research_matches = semantic_search_with_scores(
-        research_candidates, keywords, threshold=RESEARCH_THRESHOLD
-    )
-    industry_matches = semantic_search_with_scores(
-        industry_candidates, keywords, threshold=INDUSTRY_THRESHOLD
-    )
-    
-    semantic_research = [source for source, score in research_matches]
-    semantic_industry = [source for source, score in industry_matches]
-    
-    logger.info(f"Found {len(semantic_research)} research and {len(semantic_industry)} industry semantic matches")
-    
-    target_research = int(max_results * research_ratio)
-    target_industry = max_results - target_research
-    
-    final_research = keyword_research[:target_research]
-    remaining_research_slots = target_research - len(final_research)
-    if remaining_research_slots > 0:
-        final_research.extend(semantic_research[:remaining_research_slots])
-    
-    final_industry = keyword_industry[:target_industry]
-    remaining_industry_slots = target_industry - len(final_industry)
-    if remaining_industry_slots > 0:
-        final_industry.extend(semantic_industry[:remaining_industry_slots])
-    
-    total_selected = len(final_research) + len(final_industry)
-    remaining_slots = max_results - total_selected
-    
-    if remaining_slots > 0:
-        research_overflow = [s for s in semantic_research if s not in final_research]
-        industry_overflow = [s for s in semantic_industry if s not in final_industry]
-        
-        fill_from_research = research_overflow[:remaining_slots]
-        final_research.extend(fill_from_research)
-        remaining_slots -= len(fill_from_research)
-
-        if remaining_slots > 0:
-            fill_from_industry = industry_overflow[:remaining_slots]
-            final_industry.extend(fill_from_industry)
-
-    all_results = final_research + final_industry
-    
-    # Remove duplicates based on link (since SourceSchema is not hashable)
-    seen_links = set()
-    unique_results = []
-    for source in all_results:
-        if source.link not in seen_links:
-            seen_links.add(source.link)
-            unique_results.append(source)
-
-    logger.info(f"Final balanced results: {len([r for r in unique_results if 'research' in r.tags])} research, {len([r for r in unique_results if 'research' not in r.tags])} industry")
-
-    return unique_results[:max_results]
+    logger.info(f"Filtered and limited to {len(limited_results)} results")
+    return limited_results
 
 
 def process_content_pipeline(
@@ -222,7 +143,7 @@ def process_content_pipeline(
         progress_50 = current_progress + (filtering_weight * 0.5)
         yield {'type': 'progress', 'message': 'Applying semantic search & balancing...', 'processed': int((progress_50 / total_weight) * 100), 'total': 100}
 
-        filtered_sources = _filter_sources_advanced(all_sources, topics, max_results, research_ratio)
+        filtered_sources = _apply_balanced_filtering(all_sources, topics, max_results, research_ratio)
         
         complete_progress = current_progress + filtering_weight
         yield {'type': 'progress', 'message': f'Smart filtering complete! Found {len(filtered_sources)} balanced results.', 'processed': int((complete_progress / total_weight) * 100), 'total': 100}

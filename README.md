@@ -10,6 +10,7 @@ Multimodal Scout scrapes content from Hugging Face trending papers and Hacker Ne
 - 🧠 **AI-Powered Summaries** for Hacker News articles using Google Gemini
 - 🎯 **Smart Balanced Search** with advanced filtering, content balancing, and configurable result limits
 - 📚 **Bookmark** articles you want to read later with persistent storage
+- ✏️ **Edit Summaries** inline with user-edited indicators and priority in search results
 - 📤 **Upload Your Own Links** with automatic content processing, summary generation, and smart categorization
 - ⏰ **Stay updated** with configurable time ranges (1-7 days)
 - 📊 **Real-time Progress** tracking during content processing

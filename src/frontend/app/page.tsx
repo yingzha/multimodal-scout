@@ -138,37 +138,36 @@ export default function Home() {
     }
   }
 
+  // Pagination helper function
+  const paginateItems = (items: any[], page: number) => {
+    const filtered = items.filter(item => selectedTag ? item.source === selectedTag : true)
+    const startIndex = (page - 1) * itemsPerPage
+    return filtered.slice(startIndex, startIndex + itemsPerPage)
+  }
+
   // Check bookmark status when results are loaded
   useEffect(() => {
-    const filtered = fetchedItems
-      .filter(item => selectedTag ? item.source === selectedTag : true)
-
-    const startIndex = (currentPage - 1) * itemsPerPage
-    const endIndex = startIndex + itemsPerPage
-    setPaginatedItems(filtered.slice(startIndex, endIndex))
+    setPaginatedItems(paginateItems(fetchedItems, currentPage))
   }, [fetchedItems, selectedTag, currentPage, itemsPerPage, bookmarkedItems])
 
   useEffect(() => {
-    const filtered = bookmarkedCards.filter(item => selectedTag ? item.source === selectedTag : true)
-    const startIndex = (bookmarksPage - 1) * itemsPerPage
-    const endIndex = startIndex + itemsPerPage
-    setPaginatedBookmarks(filtered.slice(startIndex, endIndex))
+    setPaginatedBookmarks(paginateItems(bookmarkedCards, bookmarksPage))
   }, [bookmarkedCards, selectedTag, bookmarksPage, itemsPerPage])
+
+  // Helper function to check if summary needs "Read More"
+  const checkSummaryOverflow = (element: HTMLElement) => {
+    const isOverflowing = element.scrollHeight > element.clientHeight + 20
+    const textContent = element.textContent || ''
+    const isLongEnoughText = textContent.length > 150
+    return isOverflowing && isLongEnoughText
+  }
 
   useEffect(() => {
     const newShowReadMore = new Set<string>()
     const checkSummaries = () => {
       document.querySelectorAll('[data-summary-text]').forEach(p => {
         const element = p as HTMLElement
-        // Check if text is actually being truncated by a meaningful amount
-        // We need at least 20px difference to consider showing "Read More"
-        const isOverflowing = element.scrollHeight > element.clientHeight + 20
-        
-        // Also check if the text content is long enough to warrant truncation
-        const textContent = element.textContent || ''
-        const isLongEnoughText = textContent.length > 150 // More than ~2 lines worth of text
-        
-        if (isOverflowing && isLongEnoughText) {
+        if (checkSummaryOverflow(element)) {
           const link = element.dataset.summaryText
           if (link) {
             newShowReadMore.add(link)
@@ -178,9 +177,7 @@ export default function Home() {
       setShowReadMore(newShowReadMore)
     }
 
-    // We need to check the summaries after the DOM has been updated
-    const timeoutId = setTimeout(checkSummaries, 100) // Slightly longer delay for better detection
-
+    const timeoutId = setTimeout(checkSummaries, 100)
     return () => clearTimeout(timeoutId)
   }, [paginatedItems, paginatedBookmarks, expandedSummaries])
 
@@ -408,6 +405,75 @@ export default function Home() {
     )
   }
 
+  // Helper function to handle stream events
+  const handleStreamEvent = (eventData: any) => {
+    switch (eventData.type) {
+      case 'status':
+        setProgressMessage(eventData.message)
+        break
+      case 'start':
+        setShowDetailedProgress(true)
+        setProgressMessage(eventData.message)
+        setProgress(0)
+        break
+      case 'progress':
+        const progressPercent = Math.round((eventData.processed / eventData.total) * 100)
+        setProgress(progressPercent)
+        setProgressMessage(eventData.message)
+        break
+      case 'complete':
+        setProgress(100)
+        setProgressMessage(eventData.message)
+        break
+      case 'info':
+      case 'warning':
+        setProgressMessage(eventData.message)
+        break
+      case 'error':
+        console.error('Stream error:', eventData.message)
+        alert(`Error: ${eventData.message}`)
+        break
+      case 'result':
+        setFetchedItems(eventData.data.items)
+        setShowResults(true)
+        setShowBookmarks(false)
+        setExpandedSummaries(new Set())
+        setSelectedTag(null)
+        setCurrentPage(1)
+        setProgress(100)
+        setProgressMessage('Complete!')
+        break
+    }
+  }
+
+  // Helper function to process stream data
+  const processStreamData = async (reader: ReadableStreamDefaultReader<Uint8Array>) => {
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+          try {
+            const eventData = JSON.parse(line.slice(6))
+            handleStreamEvent(eventData)
+          } catch (parseError) {
+            console.error('Failed to parse event data:', parseError)
+          }
+        } else if (line === 'data: [DONE]') {
+          break
+        }
+      }
+    }
+  }
+
   const handleFetchItems = async () => {
     setIsLoading(true)
     setProgress(0)
@@ -420,15 +486,8 @@ export default function Home() {
       
       const response = await fetch(`${apiUrl}/api/fetch-stream`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          selectedDays,
-          topics: allTopics,
-          maxResults,
-          researchRatio
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selectedDays, topics: allTopics, maxResults, researchRatio })
       })
       
       if (!response.ok) {
@@ -436,79 +495,11 @@ export default function Home() {
       }
 
       const reader = response.body?.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      
       if (!reader) {
         throw new Error('Failed to get response reader')
       }
 
-      while (true) {
-        const { done, value } = await reader.read()
-        
-        if (done) break
-        
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || '' // Keep incomplete line in buffer
-        
-        for (const line of lines) {
-          if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-            try {
-              const eventData = JSON.parse(line.slice(6)) // Remove 'data: '
-              
-              switch (eventData.type) {
-                case 'status':
-                  setProgressMessage(eventData.message)
-                  break
-                  
-                case 'start':
-                  setShowDetailedProgress(true)
-                  setProgressMessage(eventData.message)
-                  setProgress(0)
-                  break
-                  
-                case 'progress':
-                  const progressPercent = Math.round((eventData.processed / eventData.total) * 100)
-                  setProgress(progressPercent)
-                  setProgressMessage(eventData.message)
-                  break
-                  
-                case 'complete':
-                  setProgress(100)
-                  setProgressMessage(eventData.message)
-                  break
-                  
-                case 'info':
-                case 'warning':
-                  setProgressMessage(eventData.message)
-                  break
-                  
-                case 'error':
-                  console.error('Stream error:', eventData.message)
-                  alert(`Error: ${eventData.message}`)
-                  break
-                  
-                case 'result':
-                  console.log('Successfully fetched items:', eventData.data)
-                  setFetchedItems(eventData.data.items)
-                  setShowResults(true)
-                  setShowBookmarks(false) // Hide bookmarks when showing fresh search results
-                  setExpandedSummaries(new Set()) // Clear expanded state for new results
-                  setSelectedTag(null) // Clear tag filter for new results
-                  setCurrentPage(1) // Reset to first page for new results
-                  setProgress(100)
-                  setProgressMessage('Complete!')
-                  break
-              }
-            } catch (parseError) {
-              console.error('Failed to parse event data:', parseError)
-            }
-          } else if (line === 'data: [DONE]') {
-            break
-          }
-        }
-      }
+      await processStreamData(reader)
       
     } catch (error) {
       console.error('Failed to fetch items:', error)
@@ -520,7 +511,7 @@ export default function Home() {
         setProgress(0)
         setProgressMessage('')
         setShowDetailedProgress(false)
-      }, 2000) // Show completion message for 2 seconds
+      }, 2000)
     }
   }
 
@@ -736,7 +727,7 @@ export default function Home() {
             {/* Progress Bar Background inside button */}
             {isLoading && (
               <div 
-                className="absolute top-0 left-0 h-full bg-purple-700 transition-all duration-500 ease-out opacity-80"
+                className="absolute top-0 left-0 h-full bg-blue-600 transition-all duration-500 ease-out"
                 style={{ width: `${progress}%` }}
               />
             )}

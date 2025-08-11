@@ -79,31 +79,3 @@ def enrich_sources_with_summaries(sources: List[SourceSchema]) -> List[SourceSch
     return sources
 
 
-def get_all_filtered_sources() -> List[SourceSchema]:
-    """
-    Scrapes all sources and filters them based on the interested keywords.
-
-    Returns:
-        A combined and filtered list of sources from all scrapers.
-    """
-    logger.info("--- Starting all scrapers ---")
-    hf_papers = scrape_huggingface_trending_papers()
-    hn_stories = scrape_hacker_news()
-    all_sources = hf_papers + hn_stories
-    logger.info(f"--- Found a total of {len(all_sources)} items ---")
-
-    # Enrich sources with AI-generated summaries if they are missing
-    all_sources = enrich_sources_with_summaries(all_sources)
-
-    logger.info(f"--- Filtering against {len(INTERESTED_KEYWORDS)} keywords ---")
-    filtered_sources = filter_sources(all_sources, INTERESTED_KEYWORDS)
-    logger.info(f"--- Found {len(filtered_sources)} matching items ---")
-
-    logger.info("--- Sorting sources by date in descending order ---")
-    sorted_sources = sorted(filtered_sources, key=lambda s: s.date, reverse=True)
-
-    return sorted_sources
-
-
-if __name__ == "__main__":
-    get_all_filtered_sources()

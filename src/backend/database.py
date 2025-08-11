@@ -3,7 +3,7 @@ import hashlib
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict
 
-from sqlalchemy import create_engine, Column, String, DateTime, Text, Float, desc, String as SQLString
+from sqlalchemy import create_engine, Column, String, DateTime, Text, Float, desc
 from sqlalchemy.types import JSON, TypeDecorator
 import json
 from sqlalchemy.dialects.postgresql import ARRAY

@@ -96,8 +96,43 @@ curl -s -X POST "http://localhost:8000/api/fetch" \
   -H "Content-Type: application/json" \
   -d '{"selectedDays": 1, "maxResults": 2, "topics": ["ai"], "researchRatio": 0.5}'
 
+# Test bookmarks functionality
+curl -s http://localhost:8000/api/bookmarks
+curl -s -X POST "http://localhost:8000/api/bookmarks" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Test", "link": "http://example.com", "source": "Test", "summary": "Test summary"}'
+
+# Test summary editing
+curl -s -X PUT "http://localhost:8000/api/bookmarks/summary?link=http%3A//example.com&summary=Updated%20summary"
+
 # Test frontend-backend connectivity
 curl -s -I http://localhost:3000
+```
+
+## New Features
+
+### Summary Editing
+- Users can edit bookmark summaries inline by clicking the ✏️ icon
+- Edited summaries are marked with "User edited" badge
+- Edited summaries are prioritized in fetch results over cached summaries
+
+### Automated Scraping
+- Cron job runs hourly to scrape Hacker News
+- Hugging Face papers scraped every 6 hours
+- Automatic summary generation and caching
+
+### Upload Custom Links
+- Users can upload any URL to be processed and bookmarked
+- Automatic content categorization (Research/Industry/General)
+- Smart summary generation
+
+### Cache Management
+```bash
+# View cache statistics
+docker-compose exec backend python -m src.backend.cache_manager stats
+
+# Cleanup old cache entries
+docker-compose exec backend python -m src.backend.cache_manager cleanup
 ```
 
 That's it! Docker handles all the environment complexity.
