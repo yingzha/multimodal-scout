@@ -174,9 +174,31 @@ class DatabaseManager:
                 if existing:
                     existing.title = source_schema.title
                     existing.authors = source_schema.authors
-                    # ... (update other fields)
+                    existing.source_link = str(source_schema.source_link)
+                    existing.summary = source_schema.summary
+                    existing.keywords = source_schema.keywords
+                    existing.tags = source_schema.tags
+                    existing.date = source_schema.date
+                    existing.updated_at = datetime.utcnow()
                 else:
-                    new_source = Source(**source_schema.dict())
+                    # Build data dictionary with explicit type conversion
+                    source_data = {
+                        'id': uuid.uuid4(),
+                        'title': str(source_schema.title),
+                        'authors': source_schema.authors,
+                        'link': str(source_schema.link),  # Explicit string conversion
+                        'source_link': str(source_schema.source_link),  # Explicit string conversion  
+                        'summary': source_schema.summary,
+                        'keywords': source_schema.keywords,
+                        'tags': source_schema.tags,
+                        'date': source_schema.date,
+                        'created_at': datetime.utcnow(),
+                        'updated_at': datetime.utcnow()
+                    }
+                    
+                    logger.info(f"Creating source: link={type(source_data['link'])} source_link={type(source_data['source_link'])}")
+                    
+                    new_source = Source(**source_data)
                     session.add(new_source)
             session.commit()
 

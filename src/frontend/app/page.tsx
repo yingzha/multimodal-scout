@@ -317,15 +317,14 @@ export default function Home() {
         })
       })
       
-      setUploadProgress(75)
-      setUploadProgressMessage('Generating summary and categorizing...')
-
       if (response.ok) {
         const result = await response.json()
-        setUploadProgress(100)
-        setUploadProgressMessage('Processing complete!')
         
         if (result.success) {
+          setUploadProgress(75)
+          setUploadProgressMessage('Generating summary and categorizing...')
+          setUploadProgress(100)
+          setUploadProgressMessage('Processing complete!')
           setUploadMessage('Link uploaded and processed successfully!')
           setUploadUrl('')
           // Refresh bookmarks to show the new item
@@ -335,6 +334,8 @@ export default function Home() {
         } else {
           // Handle cases where response is OK but success=false (like duplicate links)
           setUploadMessage(result.message || 'Failed to upload link')
+          //setUploadProgress(100)
+          setUploadProgressMessage('') // Don't show "Processing complete!"
         }
       } else {
         const errorData = await response.json()
@@ -495,6 +496,7 @@ export default function Home() {
 
   const handleFetchItems = async () => {
     setIsLoading(true)
+    setShowBookmarks(false)
     setProgress(0)
     setProgressMessage('Starting fetch...')
     setShowDetailedProgress(false)
@@ -551,14 +553,6 @@ export default function Home() {
         <div className="bg-orange-100 rounded-lg p-8 mb-12">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-gray-800">My Interested Topics</h2>
-            <button
-              onClick={fetchDefaultTopics}
-              disabled={isLoadingTopics}
-              className="w-8 h-8 flex items-center justify-center text-gray-700 hover:text-gray-900 hover:bg-white rounded-full focus:outline-none disabled:opacity-50 transition-colors"
-              title="Refresh topics"
-            >
-              {isLoadingTopics ? '⟳' : '↻'}
-            </button>
           </div>
           
           {isLoadingTopics ? (
@@ -629,24 +623,20 @@ export default function Home() {
         </div>
 
         {/* Advanced Search Settings Toggle */}
-        <div className="mb-4">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={showAdvancedSettings}
-              onChange={(e) => setShowAdvancedSettings(e.target.checked)}
-              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-            />
-            <span className="text-gray-700 font-medium">Advanced Search Settings</span>
-          </label>
+        <div className="mb-4 flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={showAdvancedSettings}
+            onChange={(e) => setShowAdvancedSettings(e.target.checked)}
+            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer"
+          />
+          <span className="text-gray-700 font-medium">Advanced Search Settings</span>
         </div>
 
         {/* Search Settings Section */}
         {showAdvancedSettings && (
           <div className="bg-blue-50 rounded-lg p-6 mb-8">
-            <h2 className="text-lg font-bold text-gray-800 mb-6">Search Settings</h2>
-          
-          {/* Time Range Selector */}
+            {/* Time Range Selector */}
           <div className="mb-6">
             <div className="flex items-center justify-center space-x-4">
               <span className="text-gray-700 font-medium">Retrieve content from the last</span>
@@ -754,7 +744,7 @@ export default function Home() {
             {/* Loading spinner overlay */}
             {isLoading && (
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <div className="w-6 h-6 border-2 bg-blue-600 border-t-transparent rounded-full animate-spin"></div>
               </div>
             )}
             
@@ -1006,7 +996,7 @@ export default function Home() {
                         ></div>
                       </div>
                       <div className="text-sm text-blue-700 text-center font-medium">
-                        {uploadProgressMessage} ({uploadProgress}%)
+                        {uploadProgressMessage}{uploadProgressMessage && ` (${uploadProgress}%)`}
                       </div>
                     </div>
                   )}
@@ -1017,7 +1007,7 @@ export default function Home() {
                         ? 'text-green-700 bg-green-100 border border-green-200'
                         : uploadMessage.includes('Processing')
                         ? 'text-blue-700 bg-blue-100 border border-blue-200'
-                        : uploadMessage.includes('already been added') || uploadMessage.includes('already bookmarked')
+                        : uploadMessage.includes('already been added !') || uploadMessage.includes('already bookmarked !')
                         ? 'text-orange-700 bg-orange-100 border border-orange-200'
                         : 'text-red-700 bg-red-100 border border-red-200'
                     }`}>
@@ -1128,9 +1118,15 @@ export default function Home() {
                           <div className="space-y-3">
                             <textarea
                               value={editedSummaryText}
-                              onChange={(e) => setEditedSummaryText(e.target.value)}
+                              onChange={(e) => {
+                                setEditedSummaryText(e.target.value);
+                                const target = e.target as HTMLTextAreaElement;
+                                target.style.height = 'auto';
+                                target.style.height = `${target.scrollHeight}px`;
+                              }}
                               className="w-full p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm leading-relaxed text-left resize-none"
                               style={{ textAlign: 'left', lineHeight: '1.6' }}
+                              data-editing-summary={item.link}
                               rows={4}
                               placeholder="Edit the summary..."
                             />

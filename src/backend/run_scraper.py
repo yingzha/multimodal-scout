@@ -71,11 +71,16 @@ def main():
             # Save to database
             logger.info("💾 Saving items to database...")
             db_start = time.time()
-            db_manager.save_sources(enriched_results)
-            db_time = time.time() - db_start
-            
-            logger.info(f"💾 Database save completed in {db_time:.2f}s")
-            logger.info(f"✅ Successfully saved {len(enriched_results)} items to database")
+            try:
+                db_manager.save_sources(enriched_results)
+                db_time = time.time() - db_start
+                logger.info(f"💾 Database save completed in {db_time:.2f}s")
+                logger.info(f"✅ Successfully saved {len(enriched_results)} items to database")
+            except Exception as db_error:
+                db_time = time.time() - db_start
+                logger.error(f"💾 Database save failed in {db_time:.2f}s")
+                logger.error(f"❌ Database error: {db_error}")
+                logger.info("⚠️  Continuing with cron job (summaries were cached successfully)")
         else:
             logger.info("📭 No items to process")
         
