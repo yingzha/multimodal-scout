@@ -114,14 +114,58 @@ def process_content_pipeline(
 ) -> Generator[Dict[str, Any], None, None]:
     """
     The main processing pipeline.
+    1. Always scrape fresh content first
+    2. Save new content to database 
+    3. Query database for sources within date range
     Yields progress updates and finally the results.
     """
-    # Get sources from database that were added in the last N days
-    cutoff_date = datetime.now() - timedelta(days=selected_days)
+    # Step 1: Always scrape fresh content to get latest trending items
+    yield {'type': 'status', 'message': 'Scraping fresh content from Hugging Face and Hacker News...'}
     
+    fresh_sources = []
+    source_names = []
+
+    try:
+        hf_papers = scrape_huggingface_trending_papers()
+        if hf_papers:
+            fresh_sources.extend(hf_papers)
+            source_names.append("Hugging Face")
+            yield {'type': 'status', 'message': f'Found {len(hf_papers)} fresh Hugging Face papers'}
+    except Exception as e:
+        logger.error(f"Failed to fetch Hugging Face papers: {e}")
+        yield {'type': 'error', 'message': f'Failed to fetch Hugging Face papers: {str(e)}'}
+
+    try:
+        hn_items = scrape_hacker_news()
+        if hn_items:
+            fresh_sources.extend(hn_items)
+            source_names.append("Hacker News")
+            yield {'type': 'status', 'message': f'Found {len(hn_items)} fresh Hacker News items'}
+    except Exception as e:
+        logger.error(f"Failed to fetch Hacker News items: {e}")
+        yield {'type': 'error', 'message': f'Failed to fetch Hacker News items: {str(e)}'}
+
+    # Step 2: Save fresh content to database (with summary generation)
+    if fresh_sources:
+        yield {'type': 'status', 'message': f'Processing and saving {len(fresh_sources)} fresh sources to database...'}
+        
+        # Generate summaries for sources that need them
+        from .merger import enrich_sources_with_summaries
+        enriched_sources = enrich_sources_with_summaries(fresh_sources)
+        
+        # Save to database
+        try:
+            db_manager.save_sources(enriched_sources)
+            logger.info(f"Successfully saved {len(enriched_sources)} fresh sources to database")
+            yield {'type': 'status', 'message': f'Saved {len(enriched_sources)} sources to database'}
+        except Exception as e:
+            logger.error(f"Failed to save sources to database: {e}")
+            yield {'type': 'warning', 'message': f'Database save failed, proceeding with fresh content: {str(e)}'}
+
+    # Step 3: Query database for sources within the specified date range
+    cutoff_date = datetime.now() - timedelta(days=selected_days)
     yield {'type': 'status', 'message': f'Fetching sources from database added in last {selected_days} days...'}
     
-    # Query database for sources added in the specified time range
     with db_manager.get_session() as session:
         from .database import Source
         db_sources = session.query(Source).filter(
@@ -134,7 +178,7 @@ def process_content_pipeline(
         
         # Convert database records back to SourceSchema objects
         all_sources = []
-        source_names = set()
+        db_source_names = set()
         
         for db_source in db_sources:
             try:
@@ -143,9 +187,9 @@ def process_content_pipeline(
                 if db_source.tags and len(db_source.tags) > 0:
                     source_tag = db_source.tags[0].capitalize()
                     if source_tag.lower() == 'research':
-                        source_names.add("Research Papers")
+                        db_source_names.add("Research Papers")
                     elif source_tag.lower() == 'industry':
-                        source_names.add("Industry News")
+                        db_source_names.add("Industry News")
                 
                 # Create SourceSchema object from database record
                 source_schema = SourceSchema(
@@ -164,36 +208,15 @@ def process_content_pipeline(
                 logger.warning(f"Failed to convert database record to schema: {e}")
                 continue
         
-        source_names = list(source_names)
+        # Use database source names for final output
+        source_names = list(db_source_names)
         logger.info(f"Converted {len(all_sources)} database records to source schemas")
         
     else:
-        # Fallback: if no recent database records, scrape fresh content
-        logger.info("No recent database records found, falling back to fresh scraping")
-        yield {'type': 'status', 'message': 'No recent database records, fetching fresh content...'}
-        
-        all_sources = []
-        source_names = []
-
-        try:
-            hf_papers = scrape_huggingface_trending_papers()
-            if hf_papers:
-                all_sources.extend(hf_papers)
-                source_names.append("Hugging Face")
-                yield {'type': 'status', 'message': f'Found {len(hf_papers)} fresh Hugging Face papers'}
-        except Exception as e:
-            logger.error(f"Failed to fetch Hugging Face papers: {e}")
-            yield {'type': 'error', 'message': f'Failed to fetch Hugging Face papers: {str(e)}'}
-
-        try:
-            hn_items = scrape_hacker_news()
-            if hn_items:
-                all_sources.extend(hn_items)
-                source_names.append("Hacker News")
-                yield {'type': 'status', 'message': f'Found {len(hn_items)} fresh Hacker News items'}
-        except Exception as e:
-            logger.error(f"Failed to fetch Hacker News items: {e}")
-            yield {'type': 'error', 'message': f'Failed to fetch Hacker News items: {str(e)}'}
+        # Fallback to fresh content if no database records in date range
+        logger.warning(f"No database records found for last {selected_days} days, using fresh scraped content")
+        yield {'type': 'warning', 'message': f'No database records for {selected_days} days, using fresh content'}
+        all_sources = fresh_sources
 
     total_weight = 100
     scraping_weight = 10
