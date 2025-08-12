@@ -183,6 +183,20 @@ export default function Home() {
     return () => clearTimeout(timeoutId)
   }, [paginatedItems, paginatedBookmarks, expandedSummaries])
 
+  const refreshBookmarks = async () => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const response = await fetch(`${apiUrl}/api/bookmarks`)
+      
+      if (response.ok) {
+        const data = await response.json()
+        setBookmarkedCards(data.items)
+      }
+    } catch (error) {
+      console.error('Failed to fetch bookmarks:', error)
+    }
+  }
+
   const handleViewBookmarks = async () => {
     // Toggle bookmarks view
     if (showBookmarks) {
@@ -235,7 +249,7 @@ export default function Home() {
         })
         // Refresh bookmarks view if currently shown
         if (showBookmarks) {
-          handleViewBookmarks()
+          refreshBookmarks()
         }
       }
     } catch (error) {
@@ -271,7 +285,7 @@ export default function Home() {
       if (response.ok) {
         // Refresh bookmarks to show updated summary
         if (showBookmarks) {
-          handleViewBookmarks()
+          refreshBookmarks()
         }
         handleCancelEditSummary()
       }
@@ -332,7 +346,7 @@ export default function Home() {
           setUploadUrl('')
           // Refresh bookmarks to show the new item
           if (showBookmarks) {
-            handleViewBookmarks()
+            refreshBookmarks()
           }
         } else {
           // Handle cases where response is OK but success=false (like duplicate links)
@@ -1104,23 +1118,20 @@ export default function Home() {
                       >
                         {item.source}
                       </button>
-                      <div className="flex items-center gap-2">
-                        <span className="text-yellow-600">★</span>
-                        <button
-                          onClick={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect()
-                            setDeleteConfirmPosition({
-                              top: rect.bottom + window.scrollY + 10,
-                              left: rect.left + window.scrollX - 200
-                            })
-                            setDeleteConfirmItem(item)
-                          }}
-                          className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-red-500 rounded-full focus:outline-none transition-colors"
-                          title="Remove bookmark"
-                        >
-                          ×
-                        </button>
-                      </div>
+                      <button
+                        onClick={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect()
+                          setDeleteConfirmPosition({
+                            top: rect.bottom + window.scrollY + 10,
+                            left: rect.left + window.scrollX - 200
+                          })
+                          setDeleteConfirmItem(item)
+                        }}
+                        className="w-8 h-8 flex items-center justify-center text-yellow-600 bg-yellow-100 hover:bg-yellow-200 rounded-full focus:outline-none transition-colors"
+                        title="Remove bookmark"
+                      >
+                        ★
+                      </button>
                     </div>
                     
                     <h3 className="text-xl font-semibold text-gray-900 mb-4 leading-tight">
