@@ -932,7 +932,7 @@ export default function Home() {
                             {showReadMore.has(item.link) && (
                               <button
                                 onClick={() => toggleSummaryExpansion(item.link)}
-                                className="mt-2 text-blue-600 hover:text-blue-800 text-xs font-medium focus:outline-none"
+                                className="mt-2 text-blue-600 hover:text-blue-800 text-xs font-medium rounded focus:outline-none"
                               >
                                 Read more ↓
                               </button>
@@ -1066,7 +1066,7 @@ export default function Home() {
             
             {/* Bookmark Count - moved below upload section */}
             <div className="flex justify-between items-center mb-6">
-              <div className="text-base text-gray-600">
+              <div className="text-sm text-gray-600">
                 {selectedTag 
                   ? `${bookmarkedCards.filter(item => item.source === selectedTag).length} bookmarks for "${selectedTag}"` 
                   : `${bookmarkedCards.length} bookmarks`
@@ -1074,7 +1074,7 @@ export default function Home() {
               </div>
               <button
                 onClick={handleExportBookmarks}
-                className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-green-600 rounded-full hover:bg-green-50 focus:outline-none transition-colors"
+                className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-green-600 rounded-full hover:bg-green-50 focus:outline-none transition-colors"
                 title="Export bookmarks to Excel"
               >
                 📊

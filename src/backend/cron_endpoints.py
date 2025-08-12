@@ -8,7 +8,7 @@ from typing import Optional
 import asyncio
 
 from .scraper import scrape_huggingface_trending_papers, scrape_hacker_news
-from .merger import enrich_sources_with_summaries
+from .merger import enrich_sources_with_summaries_and_embeddings
 from .database import db_manager
 from .logger import logger
 
@@ -36,8 +36,8 @@ async def cron_hacker_news(x_cloudscheduler: Optional[str] = Header(None)):
         
         logger.info(f"📰 Found {len(sources)} Hacker News sources")
         
-        # Enrich with summaries
-        enriched_sources = enrich_sources_with_summaries(sources)
+        # Enrich with summaries and pre-generate embeddings
+        enriched_sources = enrich_sources_with_summaries_and_embeddings(sources)
         
         # Save to database
         db_manager.save_sources(enriched_sources)
@@ -70,8 +70,8 @@ async def cron_hugging_face(x_cloudscheduler: Optional[str] = Header(None)):
         
         logger.info(f"🤗 Found {len(sources)} Hugging Face sources")
         
-        # Enrich with summaries
-        enriched_sources = enrich_sources_with_summaries(sources)
+        # Enrich with summaries and pre-generate embeddings
+        enriched_sources = enrich_sources_with_summaries_and_embeddings(sources)
         
         # Save to database
         db_manager.save_sources(enriched_sources)
