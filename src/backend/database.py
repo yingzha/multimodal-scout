@@ -1,7 +1,7 @@
 import os
 import hashlib
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 
 from sqlalchemy import create_engine, Column, String, DateTime, Text, Float, desc
 from sqlalchemy.types import JSON, TypeDecorator
@@ -96,12 +96,36 @@ class DatabaseManager:
         
         self.engine = create_engine(database_url)
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
+        
+        # In-memory cache to track recently processed sources (by link)
+        # This helps avoid reprocessing the same sources across method calls
+        self._processed_sources_cache = set()
+        self._cache_max_size = 10000  # Limit cache size to prevent memory issues
     
     def get_session(self) -> Session:
         return self.SessionLocal()
 
     def create_tables(self):
         Base.metadata.create_all(bind=self.engine)
+    
+    def _manage_cache_size(self):
+        """Keep cache size under control to prevent memory issues."""
+        if len(self._processed_sources_cache) > self._cache_max_size:
+            # Remove half the cache when it gets too large
+            # Convert to list, keep the second half (more recent)
+            cache_list = list(self._processed_sources_cache)
+            self._processed_sources_cache = set(cache_list[len(cache_list)//2:])
+            logger.info(f"Cache size reduced from {len(cache_list)} to {len(self._processed_sources_cache)}")
+    
+    def _is_recently_processed(self, link: str) -> bool:
+        """Check if a source was recently processed."""
+        return link in self._processed_sources_cache
+    
+    def _mark_as_processed(self, link: str):
+        """Mark a source as recently processed."""
+        self._processed_sources_cache.add(link)
+        if len(self._processed_sources_cache) % 1000 == 0:  # Check periodically
+            self._manage_cache_size()
 
     def get_summary(self, url: str) -> Optional[str]:
         with self.get_session() as session:
@@ -152,28 +176,89 @@ class DatabaseManager:
 
     # --- Source Methods ---
 
-    def save_sources(self, sources: List['SourceSchema']) -> None:
+    def save_sources(self, sources: List['SourceSchema']) -> Dict[str, Any]:
+        """
+        Optimized batch save with in-memory deduplication and single DB query.
+        Performance improvements:
+        - Deduplicates sources by link within the batch
+        - Single batch query to check existing sources instead of N queries  
+        - Separates updates and inserts for better performance
+        
+        Returns:
+            Dict with processing statistics including new_sources list for further processing
+        """
+        if not sources:
+            return {'new_sources': [], 'updated_sources': [], 'skipped_sources': 0, 'total_processed': 0}
+            
         from .schema import SourceSchema
+        
+        # Step 1: Filter out recently processed sources using in-memory cache
+        fresh_sources = []
+        cache_hits = 0
+        for source in sources:
+            link_str = str(source.link)
+            if not self._is_recently_processed(link_str):
+                fresh_sources.append(source)
+            else:
+                cache_hits += 1
+        
+        if cache_hits > 0:
+            logger.info(f"Cache optimization: Skipped {cache_hits} recently processed sources")
+        
+        # Step 2: Deduplicate remaining sources by link within this batch
+        seen_links = set()
+        deduplicated_sources = []
+        for source in fresh_sources:
+            link_str = str(source.link)
+            if link_str not in seen_links:
+                seen_links.add(link_str)
+                deduplicated_sources.append(source)
+        
+        logger.info(f"Processing pipeline: {len(sources)} → {len(fresh_sources)} (after cache) → {len(deduplicated_sources)} (after dedup)")
+        
+        if not deduplicated_sources:
+            return {'new_sources': [], 'updated_sources': [], 'skipped_sources': cache_hits, 'total_processed': 0}
+            
         with self.get_session() as session:
-            for source_schema in sources:
-                existing = session.query(Source).filter(Source.link == str(source_schema.link)).first()
-                if existing:
-                    existing.title = source_schema.title
-                    existing.authors = source_schema.authors
-                    existing.source_link = str(source_schema.source_link)
-                    existing.summary = source_schema.summary
-                    existing.keywords = source_schema.keywords
-                    existing.tags = source_schema.tags
-                    existing.date = source_schema.date
-                    existing.updated_at = datetime.utcnow()
+            # Step 2: Single batch query to get all existing sources
+            all_links = [str(source.link) for source in deduplicated_sources]
+            existing_sources = session.query(Source).filter(Source.link.in_(all_links)).all()
+            existing_links_map = {source.link: source for source in existing_sources}
+            
+            logger.info(f"Found {len(existing_sources)} existing sources out of {len(deduplicated_sources)} to process")
+            
+            # Step 3: Separate updates and inserts
+            sources_to_update = []
+            sources_to_insert = []
+            
+            for source_schema in deduplicated_sources:
+                link_str = str(source_schema.link)
+                if link_str in existing_links_map:
+                    sources_to_update.append((source_schema, existing_links_map[link_str]))
                 else:
-                    # Build data dictionary with explicit type conversion
+                    sources_to_insert.append(source_schema)
+            
+            # Step 4: Batch update existing sources
+            for source_schema, existing in sources_to_update:
+                existing.title = source_schema.title
+                existing.authors = source_schema.authors
+                existing.source_link = str(source_schema.source_link)
+                existing.summary = source_schema.summary
+                existing.keywords = source_schema.keywords
+                existing.tags = source_schema.tags
+                existing.date = source_schema.date
+                existing.updated_at = datetime.utcnow()
+            
+            # Step 5: Batch insert new sources
+            if sources_to_insert:
+                new_sources = []
+                for source_schema in sources_to_insert:
                     source_data = {
                         'id': uuid.uuid4(),
                         'title': str(source_schema.title),
                         'authors': source_schema.authors,
-                        'link': str(source_schema.link),  # Explicit string conversion
-                        'source_link': str(source_schema.source_link),  # Explicit string conversion  
+                        'link': str(source_schema.link),
+                        'source_link': str(source_schema.source_link),
                         'summary': source_schema.summary,
                         'keywords': source_schema.keywords,
                         'tags': source_schema.tags,
@@ -181,12 +266,30 @@ class DatabaseManager:
                         'created_at': datetime.utcnow(),
                         'updated_at': datetime.utcnow()
                     }
-                    
-                    logger.info(f"Creating source: link={type(source_data['link'])} source_link={type(source_data['source_link'])}")
-                    
-                    new_source = Source(**source_data)
-                    session.add(new_source)
+                    new_sources.append(Source(**source_data))
+                
+                session.add_all(new_sources)
+                logger.info(f"Batch inserting {len(new_sources)} new sources")
+            
+            if sources_to_update:
+                logger.info(f"Batch updating {len(sources_to_update)} existing sources")
+                
+            # Single commit for all operations
             session.commit()
+            
+            # Step 6: Mark all processed sources in cache to avoid reprocessing
+            for source in deduplicated_sources:
+                self._mark_as_processed(str(source.link))
+            
+            logger.info(f"✅ Successfully processed {len(deduplicated_sources)} sources ({len(sources_to_insert)} new, {len(sources_to_update)} updated)")
+            
+            # Return processing statistics
+            return {
+                'new_sources': sources_to_insert,
+                'updated_sources': [source_schema for source_schema, _ in sources_to_update],
+                'skipped_sources': cache_hits,
+                'total_processed': len(deduplicated_sources)
+            }
 
     # --- Bookmark Methods ---
 

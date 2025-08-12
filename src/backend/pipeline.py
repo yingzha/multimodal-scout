@@ -165,16 +165,37 @@ def process_content_pipeline(
         logger.error(f"Failed to fetch Hacker News items: {e}")
         yield {'type': 'error', 'message': f'Failed to fetch Hacker News items: {str(e)}'}
 
-    # Step 2: Save fresh content to database (with summary generation)
-    # Generate summaries for sources that need them
-    from .merger import enrich_sources_with_summaries
-    enriched_sources = enrich_sources_with_summaries(fresh_sources)
-    
-    # Save to database
+    # Step 2: Save fresh content to database first (without summaries)
+    # This tells us which sources are truly new and need summary generation
     try:
-        db_manager.save_sources(enriched_sources)
-        logger.info(f"Successfully saved {len(enriched_sources)} fresh sources to database")
-        yield {'type': 'status', 'message': f'Saved {len(enriched_sources)} sources to database'}
+        save_result = db_manager.save_sources(fresh_sources)
+        new_sources = save_result['new_sources']
+        updated_sources = save_result['updated_sources']
+        skipped_sources = save_result['skipped_sources']
+        
+        logger.info(f"Saved {save_result['total_processed']} sources: {len(new_sources)} new, {len(updated_sources)} updated, {skipped_sources} skipped")
+        yield {'type': 'status', 'message': f'Saved {save_result["total_processed"]} sources ({len(new_sources)} new)'}
+        
+        # Step 2b: Generate summaries ONLY for new sources that don't have them
+        if new_sources:
+            sources_needing_summaries = [source for source in new_sources if not source.summary]
+            if sources_needing_summaries:
+                from .merger import enrich_sources_with_summaries_and_embeddings
+                logger.info(f"Generating summaries and embeddings for {len(sources_needing_summaries)} new sources...")
+                yield {'type': 'status', 'message': f'Generating summaries for {len(sources_needing_summaries)} new sources...'}
+                
+                # Enrich new sources with summaries and embeddings
+                enriched_new_sources = enrich_sources_with_summaries_and_embeddings(sources_needing_summaries)
+                
+                # Update the database with the new summaries and embeddings
+                update_result = db_manager.save_sources(enriched_new_sources)
+                logger.info(f"Updated {len(enriched_new_sources)} sources with summaries and embeddings")
+                yield {'type': 'status', 'message': f'Updated {len(enriched_new_sources)} sources with AI summaries'}
+            else:
+                logger.info("All new sources already have summaries")
+        else:
+            logger.info("No new sources found - all were existing or skipped")
+            
     except Exception as e:
         logger.error(f"Failed to save sources to database: {e}")
         yield {'type': 'warning', 'message': f'Database save failed, proceeding with fresh content: {str(e)}'}

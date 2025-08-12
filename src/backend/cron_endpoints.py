@@ -40,7 +40,8 @@ async def cron_hacker_news(x_cloudscheduler: Optional[str] = Header(None)):
         enriched_sources = enrich_sources_with_summaries_and_embeddings(sources)
         
         # Save to database
-        db_manager.save_sources(enriched_sources)
+        save_result = db_manager.save_sources(enriched_sources)
+        logger.info(f"Save result: {save_result}")
         
         logger.info(f"✅ Hacker News cron job completed: {len(enriched_sources)} sources processed")
         
@@ -74,7 +75,8 @@ async def cron_hugging_face(x_cloudscheduler: Optional[str] = Header(None)):
         enriched_sources = enrich_sources_with_summaries_and_embeddings(sources)
         
         # Save to database
-        db_manager.save_sources(enriched_sources)
+        save_result = db_manager.save_sources(enriched_sources)
+        logger.info(f"Save result: {save_result}")
         
         logger.info(f"✅ Hugging Face cron job completed: {len(enriched_sources)} sources processed")
         
