@@ -21,7 +21,7 @@ from .schema import SourceSchema
 from .database import db_manager
 from .utils import generate_summary_from_link
 from .search import keyword_search, semantic_search_with_scores
-from .constants import SEMANTIC_SIMILARITY_THRESHOLD
+from .constants import SEMANTIC_SIMILARITY_THRESHOLD, RESEARCH_THRESHOLD, INDUSTRY_THRESHOLD
 
 
 def _apply_balanced_filtering(sources: List[SourceSchema], keywords: List[str], max_results: int = 10, research_ratio: float = 0.5) -> List[SourceSchema]:
@@ -29,16 +29,13 @@ def _apply_balanced_filtering(sources: List[SourceSchema], keywords: List[str], 
     Apply balanced filtering with relevance scoring and proper sorting.
     """
     logger.info(f"Applying balanced filtering to {len(sources)} sources...")
-    
     # Pass 1: Keyword Search - these get highest priority (score = 1.0)
     keyword_matches = keyword_search(sources, keywords)
     logger.info(f"Found {len(keyword_matches)} sources via keyword search.")
-    
     # Create list with scores for keyword matches
     sources_with_scores = [(source, 1.0) for source in keyword_matches]
     matched_links = {source.link for source in keyword_matches}
-    
-    # Pass 2: Semantic Search - for remaining sources with summaries
+    # Pass 2: Semantic Search - for remaining sources with summaries, using content-specific thresholds
     semantic_candidates = [
         source for source in sources
         if source.link not in matched_links and source.summary
@@ -46,10 +43,33 @@ def _apply_balanced_filtering(sources: List[SourceSchema], keywords: List[str], 
     
     if semantic_candidates:
         logger.info(f"Running semantic search on {len(semantic_candidates)} remaining sources...")
-        semantic_results = semantic_search_with_scores(
-            semantic_candidates, keywords, threshold=SEMANTIC_SIMILARITY_THRESHOLD
-        )
-        sources_with_scores.extend(semantic_results)
+        # Separate candidates by content type for different thresholds
+        research_candidates = []
+        industry_candidates = []
+        for source in semantic_candidates:
+            source_tag = "General"
+            if hasattr(source, 'tags') and source.tags:
+                source_tag = source.tags[0].capitalize() if source.tags[0] else "General"
+            if source_tag.lower() == "research":
+                research_candidates.append(source)
+            else:
+                industry_candidates.append(source)
+        
+        # Run semantic search with research threshold (more selective)
+        if research_candidates:
+            logger.info(f"Running semantic search on {len(research_candidates)} research sources with threshold {RESEARCH_THRESHOLD}")
+            research_results = semantic_search_with_scores(
+                research_candidates, keywords, threshold=RESEARCH_THRESHOLD
+            )
+            sources_with_scores.extend(research_results)
+        
+        # Run semantic search with industry threshold (more inclusive)
+        if industry_candidates:
+            logger.info(f"Running semantic search on {len(industry_candidates)} industry sources with threshold {INDUSTRY_THRESHOLD}")
+            industry_results = semantic_search_with_scores(
+                industry_candidates, keywords, threshold=INDUSTRY_THRESHOLD
+            )
+            sources_with_scores.extend(industry_results)
     
     # Sort by relevance score (descending), then by date (most recent first)
     sorted_sources = sorted(
@@ -130,7 +150,7 @@ def process_content_pipeline(
         if hf_papers:
             fresh_sources.extend(hf_papers)
             source_names.append("Hugging Face")
-            yield {'type': 'status', 'message': f'Found {len(hf_papers)} fresh Hugging Face papers'}
+    #        yield {'type': 'status', 'message': f'Found {len(hf_papers)} fresh Hugging Face papers'}
     except Exception as e:
         logger.error(f"Failed to fetch Hugging Face papers: {e}")
         yield {'type': 'error', 'message': f'Failed to fetch Hugging Face papers: {str(e)}'}
@@ -140,27 +160,24 @@ def process_content_pipeline(
         if hn_items:
             fresh_sources.extend(hn_items)
             source_names.append("Hacker News")
-            yield {'type': 'status', 'message': f'Found {len(hn_items)} fresh Hacker News items'}
+    #        yield {'type': 'status', 'message': f'Found {len(hn_items)} fresh Hacker News items'}
     except Exception as e:
         logger.error(f"Failed to fetch Hacker News items: {e}")
         yield {'type': 'error', 'message': f'Failed to fetch Hacker News items: {str(e)}'}
 
     # Step 2: Save fresh content to database (with summary generation)
-    if fresh_sources:
-        yield {'type': 'status', 'message': f'Processing and saving {len(fresh_sources)} fresh sources to database...'}
-        
-        # Generate summaries for sources that need them
-        from .merger import enrich_sources_with_summaries
-        enriched_sources = enrich_sources_with_summaries(fresh_sources)
-        
-        # Save to database
-        try:
-            db_manager.save_sources(enriched_sources)
-            logger.info(f"Successfully saved {len(enriched_sources)} fresh sources to database")
-            yield {'type': 'status', 'message': f'Saved {len(enriched_sources)} sources to database'}
-        except Exception as e:
-            logger.error(f"Failed to save sources to database: {e}")
-            yield {'type': 'warning', 'message': f'Database save failed, proceeding with fresh content: {str(e)}'}
+    # Generate summaries for sources that need them
+    from .merger import enrich_sources_with_summaries
+    enriched_sources = enrich_sources_with_summaries(fresh_sources)
+    
+    # Save to database
+    try:
+        db_manager.save_sources(enriched_sources)
+        logger.info(f"Successfully saved {len(enriched_sources)} fresh sources to database")
+        yield {'type': 'status', 'message': f'Saved {len(enriched_sources)} sources to database'}
+    except Exception as e:
+        logger.error(f"Failed to save sources to database: {e}")
+        yield {'type': 'warning', 'message': f'Database save failed, proceeding with fresh content: {str(e)}'}
 
     # Step 3: Query database for sources within the specified date range
     cutoff_date = datetime.now() - timedelta(days=selected_days)
