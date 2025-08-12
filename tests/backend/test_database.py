@@ -105,11 +105,11 @@ class TestDatabaseManager(unittest.TestCase):
         url = "http://remove.com"
         self.mock_db_manager.add_summary(url, "To be removed.")
         self.assertEqual(self.mock_db_manager.get_summary(url), "To be removed.")
-        removed = self.mock_db_manager.remove_summary(url)
+        removed = self.mock_db_manager.invalidate_summary_cache(url)
         self.assertTrue(removed)
         self.assertIsNone(self.mock_db_manager.get_summary(url))
 
-        removed = self.mock_db_manager.remove_summary("http://nonexistent.com")
+        removed = self.mock_db_manager.invalidate_summary_cache("http://nonexistent.com")
         self.assertFalse(removed)
 
 if __name__ == '__main__':
