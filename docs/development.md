@@ -69,16 +69,7 @@ docker-compose up -d --build
 ### Backend Tests
 
 ```bash
-# Run all backend tests
-docker-compose run --rm backend uv run python tests/backend/test_app.py
-docker-compose run --rm backend uv run python tests/backend/test_database.py
-docker-compose run --rm backend uv run python tests/backend/test_pipeline.py
-docker-compose run --rm backend uv run python tests/backend/test_search.py
-docker-compose run --rm backend uv run python tests/backend/test_scrapers.py
-
-# Run with pytest (after adding pytest to dependencies)
-docker-compose run --rm backend uv add --dev pytest
-docker-compose run --rm backend uv run pytest tests/backend/
+docker-compose run --rm backend pytest tests/backend/
 ```
 
 ### Frontend Tests
