@@ -7,7 +7,7 @@ from sqlalchemy import create_engine, Column, String, DateTime, Text, Float, des
 from sqlalchemy.types import JSON, TypeDecorator
 import json
 from sqlalchemy.dialects.postgresql import ARRAY
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
@@ -44,14 +44,6 @@ class EmbeddingArrayType(TypeDecorator):
 
 Base = declarative_base()
 
-class SummaryCache(Base):
-    __tablename__ = "summary_cache"
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    url = Column(String, unique=True, nullable=False, index=True)
-    summary = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 class Source(Base):
     __tablename__ = "sources"
@@ -128,50 +120,78 @@ class DatabaseManager:
             self._manage_cache_size()
 
     def get_summary(self, url: str) -> Optional[str]:
+        """Get summary from sources table (consolidated approach)."""
         with self.get_session() as session:
-            cache_entry = session.query(SummaryCache).filter(SummaryCache.url == url).first()
-            return cache_entry.summary if cache_entry else None
+            source = session.query(Source).filter(Source.link == url).first()
+            return source.summary if source else None
+    
+    def get_summaries_batch(self, urls: List[str]) -> Dict[str, str]:
+        """Get summaries for multiple URLs in a single query (batch operation)."""
+        if not urls:
+            return {}
+            
+        with self.get_session() as session:
+            sources = session.query(Source).filter(Source.link.in_(urls)).all()
+            return {source.link: source.summary for source in sources if source.summary}
 
     def add_summary(self, url: str, summary: str) -> None:
+        """Add summary to sources table (consolidated approach)."""
         with self.get_session() as session:
-            existing_entry = session.query(SummaryCache).filter(SummaryCache.url == url).first()
-            if existing_entry:
-                existing_entry.summary = summary
-                existing_entry.updated_at = datetime.utcnow()
-                logger.info(f"Updated existing summary for URL: {url}")
+            source = session.query(Source).filter(Source.link == url).first()
+            if source:
+                source.summary = summary
+                source.updated_at = datetime.utcnow()
+                session.commit()
+                logger.info(f"Updated summary for existing source: {url}")
             else:
-                new_entry = SummaryCache(url=url, summary=summary, created_at=datetime.utcnow(), updated_at=datetime.utcnow())
-                session.add(new_entry)
-                logger.info(f"Added new summary for URL: {url}")
-            session.commit()
+                logger.warning(f"Cannot add summary - source not found for URL: {url}")
+                # Note: We no longer create orphaned summary entries
+                # Summaries should only exist for sources that exist in sources table
 
     def get_summaries_by_date(self, start_date: datetime, end_date: Optional[datetime] = None) -> List[Dict[str, str]]:
+        """Get summaries from sources table by date (consolidated approach)."""
         with self.get_session() as session:
-            query = session.query(SummaryCache).filter(SummaryCache.created_at >= start_date)
+            query = session.query(Source).filter(
+                Source.created_at >= start_date,
+                Source.summary.isnot(None)  # Only sources with summaries
+            )
             if end_date:
-                query = query.filter(SummaryCache.created_at <= end_date)
-            results = query.order_by(desc(SummaryCache.created_at)).all()
-            return [{"url": e.url, "summary": e.summary, "created_at": e.created_at.isoformat(), "updated_at": e.updated_at.isoformat()} for e in results]
+                query = query.filter(Source.created_at <= end_date)
+            results = query.order_by(desc(Source.created_at)).all()
+            return [{"url": s.link, "summary": s.summary, "created_at": s.created_at.isoformat(), "updated_at": s.updated_at.isoformat()} for s in results]
 
     def cleanup_summaries(self, days_to_keep: int = 30) -> int:
+        """Clear summaries from old sources (consolidated approach).""" 
         cutoff_date = datetime.utcnow() - timedelta(days=days_to_keep)
         with self.get_session() as session:
-            deleted_count = session.query(SummaryCache).filter(SummaryCache.created_at < cutoff_date).delete()
+            # Set summary to NULL for old sources instead of deleting records
+            updated_count = session.query(Source).filter(
+                Source.created_at < cutoff_date,
+                Source.summary.isnot(None)
+            ).update({Source.summary: None, Source.updated_at: datetime.utcnow()})
             session.commit()
-            logger.info(f"Cleaned up {deleted_count} old summaries (older than {days_to_keep} days)")
-            return deleted_count
+            logger.info(f"Cleaned up {updated_count} old summaries (older than {days_to_keep} days)")
+            return updated_count
 
     def get_summary_cache_stats(self) -> Dict[str, int]:
+        """Get summary statistics from sources table (consolidated approach)."""
         with self.get_session() as session:
-            total_count = session.query(SummaryCache).count()
+            total_count = session.query(Source).filter(Source.summary.isnot(None)).count()
             week_ago = datetime.utcnow() - timedelta(days=7)
-            recent_count = session.query(SummaryCache).filter(SummaryCache.created_at >= week_ago).count()
+            recent_count = session.query(Source).filter(
+                Source.created_at >= week_ago,
+                Source.summary.isnot(None)
+            ).count()
             return {"total_summaries": total_count, "recent_summaries_7_days": recent_count}
 
     def search_summaries(self, query: str, limit: int = 10) -> List[Dict[str, str]]:
+        """Search summaries in sources table (consolidated approach)."""
         with self.get_session() as session:
-            results = session.query(SummaryCache).filter(SummaryCache.summary.ilike(f"%{query}%")).order_by(desc(SummaryCache.created_at)).limit(limit).all()
-            return [{"url": e.url, "summary": e.summary, "created_at": e.created_at.isoformat(), "updated_at": e.updated_at.isoformat()} for e in results]
+            results = session.query(Source).filter(
+                Source.summary.ilike(f"%{query}%"),
+                Source.summary.isnot(None)
+            ).order_by(desc(Source.created_at)).limit(limit).all()
+            return [{"url": s.link, "summary": s.summary, "created_at": s.created_at.isoformat(), "updated_at": s.updated_at.isoformat()} for s in results]
 
 
     # --- Source Methods ---
@@ -469,12 +489,14 @@ class DatabaseManager:
     # --- Invalidation Methods ---
 
     def invalidate_summary_cache(self, url: str) -> bool:
+        """Clear summary from sources table (consolidated approach)."""
         with self.get_session() as session:
-            entry = session.query(SummaryCache).filter(SummaryCache.url == url).first()
-            if entry:
-                session.delete(entry)
+            source = session.query(Source).filter(Source.link == url).first()
+            if source and source.summary:
+                source.summary = None
+                source.updated_at = datetime.utcnow()
                 session.commit()
-                logger.info(f"Removed cached summary for URL: {url}")
+                logger.info(f"Cleared summary for URL: {url}")
                 return True
             return False
 
