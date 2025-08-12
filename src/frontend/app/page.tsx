@@ -859,13 +859,6 @@ export default function Home() {
                   </div>
                 )}
               </div>
-              <button
-                onClick={() => setShowResults(false)}
-                className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-200 focus:outline-none transition-colors"
-                title="Hide results"
-              >
-                ×
-              </button>
             </div>
             
             <div className="space-y-4">

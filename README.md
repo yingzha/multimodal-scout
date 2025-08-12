@@ -12,6 +12,7 @@ Multimodal Scout scrapes content from Hugging Face trending papers and Hacker Ne
 - 📚 **Bookmark** articles you want to read later with persistent storage
 - ✏️ **Edit Summaries** inline with user-edited indicators and priority in search results
 - 📤 **Upload Your Own Links** with automatic content processing, summary generation, and smart categorization
+- 📊 **Export Bookmarks** to Excel with title, summary, source URL, and date columns
 - ⏰ **Stay updated** with flexible time ranges (any number of days, with quick presets)
 - 📊 **Real-time Progress** tracking during content processing
 
@@ -67,7 +68,9 @@ That's it! The system will automatically start scraping and processing content.
    - Content is processed and added to your bookmarks instantly
 7. **Manage bookmarks**: Use "📚 View My Bookmarks" to see and organize saved articles
    - Tag filtering also works in bookmarks view
-   - Remove bookmarks with ★ and × buttons
+   - Remove bookmarks with ★ button (with confirmation)
+   - Export all bookmarks to Excel using the 📊 icon
+   - Edit bookmark summaries inline
 
 ## Key Features
 
