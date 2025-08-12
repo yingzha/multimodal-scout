@@ -184,6 +184,18 @@ export default function Home() {
   }, [paginatedItems, paginatedBookmarks, expandedSummaries])
 
   const handleViewBookmarks = async () => {
+    // Toggle bookmarks view
+    if (showBookmarks) {
+      setShowBookmarks(false)
+      setBookmarkedCards([])
+      setExpandedSummaries(new Set()) // Clear expanded state when hiding bookmarks
+      setSelectedTag(null) // Clear tag filter when hiding bookmarks
+      setBookmarksPage(1) // Reset bookmarks page when hiding
+      setUploadUrl('') // Clear URL
+      setUploadMessage('') // Clear message
+      return
+    }
+
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       const response = await fetch(`${apiUrl}/api/bookmarks`)
@@ -204,15 +216,6 @@ export default function Home() {
     }
   }
 
-  const handleHideBookmarks = () => {
-    setShowBookmarks(false)
-    setBookmarkedCards([])
-    setExpandedSummaries(new Set()) // Clear expanded state when hiding bookmarks
-    setSelectedTag(null) // Clear tag filter when hiding bookmarks
-    setBookmarksPage(1) // Reset bookmarks page when hiding
-    setUploadUrl('') // Clear URL
-    setUploadMessage('') // Clear message
-  }
 
   const confirmDelete = async () => {
     if (!deleteConfirmItem) return
@@ -370,6 +373,44 @@ export default function Home() {
     setSelectedTag(selectedTag === tag ? null : tag) // Toggle tag selection
     setCurrentPage(1) // Reset to first page when filtering
     setBookmarksPage(1) // Reset bookmarks page too
+  }
+
+  const handleExportBookmarks = async () => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const response = await fetch(`${apiUrl}/api/bookmarks/export`, {
+        method: 'GET'
+      })
+
+      if (response.ok) {
+        // Get the filename from the response headers or create a default one
+        const contentDisposition = response.headers.get('Content-Disposition')
+        let filename = 'multimodal_scout_bookmarks.xlsx'
+        
+        if (contentDisposition) {
+          const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
+          if (filenameMatch && filenameMatch[1]) {
+            filename = filenameMatch[1].replace(/['"]/g, '')
+          }
+        }
+
+        // Convert response to blob and download
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.style.display = 'none'
+        a.href = url
+        a.download = filename
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+      } else {
+        console.error('Failed to export bookmarks')
+      }
+    } catch (error) {
+      console.error('Failed to export bookmarks:', error)
+    }
   }
 
   // Pagination component
@@ -928,29 +969,20 @@ export default function Home() {
         {/* Bookmarks Section */}
         {showBookmarks && (
           <div className="mt-4">
-            <div className="flex justify-between items-center mb-6">
-              <div className="flex items-center gap-3">
-                {selectedTag && (
-                  <div className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                    <span>{selectedTag}</span>
-                    <button
-                      onClick={() => setSelectedTag(null)}
-                      className="ml-2 w-4 h-4 bg-blue-200 hover:bg-red-200 rounded-full flex items-center justify-center text-blue-600 hover:text-red-600 focus:outline-none transition-colors text-xs font-bold"
-                      title="Clear filter"
-                    >
-                      ×
-                    </button>
-                  </div>
-                )}
+            {selectedTag && (
+              <div className="mb-6">
+                <div className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                  <span>{selectedTag}</span>
+                  <button
+                    onClick={() => setSelectedTag(null)}
+                    className="ml-2 w-4 h-4 bg-blue-200 hover:bg-red-200 rounded-full flex items-center justify-center text-blue-600 hover:text-red-600 focus:outline-none transition-colors text-xs font-bold"
+                    title="Clear filter"
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={handleHideBookmarks}
-                className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-200 focus:outline-none transition-colors"
-                title="Hide bookmarks"
-              >
-                ×
-              </button>
-            </div>
+            )}
             
             {/* Upload Link Section */}
             <div className="mb-4">
@@ -1026,11 +1058,20 @@ export default function Home() {
             </div>
             
             {/* Bookmark Count - moved below upload section */}
-            <div className="text-sm text-gray-600 mb-6">
-              {selectedTag 
-                ? `${bookmarkedCards.filter(item => item.source === selectedTag).length} bookmarks for "${selectedTag}"` 
-                : `${bookmarkedCards.length} bookmarks`
-              }
+            <div className="flex justify-between items-center mb-6">
+              <div className="text-base text-gray-600">
+                {selectedTag 
+                  ? `${bookmarkedCards.filter(item => item.source === selectedTag).length} bookmarks for "${selectedTag}"` 
+                  : `${bookmarkedCards.length} bookmarks`
+                }
+              </div>
+              <button
+                onClick={handleExportBookmarks}
+                className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-green-600 rounded-full hover:bg-green-50 focus:outline-none transition-colors"
+                title="Export bookmarks to Excel"
+              >
+                📊
+              </button>
             </div>
 
             {bookmarkedCards.length === 0 ? (

@@ -5,7 +5,7 @@ Provides REST API endpoints for fetching topics and scraping content.
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response
 from typing import List, Dict, Any
 import json
 import asyncio
@@ -283,6 +283,83 @@ async def upload_link(request: UploadLinkRequest):
     except Exception as e:
         logger.error(f"Failed to process uploaded link: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to process link: {str(e)}")
+
+@app.get("/api/bookmarks/export")
+async def export_bookmarks():
+    """Export all bookmarks to Excel file"""
+    try:
+        import openpyxl
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill
+        from io import BytesIO
+        from datetime import datetime
+        
+        logger.info("Starting bookmark export to Excel")
+        
+        # Get all bookmarks
+        bookmarks = db_manager.get_bookmarks()
+        
+        # Create workbook and worksheet
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Bookmarks"
+        
+        # Define headers
+        headers = ["Title", "Summary", "Source URL", "Source Date"]
+        
+        # Add headers with styling
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+        
+        # Add bookmark data
+        for row, bookmark in enumerate(bookmarks, 2):
+            # Handle both edited and original summaries
+            summary_edited = getattr(bookmark, 'summary_edited', None)
+            display_summary = summary_edited or bookmark.summary or "No summary available"
+            
+            # Format date
+            source_date = bookmark.bookmarked_at.strftime("%Y-%m-%d %H:%M:%S") if bookmark.bookmarked_at else "Unknown"
+            
+            ws.cell(row=row, column=1, value=bookmark.title)
+            ws.cell(row=row, column=2, value=display_summary)
+            ws.cell(row=row, column=3, value=bookmark.link)
+            ws.cell(row=row, column=4, value=source_date)
+        
+        # Adjust column widths
+        ws.column_dimensions['A'].width = 50  # Title
+        ws.column_dimensions['B'].width = 80  # Summary
+        ws.column_dimensions['C'].width = 60  # URL
+        ws.column_dimensions['D'].width = 20  # Date
+        
+        # Save to BytesIO
+        excel_buffer = BytesIO()
+        wb.save(excel_buffer)
+        excel_buffer.seek(0)
+        
+        # Generate filename with current timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"multimodal_scout_bookmarks_{timestamp}.xlsx"
+        
+        logger.info(f"Successfully exported {len(bookmarks)} bookmarks to Excel")
+        
+        # Return Excel file as response
+        return Response(
+            content=excel_buffer.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to export bookmarks: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to export bookmarks: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

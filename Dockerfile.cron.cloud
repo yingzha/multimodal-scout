@@ -1,0 +1,41 @@
+FROM python:3.10-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies including uv
+RUN apt-get update && apt-get install -y \
+    postgresql-client \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
+
+# Copy dependency files
+COPY pyproject.toml uv.lock ./
+
+# Install Python dependencies with uv
+RUN uv sync --frozen
+
+# Copy application code
+COPY . .
+
+# Set Python path
+ENV PYTHONPATH=/app/src:$PYTHONPATH
+
+# Create non-root user
+RUN useradd -m -u 1000 appuser && \
+    chown -R appuser:appuser /app
+USER appuser
+
+# Use uv to run Python
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Expose port
+EXPOSE 8000
+
+# Default command - run cron endpoints server for Cloud Scheduler
+CMD ["python", "-m", "uvicorn", "src.backend.cron_endpoints:cron_app", "--host", "0.0.0.0", "--port", "8000"]
