@@ -96,8 +96,9 @@ That's it! The system will automatically start scraping and processing content.
 - **Performance Indicators**: Clear messaging about processing times and expectations
 
 ### 🗄️ **Robust Data Management**
-- **PostgreSQL Database**: Persistent storage for bookmarks and cached summaries
+- **PostgreSQL Database**: Persistent storage for bookmarks and cached summaries with local time handling
 - **Database Migrations**: Alembic-managed schema evolution
+- **Batch Operations**: Optimized bulk database operations for improved performance
 - **Health Monitoring**: Automatic table creation and database health checks
 
 ### 🔧 **Developer-Friendly Architecture**

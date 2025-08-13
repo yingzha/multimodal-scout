@@ -161,6 +161,12 @@ Currently, no authentication is required for API access.
   }
   ```
 
+**GET /api/bookmarks/export**
+- **Description**: Export all bookmarks to an Excel (.xlsx) file
+- **Response**: Excel file download with columns: Title, Summary, Source URL, Date
+- **Content-Type**: `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
+- **Headers**: `Content-Disposition: attachment; filename="bookmarks.xlsx"`
+
 ### Content Upload
 
 **POST /api/upload-link**  

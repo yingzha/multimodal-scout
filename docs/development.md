@@ -148,4 +148,17 @@ docker-compose exec backend python -m src.backend.cache_manager stats
 docker-compose exec backend python -m src.backend.cache_manager cleanup
 ```
 
+## Recent Improvements
+
+### Performance Optimizations
+- **Batch Database Operations**: Summary updates now use `add_summaries_batch()` for efficient bulk operations
+- **Local Time Handling**: All database timestamps now use local time instead of UTC for better user experience
+- **Embedding Pre-generation**: Cron jobs now pre-generate embeddings for faster semantic search
+- **Consolidated Storage**: Summary storage consolidated to eliminate table redundancy
+
+### Database Changes
+- **Local Timestamps**: All `created_at`, `updated_at`, and `bookmarked_at` fields now use local time
+- **Batch Operations**: New `add_summaries_batch()` method reduces database round trips
+- **Optimized Queries**: Pipeline queries by `created_at` for accurate upload time filtering
+
 That's it! Docker handles all the environment complexity.

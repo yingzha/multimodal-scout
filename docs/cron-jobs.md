@@ -8,7 +8,8 @@ The cron service runs in a separate Docker container and automatically:
 - Fetches Hacker News articles every hour
 - Collects Hugging Face trending papers every 6 hours
 - Generates AI summaries for new content
-- Saves processed content to the database
+- Pre-generates embeddings for faster semantic search
+- Saves processed content to the database with optimized batch operations
 
 ## Schedule
 
@@ -180,8 +181,10 @@ Required environment variables for cron jobs:
 
 ### Caching Strategy
 
-- **Summary Cache**: Avoids regenerating summaries for known URLs
-- **Embedding Cache**: Reuses computed embeddings for semantic search
+- **Summary Cache**: Avoids regenerating summaries for known URLs using consolidated storage
+- **Embedding Cache**: Reuses computed embeddings for semantic search with pre-generation
+- **Batch Operations**: New `add_summaries_batch()` method reduces database round trips
+- **Local Time Handling**: Timestamps use local time for accurate time-based filtering
 - **Database Optimization**: Bulk operations and connection pooling
 
 ### Resource Management

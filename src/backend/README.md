@@ -178,14 +178,15 @@ INTERESTED_KEYWORDS = [
 ### Data Flow
 
 1. **Scraping**: Collect sources from Hugging Face and Hacker News
-2. **Enrichment**: Generate AI summaries using Google Gemini (cached in PostgreSQL)
+2. **Enrichment**: Generate AI summaries using Google Gemini (cached in PostgreSQL with local timestamps)
 3. **Advanced Filtering**: 
    - Priority 1: Keyword search results (research first, then industry)
    - Priority 2: Semantic search with separate thresholds (research: 0.65, industry: 0.55)
    - Smart balancing: Configurable research/industry ratios with overflow handling
-4. **Embedding Caching**: Store Google Gemini embeddings to optimize future searches
-5. **Result Delivery**: Return balanced, ordered results with real-time progress updates
-6. **Management**: CLI tools for cache cleanup, statistics, and content search
+4. **Embedding Caching**: Store Google Gemini embeddings with pre-generation for optimized searches
+5. **Batch Operations**: Use `add_summaries_batch()` for efficient bulk database updates
+6. **Result Delivery**: Return balanced, ordered results with real-time progress updates
+7. **Management**: CLI tools for cache cleanup, statistics, and content search
 
 ## Example Workflows
 
