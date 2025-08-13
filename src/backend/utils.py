@@ -76,6 +76,12 @@ def generate_summary_from_link(link: HttpUrl) -> Optional[str]:
     if not AI_ENABLED:
         return None
 
+    # Skip obvious test/invalid URLs to avoid unnecessary network requests
+    link_str = str(link).lower()
+    if any(test_domain in link_str for test_domain in ['example.com', 'example.org', 'test.com', 'localhost']):
+        logger.warning(f"Skipping summary generation for test URL: {link}")
+        return None
+
     logger.info(f"Generating summary for: {link}")
     article_text = _fetch_article_text(link)
 

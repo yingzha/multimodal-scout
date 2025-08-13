@@ -57,8 +57,8 @@ class Source(Base):
     keywords = Column(JSON, nullable=True)
     tags = Column(JSON, nullable=False)
     date = Column(DateTime, nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
 
 class EmbeddingCache(Base):
     __tablename__ = "embedding_cache"
@@ -68,7 +68,7 @@ class EmbeddingCache(Base):
     text_hash = Column(String(64), unique=True, nullable=False, index=True)
     embedding = Column(EmbeddingArrayType(), nullable=False)
     model_name = Column(String, nullable=False, default="gemini-embedding-001")
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
 
 class Bookmark(Base):
     __tablename__ = "bookmarks"
@@ -79,7 +79,7 @@ class Bookmark(Base):
     source_tag = Column(String, nullable=False)
     summary = Column(Text, nullable=True)
     summary_edited = Column(String, nullable=True)
-    bookmarked_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    bookmarked_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
 
 class DatabaseManager:
     def __init__(self, database_url: Optional[str] = None):
@@ -140,7 +140,7 @@ class DatabaseManager:
             source = session.query(Source).filter(Source.link == url).first()
             if source:
                 source.summary = summary
-                source.updated_at = datetime.utcnow()
+                source.updated_at = datetime.now()
                 session.commit()
                 logger.info(f"Updated summary for existing source: {url}")
             else:
@@ -166,7 +166,7 @@ class DatabaseManager:
                 if url in url_to_source:
                     source = url_to_source[url]
                     source.summary = summary
-                    source.updated_at = datetime.utcnow()
+                    source.updated_at = datetime.now()
                     results[url] = True
                     updated_count += 1
                 else:
@@ -191,13 +191,13 @@ class DatabaseManager:
 
     def cleanup_summaries(self, days_to_keep: int = 30) -> int:
         """Clear summaries from old sources (consolidated approach).""" 
-        cutoff_date = datetime.utcnow() - timedelta(days=days_to_keep)
+        cutoff_date = datetime.now() - timedelta(days=days_to_keep)
         with self.get_session() as session:
             # Set summary to NULL for old sources instead of deleting records
             updated_count = session.query(Source).filter(
                 Source.created_at < cutoff_date,
                 Source.summary.isnot(None)
-            ).update({Source.summary: None, Source.updated_at: datetime.utcnow()})
+            ).update({Source.summary: None, Source.updated_at: datetime.now()})
             session.commit()
             logger.info(f"Cleaned up {updated_count} old summaries (older than {days_to_keep} days)")
             return updated_count
@@ -206,7 +206,7 @@ class DatabaseManager:
         """Get summary statistics from sources table (consolidated approach)."""
         with self.get_session() as session:
             total_count = session.query(Source).filter(Source.summary.isnot(None)).count()
-            week_ago = datetime.utcnow() - timedelta(days=7)
+            week_ago = datetime.now() - timedelta(days=7)
             recent_count = session.query(Source).filter(
                 Source.created_at >= week_ago,
                 Source.summary.isnot(None)
@@ -295,7 +295,7 @@ class DatabaseManager:
                 existing.keywords = source_schema.keywords
                 existing.tags = source_schema.tags
                 existing.date = source_schema.date
-                existing.updated_at = datetime.utcnow()
+                existing.updated_at = datetime.now()
             
             # Step 5: Batch insert new sources
             if sources_to_insert:
@@ -311,8 +311,8 @@ class DatabaseManager:
                         'keywords': source_schema.keywords,
                         'tags': source_schema.tags,
                         'date': source_schema.date,
-                        'created_at': datetime.utcnow(),
-                        'updated_at': datetime.utcnow()
+                        'created_at': datetime.now(),
+                        'updated_at': datetime.now()
                     }
                     new_sources.append(Source(**source_data))
                 
@@ -409,7 +409,7 @@ class DatabaseManager:
 
     def cleanup_bookmarks(self, days_to_keep: int = 90) -> int:
         """Clean up old bookmarks."""
-        cutoff_date = datetime.utcnow() - timedelta(days=days_to_keep)
+        cutoff_date = datetime.now() - timedelta(days=days_to_keep)
         with self.get_session() as session:
             deleted_count = session.query(Bookmark).filter(Bookmark.bookmarked_at < cutoff_date).delete()
             session.commit()
@@ -419,7 +419,7 @@ class DatabaseManager:
     def get_bookmark_cache_stats(self) -> Dict[str, int]:
         with self.get_session() as session:
             total_count = session.query(Bookmark).count()
-            week_ago = datetime.utcnow() - timedelta(days=7)
+            week_ago = datetime.now() - timedelta(days=7)
             recent_count = session.query(Bookmark).filter(Bookmark.bookmarked_at >= week_ago).count()
             return {"total_bookmarks": total_count, "recent_bookmarks_7_days": recent_count}
 
@@ -457,7 +457,7 @@ class DatabaseManager:
     def get_embedding_cache_stats(self) -> dict:
         with self.get_session() as session:
             total_count = session.query(EmbeddingCache).count()
-            week_ago = datetime.utcnow() - timedelta(days=7)
+            week_ago = datetime.now() - timedelta(days=7)
             recent_count = session.query(EmbeddingCache).filter(EmbeddingCache.created_at >= week_ago).count()
             models_used = session.query(EmbeddingCache.model_name).distinct().all()
             return {
@@ -481,7 +481,7 @@ class DatabaseManager:
 
     def cleanup_embeddings(self, days_to_keep: int = 30) -> int:
         """Clean up old embedding cache entries."""
-        cutoff_date = datetime.utcnow() - timedelta(days=days_to_keep)
+        cutoff_date = datetime.now() - timedelta(days=days_to_keep)
         with self.get_session() as session:
             deleted_count = session.query(EmbeddingCache).filter(EmbeddingCache.created_at < cutoff_date).delete()
             session.commit()
@@ -522,7 +522,7 @@ class DatabaseManager:
             source = session.query(Source).filter(Source.link == url).first()
             if source and source.summary:
                 source.summary = None
-                source.updated_at = datetime.utcnow()
+                source.updated_at = datetime.now()
                 session.commit()
                 logger.info(f"Cleared summary for URL: {url}")
                 return True
