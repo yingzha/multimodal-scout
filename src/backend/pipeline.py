@@ -145,6 +145,14 @@ def process_content_pipeline(
     fresh_sources = []
     source_names = []
 
+    total_weight = 100
+    scraping_weight = 10
+    summary_weight = 70
+    filtering_weight = 20
+ 
+    current_progress = scraping_weight
+    yield {'type': 'start', 'message': 'Starting unified processing pipeline...', 'total': 100, 'processed': int((current_progress/total_weight)*100)}
+
     try:
         hf_papers = scrape_huggingface_trending_papers()
         if hf_papers:
@@ -187,10 +195,13 @@ def process_content_pipeline(
                 # Enrich new sources with summaries and embeddings
                 enriched_new_sources = enrich_sources_with_summaries_and_embeddings(sources_needing_summaries)
                 
-                # Update the database with the new summaries and embeddings
-                update_result = db_manager.save_sources(enriched_new_sources)
-                logger.info(f"Updated {len(enriched_new_sources)} sources with summaries and embeddings")
-                yield {'type': 'status', 'message': f'Updated {len(enriched_new_sources)} sources with AI summaries'}
+                # Update the database with the new summaries using batch method
+                url_summary_pairs = {str(source.link): source.summary for source in enriched_new_sources if source.summary}
+                if url_summary_pairs:
+                    update_results = db_manager.add_summaries_batch(url_summary_pairs)
+                    successful_updates = sum(1 for success in update_results.values() if success)
+                    logger.info(f"Updated {successful_updates} sources with summaries via batch operation")
+                    yield {'type': 'status', 'message': f'Updated {successful_updates} sources with AI summaries'}
             else:
                 logger.info("All new sources already have summaries")
         else:
@@ -199,6 +210,9 @@ def process_content_pipeline(
     except Exception as e:
         logger.error(f"Failed to save sources to database: {e}")
         yield {'type': 'warning', 'message': f'Database save failed, proceeding with fresh content: {str(e)}'}
+
+    current_progress += summary_weight
+    yield {'type': 'progress', 'message': 'Summary generation complete', 'processed': int((current_progress/total_weight)*100), 'total': 100}
 
     # Step 3: Query database for sources within the specified date range
     cutoff_date = datetime.now() - timedelta(days=selected_days)
@@ -256,14 +270,8 @@ def process_content_pipeline(
         yield {'type': 'warning', 'message': f'No database records for {selected_days} days, using fresh content'}
         all_sources = fresh_sources
 
-    total_weight = 100
-    scraping_weight = 10
-    summary_weight = 70
-    filtering_weight = 20
+   
     
-    current_progress = scraping_weight
-    yield {'type': 'start', 'message': 'Starting unified processing pipeline...', 'total': 100, 'processed': int((current_progress/total_weight)*100)}
-
     if all_sources:
         # Get all edited summaries once at the beginning for efficiency
         bookmarks = db_manager.get_bookmarks()
@@ -281,42 +289,6 @@ def process_content_pipeline(
                 source.summary = edited_summaries_map[source_link]
                 logger.info(f"Applied edited summary for: {source.title[:50]}")
         
-        # Now find sources that still need summaries (after applying edited ones)
-        sources_needing_summaries = [source for source in all_sources if not source.summary]
-        total_to_summarize = len(sources_needing_summaries)
-        
-        if total_to_summarize > 0:
-            yield {'type': 'status', 'message': f'Starting summary generation for {total_to_summarize} sources...'}
-            processed_summaries = 0
-            for source in sources_needing_summaries:
-                processed_summaries += 1
-                phase_progress = (processed_summaries / total_to_summarize) * summary_weight
-                unified_progress = current_progress + phase_progress
-                progress_percent = int((unified_progress / total_weight) * 100)
-
-                source_link = str(source.link)
-                
-                # Check cached summary
-                cached_summary = db_manager.get_summary(source_link)
-                if cached_summary:
-                    source.summary = cached_summary
-                    yield {'type': 'progress', 'message': f'Found cached summary for: {source.title[:50]}...', 'processed': progress_percent, 'total': 100}
-                    continue
-
-                yield {'type': 'progress', 'message': f'Generating summary for: {source.title[:50]}...', 'processed': progress_percent, 'total': 100}
-                new_summary = generate_summary_from_link(source.source_link)
-                if new_summary is None:
-                    new_summary = generate_summary_from_link(source.link)
-                
-                if new_summary:
-                    source.summary = new_summary
-                    db_manager.add_summary(str(source.link), new_summary)
-                    yield {'type': 'progress', 'message': f'✓ Generated summary for: {source.title[:50]}...', 'processed': progress_percent, 'total': 100}
-                else:
-                    yield {'type': 'warning', 'message': f'⚠ Could not generate summary for: {source.title[:50]}...', 'processed': progress_percent, 'total': 100}
-    
-    current_progress += summary_weight
-
     filtered_sources = []
     if topics and all_sources:
         yield {'type': 'status', 'message': f'Applying smart balanced filtering for {len(all_sources)} items...'}

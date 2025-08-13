@@ -148,6 +148,35 @@ class DatabaseManager:
                 # Note: We no longer create orphaned summary entries
                 # Summaries should only exist for sources that exist in sources table
 
+    def add_summaries_batch(self, url_summary_pairs: Dict[str, str]) -> Dict[str, bool]:
+        """Add summaries for multiple URLs in a single transaction (batch operation)."""
+        if not url_summary_pairs:
+            return {}
+            
+        with self.get_session() as session:
+            urls = list(url_summary_pairs.keys())
+            sources = session.query(Source).filter(Source.link.in_(urls)).all()
+            
+            # Create a mapping of URL to source for quick lookup
+            url_to_source = {source.link: source for source in sources}
+            results = {}
+            updated_count = 0
+            
+            for url, summary in url_summary_pairs.items():
+                if url in url_to_source:
+                    source = url_to_source[url]
+                    source.summary = summary
+                    source.updated_at = datetime.utcnow()
+                    results[url] = True
+                    updated_count += 1
+                else:
+                    results[url] = False
+                    logger.warning(f"Cannot add summary - source not found for URL: {url}")
+            
+            session.commit()
+            logger.info(f"Batch updated summaries for {updated_count} sources out of {len(url_summary_pairs)} requested")
+            return results
+
     def get_summaries_by_date(self, start_date: datetime, end_date: Optional[datetime] = None) -> List[Dict[str, str]]:
         """Get summaries from sources table by date (consolidated approach)."""
         with self.get_session() as session:
@@ -195,7 +224,6 @@ class DatabaseManager:
 
 
     # --- Source Methods ---
-
     def save_sources(self, sources: List['SourceSchema']) -> Dict[str, Any]:
         """
         Optimized batch save with in-memory deduplication and single DB query.
