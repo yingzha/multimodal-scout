@@ -327,7 +327,8 @@ class DatabaseManager:
             
             # Step 6: Mark all processed sources in cache to avoid reprocessing
             for source in deduplicated_sources:
-                self._mark_as_processed(str(source.link))
+                if source.summary is not None:
+                    self._mark_as_processed(str(source.link))
             
             logger.info(f"✅ Successfully processed {len(deduplicated_sources)} sources ({len(sources_to_insert)} new, {len(sources_to_update)} updated)")
             

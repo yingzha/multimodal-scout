@@ -190,10 +190,21 @@ def process_content_pipeline(
             if sources_needing_summaries:
                 from .merger import enrich_sources_with_summaries_and_embeddings
                 logger.info(f"Generating summaries and embeddings for {len(sources_needing_summaries)} new sources...")
-                yield {'type': 'status', 'message': f'Generating summaries for {len(sources_needing_summaries)} new sources...'}
+
+                # Show initial progress
+                initial_progress = current_progress + (summary_weight * 0.1)
+                yield {'type': 'progress', 'message': f'Starting AI processing for {len(sources_needing_summaries)} sources...', 'processed': int((initial_progress/total_weight)*100), 'total': 100}
+
+                # Show mid-progress for summaries
+                summary_progress = current_progress + (summary_weight * 0.5)
+                yield {'type': 'progress', 'message': 'Generating AI summaries...', 'processed': int((summary_progress/total_weight)*100), 'total': 100}
                 
                 # Enrich new sources with summaries and embeddings
                 enriched_new_sources = enrich_sources_with_summaries_and_embeddings(sources_needing_summaries)
+                
+                # Show final progress for this step
+                final_progress = current_progress + (summary_weight * 0.9)
+                yield {'type': 'progress', 'message': 'AI processing complete', 'processed': int((final_progress/total_weight)*100), 'total': 100}
                 
                 # Update the database with the new summaries using batch method
                 url_summary_pairs = {str(source.link): source.summary for source in enriched_new_sources if source.summary}
