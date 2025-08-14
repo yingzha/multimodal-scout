@@ -11,7 +11,6 @@ yields real-time progress updates and the final processed results, making it
 suitable for streaming APIs.
 """
 
-import json
 from typing import List, Dict, Any, Generator
 from datetime import datetime, timedelta
 
@@ -19,7 +18,6 @@ from .scraper import scrape_huggingface_trending_papers, scrape_hacker_news
 from .logger import logger
 from .schema import SourceSchema
 from .database import db_manager
-from .utils import generate_summary_from_link
 from .search import keyword_search, semantic_search_with_scores
 from .constants import SEMANTIC_SIMILARITY_THRESHOLD, RESEARCH_THRESHOLD, INDUSTRY_THRESHOLD
 
@@ -187,7 +185,11 @@ def process_content_pipeline(
         # Step 2b: Generate summaries for sources that don't have them (both new and updated)
         all_processed_sources = new_sources + updated_sources
         if all_processed_sources:
-            sources_needing_summaries = [source for source in all_processed_sources if not source.summary]
+            # Check database to see which sources actually need summaries
+            all_links = [str(source.link) for source in all_processed_sources]
+            existing_summaries = db_manager.get_summaries_batch(all_links)
+            sources_needing_summaries = [source for source in all_processed_sources 
+                                       if str(source.link) not in existing_summaries]
             if sources_needing_summaries:
                 from .merger import enrich_sources_with_summaries_and_embeddings
                 logger.info(f"Generating summaries and embeddings for {len(sources_needing_summaries)} new sources...")

@@ -37,10 +37,8 @@ def enrich_sources_with_summaries(sources: List[SourceSchema]) -> List[SourceSch
         else:
             logger.warning(f"Failed to generate summary for: {source.title} ({source.link})")
     
-    if newly_generated:
-        # Save all sources with new summaries in one operation
-        db_manager.save_sources(newly_generated)
-        logger.info(f"Batch saved {len(newly_generated)} sources with new summaries")
+    # Note: Sources are saved by the caller using add_summaries_batch for better efficiency
+    logger.info(f"Generated summaries for {len(newly_generated)} out of {len(sources)} sources")
 
     logger.info(f"✅ Summary enrichment complete: {len(sources)} generated")
     return sources
@@ -81,5 +79,3 @@ def enrich_sources_with_summaries_and_embeddings(sources: List[SourceSchema]) ->
     
     logger.info(f"✅ Completed enrichment for {len(enriched_sources)} sources")
     return enriched_sources
-
-

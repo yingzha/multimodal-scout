@@ -291,7 +291,9 @@ class DatabaseManager:
                 existing.title = source_schema.title
                 existing.authors = source_schema.authors
                 existing.source_link = str(source_schema.source_link)
-                existing.summary = source_schema.summary
+                # Preserve existing summary if the new one is None/empty
+                if source_schema.summary:
+                    existing.summary = source_schema.summary
                 existing.keywords = source_schema.keywords
                 existing.tags = source_schema.tags
                 existing.date = source_schema.date

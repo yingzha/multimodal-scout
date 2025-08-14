@@ -8,7 +8,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, Response
 from typing import List, Dict, Any
 import json
-import asyncio
 
 from .constants import INTERESTED_KEYWORDS
 from .logger import logger

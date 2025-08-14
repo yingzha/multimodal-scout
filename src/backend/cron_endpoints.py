@@ -5,7 +5,6 @@ These endpoints replace the Docker cron container when running on Google Cloud.
 
 from fastapi import FastAPI, HTTPException, Header
 from typing import Optional
-import asyncio
 
 from .scraper import scrape_huggingface_trending_papers, scrape_hacker_news
 from .merger import enrich_sources_with_summaries_and_embeddings
