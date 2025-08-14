@@ -184,9 +184,10 @@ def process_content_pipeline(
         logger.info(f"Saved {save_result['total_processed']} sources: {len(new_sources)} new, {len(updated_sources)} updated, {skipped_sources} skipped")
         yield {'type': 'status', 'message': f'Saved {save_result["total_processed"]} sources ({len(new_sources)} new)'}
         
-        # Step 2b: Generate summaries ONLY for new sources that don't have them
-        if new_sources:
-            sources_needing_summaries = [source for source in new_sources if not source.summary]
+        # Step 2b: Generate summaries for sources that don't have them (both new and updated)
+        all_processed_sources = new_sources + updated_sources
+        if all_processed_sources:
+            sources_needing_summaries = [source for source in all_processed_sources if not source.summary]
             if sources_needing_summaries:
                 from .merger import enrich_sources_with_summaries_and_embeddings
                 logger.info(f"Generating summaries and embeddings for {len(sources_needing_summaries)} new sources...")

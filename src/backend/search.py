@@ -22,7 +22,11 @@ def _get_embedding(text: str) -> np.ndarray:
     """Get embedding for text using Google Gemini with database caching."""
     if not SEMANTIC_SEARCH_ENABLED or not genai_client:
         return np.array([])
-    
+
+    if not text or text.strip() == "":
+        logger.warning("Cannot generate embedding for empty or None text")
+        return np.array([])
+         
     # Check cache first using the new abstracted method
     try:
         cached_embedding = db_manager.get_embedding_for_text(text)

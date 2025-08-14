@@ -67,11 +67,14 @@ def enrich_sources_with_summaries_and_embeddings(sources: List[SourceSchema]) ->
     # Then Generate embeddings for the text that will be searched
     for source in enriched_sources:
         try:
-            embedding = _get_embedding(source.summary)
-            if len(embedding) > 0:
-                logger.info(f"Generated embedding for: {source.title}")
+            if source.summary:  # Only generate embeddings for sources with summaries
+                embedding = _get_embedding(source.summary)
+                if len(embedding) > 0:
+                    logger.info(f"Generated embedding for: {source.title}")
+                else:
+                    logger.warning(f"Failed to generate embedding for: {source.title}")
             else:
-                logger.warning(f"Failed to generate embedding for: {source.title}")
+                logger.warning(f"Skipping embedding generation for {source.title}: No summary available")
         except Exception as e:
             logger.error(f"Error generating embedding for {source.title}: {e}")  
    
