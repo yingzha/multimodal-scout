@@ -26,7 +26,7 @@ export default function Home() {
   const [paginatedBookmarks, setPaginatedBookmarks] = useState<any[]>([])
   const [showReadMore, setShowReadMore] = useState<Set<string>>(new Set())
   const [maxResults, setMaxResults] = useState(10)
-  const itemsPerPage = maxResults
+  const itemsPerPage = 5  // Fixed to 5 items per page for pagination
   const [researchRatio, setResearchRatio] = useState(0.5)
   const [uploadUrl, setUploadUrl] = useState('')
   const [isUploading, setIsUploading] = useState(false)
@@ -35,7 +35,7 @@ export default function Home() {
   const [uploadProgressMessage, setUploadProgressMessage] = useState('')
   const [deleteConfirmItem, setDeleteConfirmItem] = useState<any>(null)
   const [deleteConfirmPosition, setDeleteConfirmPosition] = useState<{top: number, left: number} | null>(null)
-  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
+  const [isHoveringSettings, setIsHoveringSettings] = useState(false)
   const [editingSummary, setEditingSummary] = useState<string | null>(null)
   const [editedSummaryText, setEditedSummaryText] = useState('')
   const [isUpdatingSummary, setIsUpdatingSummary] = useState(false)
@@ -440,42 +440,39 @@ export default function Home() {
       return null
     }
     
-    
     return (
-      <div className="flex justify-center items-center gap-2 mt-6 p-4 bg-gray-100 rounded-lg">
-        <span className="text-sm text-gray-700 mr-4">
-          Page {currentPage} of {totalPages} ({totalItems} items)
-        </span>
-        
-        <button
-          onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-          disabled={currentPage === 1}
-          className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg disabled:bg-gray-400 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
-        >
-          Previous
-        </button>
-        
-        {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+      <div className="flex justify-end items-center mt-6 py-4">
+        <div className="flex items-center gap-1">
           <button
-            key={page}
-            onClick={() => setCurrentPage(page)}
-            className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
-              currentPage === page
-                ? 'bg-blue-600 text-white border-blue-600'
-                : 'border-gray-300 hover:bg-gray-50 bg-white'
-            }`}
+            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+            disabled={currentPage === 1}
+            className="px-3 py-1 text-sm text-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed hover:text-gray-800 transition-colors"
           >
-            {page}
+            ←
           </button>
-        ))}
-        
-        <button
-          onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-          disabled={currentPage === totalPages}
-          className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg disabled:bg-gray-400 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
-        >
-          Next
-        </button>
+          
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+            <button
+              key={page}
+              onClick={() => setCurrentPage(page)}
+              className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                currentPage === page
+                  ? 'bg-gray-900 text-blue-200'
+                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+              }`}
+            >
+              {page}
+            </button>
+          ))}
+          
+          <button
+            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+            disabled={currentPage === totalPages}
+            className="px-3 py-1 text-sm text-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed hover:text-gray-800 transition-colors"
+          >
+            →
+          </button>
+        </div>
       </div>
     )
   }
@@ -686,106 +683,119 @@ export default function Home() {
           )}
         </div>
 
-        {/* Advanced Search Settings Toggle - Hide when viewing bookmarks */}
+        {/* Hoverable Advanced Search Settings - Hide when viewing bookmarks */}
         {!showBookmarks && (
-          <div className="mb-4 flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={showAdvancedSettings}
-              onChange={(e) => setShowAdvancedSettings(e.target.checked)}
-              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer"
-            />
-            <span className="text-gray-700 font-medium">Advanced Search Settings</span>
-          </div>
-        )}
+          <div className="mb-8 relative">
+            {/* Hover Trigger Area */}
+            <div className="cursor-pointer transition-all duration-300">
+              <span 
+                className="text-sm text-gray-600 hover:text-gray-800 inline-block"
+                onMouseEnter={() => setIsHoveringSettings(true)}
+                onMouseLeave={() => setIsHoveringSettings(false)}
+              >
+                🛠️ Advanced Search Settings
+              </span>
+            </div>
 
-        {/* Search Settings Section - Hide when viewing bookmarks */}
-        {!showBookmarks && showAdvancedSettings && (
-          <div className="bg-blue-50 rounded-lg p-6 mb-8">
-            {/* Time Range Selector */}
-          <div className="mb-6">
-            <div className="flex items-center justify-center space-x-4">
-              <span className="text-gray-700 font-medium">Retrieve content from the last</span>
-              <input
-                type="number"
-                value={selectedDays}
-                onChange={(e) => setSelectedDays(Number(e.target.value))}
-                className="w-16 px-3 py-2 border border-gray-300 rounded-md text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                min="1"
-              />
-              <span className="text-gray-700 font-medium">days</span>
-              <div className="flex space-x-2">
-                {[1, 3, 7].map((days) => (
-                  <button
-                    key={days}
-                    onClick={() => setSelectedDays(days)}
-                    className={`w-10 h-10 rounded-full text-sm font-medium transition-colors ${
-                      selectedDays === days
-                        ? 'bg-green-600 text-white shadow-lg ring-2 ring-green-300'
-                        : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
-                    }`}
-                  >
-                    {days}
-                  </button>
-                ))}
+            {/* Sliding Settings Panel */}
+            <div 
+              className={`transition-all duration-500 ease-in-out overflow-hidden ${
+                isHoveringSettings 
+                  ? 'max-h-screen opacity-100 transform translate-y-0' 
+                  : 'max-h-0 opacity-0 transform -translate-y-4'
+              }`}
+              style={{
+                maxHeight: isHoveringSettings ? '800px' : '0px'
+              }}
+              onMouseEnter={() => setIsHoveringSettings(true)}
+              onMouseLeave={() => setIsHoveringSettings(false)}
+            >
+              <div className="bg-blue-50 rounded-lg p-6 mt-2 border border-blue-200">
+                {/* Time Range Selector */}
+                <div className="mb-6">
+                  <div className="flex items-center justify-center space-x-4">
+                    <span className="text-gray-700 font-medium">Retrieve content from the last</span>
+                    <input
+                      type="number"
+                      value={selectedDays}
+                      onChange={(e) => setSelectedDays(Number(e.target.value))}
+                      className="w-16 px-3 py-2 border border-gray-300 rounded-md text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      min="1"
+                    />
+                    <span className="text-gray-700 font-medium">days</span>
+                    <div className="flex space-x-2">
+                      {[1, 3, 7].map((days) => (
+                        <button
+                          key={days}
+                          onClick={() => setSelectedDays(days)}
+                          className={`w-10 h-10 rounded-full text-sm font-medium transition-colors ${
+                            selectedDays === days
+                              ? 'bg-green-600 text-white shadow-lg ring-2 ring-green-300'
+                              : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                          }`}
+                        >
+                          {days}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Number of Results and Content Balance - Side by Side */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-16 mb-6">
+                  {/* Number of Results */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Number of Results: {maxResults}
+                    </label>
+                    <input
+                      type="range"
+                      min="5"
+                      max="50"
+                      step="5"
+                      value={maxResults}
+                      onChange={(e) => setMaxResults(Number(e.target.value))}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-2">
+                      <span>5</span>
+                      <span>25</span>
+                      <span>50</span>
+                    </div>
+                  </div>
+
+                  {/* Content Balance */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Content Balance: {Math.round(researchRatio * 100)}% Research / {Math.round((1 - researchRatio) * 100)}% Industry
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={researchRatio}
+                      onChange={(e) => setResearchRatio(Number(e.target.value))}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-2">
+                      <span>All Industry</span>
+                      <span>Balanced</span>
+                      <span>All Research</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-xs text-blue-700 bg-blue-100 p-3 rounded">
+                  <div className="flex items-start gap-2">
+                    <span className="flex-shrink-0">🎯</span>
+                    <div>
+                      <strong>Smart Balanced Search:</strong> Prioritizes keyword matches first, then adds semantic matches by relevance score. Research papers use a higher similarity threshold to ensure quality, while industry content uses a lower threshold for variety.
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-          
-          {/* Number of Results and Content Balance - Side by Side */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-16 mb-6">
-            {/* Number of Results */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Number of Results: {maxResults}
-              </label>
-              <input
-                type="range"
-                min="5"
-                max="50"
-                step="5"
-                value={maxResults}
-                onChange={(e) => setMaxResults(Number(e.target.value))}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <div className="flex justify-between text-xs text-gray-500 mt-2">
-                <span>5</span>
-                <span>25</span>
-                <span>50</span>
-              </div>
-            </div>
-            
-            {/* Content Balance */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Content Balance: {Math.round(researchRatio * 100)}% Research / {Math.round((1 - researchRatio) * 100)}% Industry
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.1"
-                value={researchRatio}
-                onChange={(e) => setResearchRatio(Number(e.target.value))}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <div className="flex justify-between text-xs text-gray-500 mt-2">
-                <span>All Industry</span>
-                <span>Balanced</span>
-                <span>All Research</span>
-              </div>
-            </div>
-          </div>
-          
-          <div className="text-xs text-blue-700 bg-blue-100 p-3 rounded">
-            <div className="flex items-start gap-2">
-              <span className="flex-shrink-0">🎯</span>
-              <div>
-                <strong>Smart Balanced Search:</strong> Prioritizes keyword matches first, then adds semantic matches by relevance score. Research papers use a higher similarity threshold to ensure quality, while industry content uses a lower threshold for variety.
-              </div>
-            </div>
-          </div>
-        </div>
         )}
 
         {/* Centered Discover Content Button - Hide when viewing bookmarks */}
@@ -1055,7 +1065,7 @@ export default function Home() {
               </div>
             </div>
             
-            {/* Bookmark Count - moved below upload section */}
+            {/* Bookmark Count and Export */}
             <div className="flex justify-between items-center mb-6">
               <div className="text-sm text-gray-600">
                 {selectedTag 
