@@ -9,6 +9,7 @@ from .utils import generate_summary_from_link
 def enrich_sources_with_summaries(sources: List[SourceSchema]) -> List[SourceSchema]:
     """
     Generates summaries for sources using batch operations to avoid N+1 query problems.
+    Only generates summaries for sources that don't already have them (e.g., from scraping).
 
     Args:
         sources: A list of SourceSchema objects.
@@ -21,10 +22,14 @@ def enrich_sources_with_summaries(sources: List[SourceSchema]) -> List[SourceSch
     if not sources:
         return sources
 
-    logger.info(f"Generating summaries for {len(sources)} sources...")
+    # Filter to only sources that need summary generation
+    sources_needing_summaries = [source for source in sources if not source.summary]
+    sources_with_summaries = [source for source in sources if source.summary]
+    
+    logger.info(f"Found {len(sources_with_summaries)} sources with existing summaries, generating for {len(sources_needing_summaries)} remaining sources...")
     newly_generated = []
     
-    for source in sources:
+    for source in sources_needing_summaries:
         new_summary = generate_summary_from_link(source.source_link)
         if new_summary is None and str(source.source_link) != str(source.link):
             logger.warning(f"2nd attempt to generate summary from link for: {source.link}")
@@ -38,9 +43,9 @@ def enrich_sources_with_summaries(sources: List[SourceSchema]) -> List[SourceSch
             logger.warning(f"Failed to generate summary for: {source.title} ({source.link})")
     
     # Note: Sources are saved by the caller using add_summaries_batch for better efficiency
-    logger.info(f"Generated summaries for {len(newly_generated)} out of {len(sources)} sources")
+    logger.info(f"Generated summaries for {len(newly_generated)} out of {len(sources_needing_summaries)} sources that needed them")
 
-    logger.info(f"✅ Summary enrichment complete: {len(sources)} generated")
+    logger.info(f"✅ Summary enrichment complete: {len(sources)} total sources ({len(sources_with_summaries)} already had summaries, {len(newly_generated)} newly generated)")
     return sources
 
 
