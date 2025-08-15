@@ -608,6 +608,15 @@ export default function Home() {
         <div className="bg-orange-100 rounded-lg p-8 mb-12">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-gray-800">My Interested Topics</h2>
+            <button
+              onClick={handleViewBookmarks}
+              className="p-2 text-gray-600 hover:text-gray-800 transition-colors"
+              title="My Bookmarks"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+              </svg>
+            </button>
           </div>
           
           {isLoadingTopics ? (
@@ -677,19 +686,21 @@ export default function Home() {
           )}
         </div>
 
-        {/* Advanced Search Settings Toggle */}
-        <div className="mb-4 flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={showAdvancedSettings}
-            onChange={(e) => setShowAdvancedSettings(e.target.checked)}
-            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer"
-          />
-          <span className="text-gray-700 font-medium">Advanced Search Settings</span>
-        </div>
+        {/* Advanced Search Settings Toggle - Hide when viewing bookmarks */}
+        {!showBookmarks && (
+          <div className="mb-4 flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={showAdvancedSettings}
+              onChange={(e) => setShowAdvancedSettings(e.target.checked)}
+              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer"
+            />
+            <span className="text-gray-700 font-medium">Advanced Search Settings</span>
+          </div>
+        )}
 
-        {/* Search Settings Section */}
-        {showAdvancedSettings && (
+        {/* Search Settings Section - Hide when viewing bookmarks */}
+        {!showBookmarks && showAdvancedSettings && (
           <div className="bg-blue-50 rounded-lg p-6 mb-8">
             {/* Time Range Selector */}
           <div className="mb-6">
@@ -777,36 +788,31 @@ export default function Home() {
         </div>
         )}
 
-        {/* Action Buttons */}
-        <div className="flex justify-center gap-6">
-          <button
-            onClick={handleFetchItems}
-            disabled={isLoading}
-            className={`relative px-8 py-4 text-white text-xl font-semibold rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-300 overflow-hidden ${
-              isLoading
-                ? 'bg-gray-500 hover:bg-gray-600 focus:ring-gray-500 hover:shadow-lg transform scale-105'
-                : 'bg-gray-500 hover:bg-gray-600 focus:ring-gray-500 hover:shadow-lg hover:transform hover:scale-105'
-            }`}
-          >
-            {/* Button Text */}
-            <span className="relative z-10">
-              {isLoading 
-                ? (showDetailedProgress ? `🔍 Processing... ${progress}%` : '🔍 Fetching...') 
-                : '🔍 Discover Content'
-              }
-            </span>
-          </button>
-          
-          <button
-            onClick={handleViewBookmarks}
-            className="px-8 py-4 bg-gray-500 text-white text-xl font-semibold rounded-lg hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
-          >
-            📚 My Bookmarks
-          </button>
-        </div>
+        {/* Centered Discover Content Button - Hide when viewing bookmarks */}
+        {!showBookmarks && (
+          <div className="flex justify-center mb-8">
+            <button
+              onClick={handleFetchItems}
+              disabled={isLoading}
+              className={`relative px-8 py-4 text-white text-xl font-semibold rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-300 overflow-hidden ${
+                isLoading
+                  ? 'bg-gray-500 hover:bg-gray-600 focus:ring-gray-500 shadow-lg transform scale-105'
+                  : 'bg-gray-500 hover:bg-gray-600 focus:ring-gray-500 hover:shadow-lg hover:transform hover:scale-105'
+              }`}
+            >
+              {/* Button Text */}
+              <span className="relative z-10">
+                {isLoading 
+                  ? (showDetailedProgress ? `🔍 Processing... ${progress}%` : '🔍 Fetching...') 
+                  : '🔍 Discover Content'
+                }
+              </span>
+            </button>
+          </div>
+        )}
 
-        {/* Progress Message */}
-        {isLoading && progressMessage && (
+        {/* Progress Message - Hide when viewing bookmarks */}
+        {!showBookmarks && isLoading && progressMessage && (
           <div className="mt-6 text-center">
             <div className="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-800 rounded-lg">
               <div className="animate-spin w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full mr-3"></div>

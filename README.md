@@ -44,33 +44,41 @@ That's it! The system will automatically start scraping and processing content.
 
 ## How to Use
 
-1. **Set your interests**: Add custom keywords to the default multimodal AI topics
-   - Default topics are locked (🔒) but you can add your own
-   - Get real-time feedback when adding keywords (duplicate detection, validation)
-2. **Configure search settings**: Customize your content discovery experience
-   - **Time range**: Retrieve content from the last N days (any number, with quick presets for 1, 3, or 7 days)
-   - **Result count**: Choose 5-50 results (default: 10)
-   - **Content balance**: Adjust research/industry ratio from 0-100% (default: 50/50)
-   - Smart Balanced Search is always enabled with optimized thresholds
-3. **Fetch content**: Click "🔍 Fetch Top Items" to discover relevant articles
-   - Watch real-time progress with detailed status updates
+### **Modern, Minimalist Interface**
+The app features a clean, rounded design with intuitive navigation:
+
+1. **Add interests**: Use the rounded search bar to add custom keywords
+   - Type keywords and click the **+** icon or press Enter
+   - Default topics are shown with lock icons (🔒)
+   - Custom topics appear as blue pills with **×** to remove
+
+2. **Quick actions**: Access key features from the search bar icons
+   - **+ icon**: Add keywords instantly  
+   - **⚙️ icon**: Open advanced search settings
+   - **📖 icon**: View your bookmarks
+
+3. **Discover content**: Click the central "🔍 Discover Content" button
+   - Watch real-time progress with animated loading states
+   - Progress bar and spinner show processing status
    - See AI summary generation and smart filtering progress
-   - Progress bar shows completion percentage during processing
-4. **Review results**: Browse intelligently filtered and balanced content
-   - Results prioritize keyword matches first, then semantic matches by relevance
+
+4. **Manage bookmarks**: Click any bookmark icon for a focused bookmark view
+   - **Bookmark-focused interface**: Hides search elements, shows only bookmark-relevant features
+   - **Multiple access points**: Bookmark icon in search bar or topics section
+   - **Upload links**: Add your own URLs with automatic processing
+   - **Edit summaries**: Click the edit icon (✏️) to modify summaries inline
+   - **Export to Excel**: Use the 📊 icon to download all bookmarks
+
+5. **Advanced settings**: Configure your search experience
+   - **Time range**: Content from last N days (quick presets: 1, 3, 7 days)
+   - **Result count**: 5-50 results (default: 10)  
+   - **Content balance**: Research vs industry ratio (default: 50/50)
+   - **Smart filtering**: Keyword priority + semantic search with optimized thresholds
+
+6. **Browse results**: Intelligently filtered and categorized content
    - Click article tags to filter by category (Research, Industry, etc.)
-   - Expand/collapse summaries with improved "Read more" functionality (only for long text)
-   - See filtered result counts and clear filters easily
-5. **Bookmark articles**: Click ☆ to save articles for later review
-6. **Upload your own content**: In the bookmarks view, use "📤 Upload Your Own Link"
-   - Paste any URL to automatically extract title, generate summary, and categorize content
-   - AI intelligently tags content as Research, Industry, or General
-   - Content is processed and added to your bookmarks instantly
-7. **Manage bookmarks**: Use "📚 View My Bookmarks" to see and organize saved articles
-   - Tag filtering also works in bookmarks view
-   - Remove bookmarks with ★ button (with confirmation)
-   - Export all bookmarks to Excel using the 📊 icon
-   - Edit bookmark summaries inline
+   - Expand/collapse long summaries with "Read more" functionality
+   - Bookmark articles with ☆ icon for later review
 
 ## Key Features
 
@@ -89,11 +97,14 @@ That's it! The system will automatically start scraping and processing content.
 - **Enhanced Logging**: Detailed cron job monitoring with timestamps, performance metrics, and visual indicators
 - **Reliable Execution**: Fixed cron job environment issues with proper database connectivity and dependency management
 
-### 📡 **Real-Time User Experience**
+### 📡 **Modern User Experience**
+- **Minimalist Design**: Clean, rounded interface inspired by modern search platforms with intuitive navigation
+- **Smart Interface Modes**: Focused bookmark view hides irrelevant content discovery elements for better UX
+- **Contextual Icons**: Multiple access points for bookmarks and settings integrated seamlessly into the interface
 - **Streaming Progress Updates**: Server-Sent Events (SSE) provide live feedback during processing with visual progress bars
-- **Enhanced Button States**: Loading animations, color changes, and spinner feedback for better UX
+- **Enhanced Loading States**: Animated progress bars, spinners, and button state changes for clear user feedback
 - **Progress Transparency**: Users see exactly what's happening (scraping, generating summaries, filtering)
-- **Performance Indicators**: Clear messaging about processing times and expectations
+- **Responsive Pill Design**: Topic tags and UI elements use modern rounded pill styling for better visual hierarchy
 
 ### 🗄️ **Robust Data Management**
 - **PostgreSQL Database**: Persistent storage for bookmarks and cached summaries with local time handling
