@@ -329,15 +329,15 @@ class DatabaseManager:
             
             # Step 6: Mark all processed sources in cache to avoid reprocessing
             for source in deduplicated_sources:
-                if source.summary is not None:
+                if source.summary:
                     self._mark_as_processed(str(source.link))
             
             logger.info(f"✅ Successfully processed {len(deduplicated_sources)} sources ({len(sources_to_insert)} new, {len(sources_to_update)} updated)")
             
             # Return processing statistics
             return {
-                'new_sources': sources_to_insert,
-                'updated_sources': [source_schema for source_schema, _ in sources_to_update],
+                'new_sources': [source.link for source in sources_to_insert],
+                'updated_sources': [source_schema.link for source_schema, _ in sources_to_update if source_schema.summary],
                 'skipped_sources': cache_hits,
                 'total_processed': len(deduplicated_sources)
             }
