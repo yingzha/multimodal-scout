@@ -10,6 +10,7 @@ A modern, responsive web interface built with Next.js 14 and TypeScript that pro
 - **📚 Bookmark System**: Save articles with persistent storage and easy management
 - **📤 Upload Links**: Add your own URLs with automatic processing and smart categorization
 - **🔍 Content Filtering**: Filter results by content type (Research, Industry, etc.)
+- **🌙 Dark Mode**: System-aware theme toggle with localStorage persistence and smooth transitions
 - **📱 Responsive Design**: Works seamlessly on desktop and mobile devices
 - **🚀 Optimized UX**: Enhanced button states, loading animations, and smooth interactions
 
@@ -17,7 +18,8 @@ A modern, responsive web interface built with Next.js 14 and TypeScript that pro
 
 - **Framework**: Next.js 14 with App Router
 - **Language**: TypeScript
-- **Styling**: Tailwind CSS
+- **Styling**: CSS with CSS Variables (theme-aware)
+- **State Management**: React Context (theme management)
 - **Build Tool**: Node.js with npm
 - **Containerization**: Docker with multi-stage builds
 
@@ -48,12 +50,15 @@ The frontend automatically connects to the backend API and provides a complete u
 ```
 src/frontend/
 ├── app/
-│   ├── globals.css          # Global styles and Tailwind configuration
-│   ├── layout.tsx           # Root layout with metadata and fonts
+│   ├── components/
+│   │   └── ThemeToggle.tsx  # Dark mode toggle component
+│   ├── context/
+│   │   └── ThemeContext.tsx # Theme state management
+│   ├── globals.css          # Global styles with CSS variables
+│   ├── layout.tsx           # Root layout with ThemeProvider
 │   └── page.tsx             # Main application component
 ├── package.json             # Dependencies and scripts
 ├── next.config.js           # Next.js configuration
-├── tailwind.config.js       # Tailwind CSS configuration
 └── tsconfig.json           # TypeScript configuration
 ```
 
@@ -66,12 +71,18 @@ src/frontend/
 - **Results Display**: Paginated results with filtering and bookmark capabilities
 - **Bookmark Management**: Persistent bookmark system with tag filtering
 
+**Theme System**
+- **ThemeContext**: React Context for theme state management
+- **ThemeToggle**: Toggle component with moon/sun icons
+- **CSS Variables**: Theme-aware styling with smooth transitions
+
 ### State Management
 
 The application uses React's built-in state management with hooks:
 
 - `useState`: Component-level state for UI interactions
 - `useEffect`: Side effects for data fetching and DOM updates
+- `useContext`: Theme state management with persistence
 - Real-time state updates via Server-Sent Events (SSE)
 
 ## User Experience Features
@@ -131,10 +142,11 @@ The frontend communicates with the FastAPI backend through:
 - Preserved state where possible
 
 ### 🎨 **Modern Styling**
-- **Tailwind CSS**: Utility-first styling approach
+- **CSS Variables**: Theme-aware styling with automatic dark/light mode support
 - **Responsive Design**: Mobile-first responsive layouts
 - **Animations**: Smooth transitions and micro-interactions
 - **Accessibility**: Proper focus management and ARIA labels
+- **System Integration**: Automatic detection of user's preferred color scheme
 
 ### 📦 **Optimized Builds**
 - **Next.js Optimization**: Automatic code splitting and optimization
@@ -155,11 +167,11 @@ This is automatically set in the Docker configuration and points to the backend 
 
 ### Styling Configuration
 
-**Tailwind CSS** (`tailwind.config.js`):
-- Custom color schemes
-- Typography settings
-- Responsive breakpoints
-- Component utilities
+**CSS Variables** (`globals.css`):
+- Theme-aware color schemes (light/dark)
+- Smooth transition animations
+- Consistent spacing and typography
+- Component-specific styling with theme support
 
 ## Development Workflow
 

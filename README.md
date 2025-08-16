@@ -56,6 +56,7 @@ The app features a clean, rounded design with intuitive navigation:
    - **+ icon**: Add keywords instantly  
    - **⚙️ icon**: Open advanced search settings
    - **📖 icon**: View your bookmarks
+   - **🌙 icon**: Toggle dark/light mode
 
 3. **Discover content**: Click the central "🔍 Discover Content" button
    - Watch real-time progress with animated loading states
@@ -99,8 +100,9 @@ The app features a clean, rounded design with intuitive navigation:
 
 ### 📡 **Modern User Experience**
 - **Minimalist Design**: Clean, rounded interface inspired by modern search platforms with intuitive navigation
+- **Dark Mode Support**: System-aware dark/light theme toggle with localStorage persistence
 - **Smart Interface Modes**: Focused bookmark view hides irrelevant content discovery elements for better UX
-- **Contextual Icons**: Multiple access points for bookmarks and settings integrated seamlessly into the interface
+- **Contextual Icons**: Multiple access points for bookmarks, settings, and theme toggle integrated seamlessly into the interface
 - **Streaming Progress Updates**: Server-Sent Events (SSE) provide live feedback during processing with visual progress bars
 - **Enhanced Loading States**: Animated progress bars, spinners, and button state changes for clear user feedback
 - **Progress Transparency**: Users see exactly what's happening (scraping, generating summaries, filtering)
