@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 export default function Home() {
   const [selectedDays, setSelectedDays] = useState(1)
@@ -39,6 +39,38 @@ export default function Home() {
   const [editingSummary, setEditingSummary] = useState<string | null>(null)
   const [editedSummaryText, setEditedSummaryText] = useState('')
   const [isUpdatingSummary, setIsUpdatingSummary] = useState(false)
+  const advancedSettingsRef = useRef<HTMLDivElement>(null)
+  const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Close advanced settings when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (advancedSettingsRef.current && !advancedSettingsRef.current.contains(event.target as Node)) {
+        setShowAdvancedSettings(false)
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [advancedSettingsRef])
+
+  // Handle gear button clicks (single and double click)
+  const handleGearClick = () => {
+    if (clickTimeoutRef.current) {
+      // This is a double click - clear the timeout and hide settings
+      clearTimeout(clickTimeoutRef.current)
+      clickTimeoutRef.current = null
+      setShowAdvancedSettings(false)
+    } else {
+      // This is a single click - set a timeout to toggle settings
+      clickTimeoutRef.current = setTimeout(() => {
+        setShowAdvancedSettings(!showAdvancedSettings)
+        clickTimeoutRef.current = null
+      }, 200) // 200ms delay to detect double click
+    }
+  }
 
   // Fetch default topics from backend
   const fetchDefaultTopics = async () => {
@@ -552,6 +584,7 @@ export default function Home() {
   const handleFetchItems = async () => {
     setIsLoading(true)
     setShowBookmarks(false)
+    setShowAdvancedSettings(false) // Close settings panel when search starts
     setProgress(0)
     setProgressMessage('Starting fetch...')
     setShowDetailedProgress(false)
@@ -606,17 +639,8 @@ export default function Home() {
 
         {/* Interest Topics Section */}
         <div className="bg-orange-100 rounded-lg p-8 mb-12">
-          <div className="flex justify-between items-center mb-6">
+          <div className="mb-6">
             <h2 className="text-2xl font-bold text-gray-800">My Interested Topics</h2>
-            <button
-              onClick={handleViewBookmarks}
-              className="p-2 text-gray-600 hover:text-gray-800 transition-colors"
-              title="My Bookmarks"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-              </svg>
-            </button>
           </div>
           
           {isLoadingTopics ? (
@@ -647,7 +671,7 @@ export default function Home() {
                     onClick={() => handleRemoveCustomTopic(topic)}
                     className="ml-3 w-5 h-5 bg-white bg-opacity-20 rounded-full flex items-center justify-center text-white hover:bg-red-500 hover:bg-opacity-100 focus:outline-none transition-colors text-sm font-bold"
                   >
-                    ×
+  
                   </button>
                 </span>
               ))}
@@ -656,20 +680,161 @@ export default function Home() {
           
           {/* Add Keywords Input */}
           <div className="flex gap-4">
-            <input
-              type="text"
-              value={newKeyword}
-              onChange={(e) => setNewKeyword(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleAddKeyword()}
-              placeholder="Add keywords (e.g., computer vision, robotics)"
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-700"
-            />
-            <button
-              onClick={handleAddKeyword}
-              className="px-8 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 font-medium"
-            >
-              Add
-            </button>
+            <div className="flex gap-2 flex-1">
+              <input
+                type="text"
+                value={newKeyword}
+                onChange={(e) => setNewKeyword(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAddKeyword()}
+                placeholder="Add keywords (e.g., computer vision, robotics)"
+                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-700"
+              />
+              <button
+                onClick={handleAddKeyword}
+                className="w-14 h-14 text-gray-700 rounded-full hover:bg-orange-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 font-medium flex items-center justify-center transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Settings, Bookmarks and Search */}
+          <div className="relative mt-6">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={handleGearClick}
+                  disabled={isLoading}
+                  className={`bg-gray-100 p-3 text-gray-700 hover:text-gray-900 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors ${  
+                    isLoading ? 'cursor-not-allowed opacity-50' : ''
+                  }`} 
+                  title="Advanced Search Settings (double-click to close)"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={handleViewBookmarks}
+                  className="bg-gray-100 p-3 text-gray-700 hover:text-gray-900 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
+                  title="My Bookmarks"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                  </svg>
+                </button>
+              </div>
+
+              <button
+                onClick={handleFetchItems}
+                disabled={isLoading}
+                className={`px-8 py-3 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 font-medium transition-colors ${
+                  isLoading
+                    ? 'bg-gray-500 hover:bg-gray-600 cursor-not-allowed'
+                    : 'bg-gray-500 hover:bg-gray-600'
+                }`}
+              >
+                {isLoading ? 'Searching...' : 'Search'}
+              </button>
+            </div>
+
+            {/* Advanced Settings Panel */}
+            {!showBookmarks && showAdvancedSettings && (
+              <div 
+                ref={advancedSettingsRef}
+                className="absolute top-full left-0 mt-2 w-96 transition-all duration-300 ease-in-out z-50 opacity-100 visible translate-y-0"
+              >
+                <div className="bg-blue-50 rounded-lg p-6 border border-blue-200 shadow-lg">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold text-gray-800">Advanced Settings</h3>
+                    <button
+                      onClick={() => setShowAdvancedSettings(false)}
+                      className="text-gray-500 hover:text-gray-700 p-1"
+                      title="Close settings"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Time Range Selector */}
+                  <div className="mb-4">
+                    <div className="flex items-center justify-center space-x-3 text-sm">
+                      <span className="text-gray-700">Last</span>
+                      <input
+                        type="number"
+                        value={selectedDays}
+                        onChange={(e) => setSelectedDays(Number(e.target.value))}
+                        className="w-12 px-2 py-1 border border-gray-300 rounded text-center focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs"
+                        min="1"
+                      />
+                      <span className="text-gray-700">days</span>
+                      <div className="flex space-x-1">
+                        {[1, 3, 7].map((days) => (
+                          <button
+                            key={days}
+                            onClick={() => setSelectedDays(days)}
+                            className={`w-6 h-6 rounded-full text-xs font-medium transition-colors ${
+                              selectedDays === days
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                            }`}
+                          >
+                            {days}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Number of Results */}
+                  <div className="mb-4">
+                    <label className="block text-xs font-medium text-gray-700 mb-2">
+                      Results: {maxResults}
+                    </label>
+                    <input
+                      type="range"
+                      min="5"
+                      max="50"
+                      step="5"
+                      value={maxResults}
+                      onChange={(e) => setMaxResults(Number(e.target.value))}
+                      className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>5</span>
+                      <span>25</span>
+                      <span>50</span>
+                    </div>
+                  </div>
+
+                  {/* Content Balance */}
+                  <div className="mb-4">
+                    <label className="block text-xs font-medium text-gray-700 mb-2">
+                      Content: {Math.round(researchRatio * 100)}% Research / {Math.round((1 - researchRatio) * 100)}% Industry
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={researchRatio}
+                      onChange={(e) => setResearchRatio(Number(e.target.value))}
+                      className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>Industry</span>
+                      <span>Balanced</span>
+                      <span>Research</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           
           {/* Keyword feedback message */}
@@ -685,131 +850,6 @@ export default function Home() {
             </div>
           )}
         </div>
-
-        {/* Advanced Search Settings Toggle - Hide when viewing bookmarks */}
-        {!showBookmarks && (
-          <div className="mb-4 flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={showAdvancedSettings}
-              onChange={(e) => setShowAdvancedSettings(e.target.checked)}
-              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer"
-            />
-            <span className="text-gray-700 font-medium">Advanced Search Settings</span>
-          </div>
-        )}
-
-        {/* Search Settings Section - Hide when viewing bookmarks */}
-        {!showBookmarks && showAdvancedSettings && (
-          <div className="bg-blue-50 rounded-lg p-6 mb-8">
-            {/* Time Range Selector */}
-          <div className="mb-6">
-            <div className="flex items-center justify-center space-x-4">
-              <span className="text-gray-700 font-medium">Retrieve content from the last</span>
-              <input
-                type="number"
-                value={selectedDays}
-                onChange={(e) => setSelectedDays(Number(e.target.value))}
-                className="w-16 px-3 py-2 border border-gray-300 rounded-md text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                min="1"
-              />
-              <span className="text-gray-700 font-medium">days</span>
-              <div className="flex space-x-2">
-                {[1, 3, 7].map((days) => (
-                  <button
-                    key={days}
-                    onClick={() => setSelectedDays(days)}
-                    className={`w-10 h-10 rounded-full text-sm font-medium transition-colors ${
-                      selectedDays === days
-                        ? 'bg-green-600 text-white shadow-lg ring-2 ring-green-300'
-                        : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
-                    }`}
-                  >
-                    {days}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-          
-          {/* Number of Results and Content Balance - Side by Side */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-16 mb-6">
-            {/* Number of Results */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Number of Results: {maxResults}
-              </label>
-              <input
-                type="range"
-                min="5"
-                max="50"
-                step="5"
-                value={maxResults}
-                onChange={(e) => setMaxResults(Number(e.target.value))}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <div className="flex justify-between text-xs text-gray-500 mt-2">
-                <span>5</span>
-                <span>25</span>
-                <span>50</span>
-              </div>
-            </div>
-            
-            {/* Content Balance */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Content Balance: {Math.round(researchRatio * 100)}% Research / {Math.round((1 - researchRatio) * 100)}% Industry
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.1"
-                value={researchRatio}
-                onChange={(e) => setResearchRatio(Number(e.target.value))}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <div className="flex justify-between text-xs text-gray-500 mt-2">
-                <span>All Industry</span>
-                <span>Balanced</span>
-                <span>All Research</span>
-              </div>
-            </div>
-          </div>
-          
-          <div className="text-xs text-blue-700 bg-blue-100 p-3 rounded">
-            <div className="flex items-start gap-2">
-              <span className="flex-shrink-0">🎯</span>
-              <div>
-                <strong>Smart Balanced Search:</strong> Prioritizes keyword matches first, then adds semantic matches by relevance score. Research papers use a higher similarity threshold to ensure quality, while industry content uses a lower threshold for variety.
-              </div>
-            </div>
-          </div>
-        </div>
-        )}
-
-        {/* Centered Discover Content Button - Hide when viewing bookmarks */}
-        {!showBookmarks && (
-          <div className="flex justify-center mb-8">
-            <button
-              onClick={handleFetchItems}
-              disabled={isLoading}
-              className={`relative px-8 py-4 text-white text-xl font-semibold rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-300 overflow-hidden ${
-                isLoading
-                  ? 'bg-gray-500 hover:bg-gray-600 focus:ring-gray-500 shadow-lg transform scale-105'
-                  : 'bg-gray-500 hover:bg-gray-600 focus:ring-gray-500 hover:shadow-lg hover:transform hover:scale-105'
-              }`}
-            >
-              {/* Button Text */}
-              <span className="relative z-10">
-                {isLoading 
-                  ? (showDetailedProgress ? `🔍 Processing... ${progress}%` : '🔍 Fetching...') 
-                  : '🔍 Discover Content'
-                }
-              </span>
-            </button>
-          </div>
-        )}
 
         {/* Progress Message - Hide when viewing bookmarks */}
         {!showBookmarks && isLoading && progressMessage && (
