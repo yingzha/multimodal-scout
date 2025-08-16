@@ -118,8 +118,9 @@ Currently, no authentication is required for API access.
 **DELETE /api/bookmarks**
 - **Description**: Remove a bookmark by URL
 - **Query Parameters**: 
-  - `link` (required): URL of the article to remove
-- **Example**: `DELETE /api/bookmarks?link=https://example.com/article`
+  - `link` (required): URL of the article to update
+  - `summary` (required): The new summary text
+- **Example**: `PUT /api/bookmarks/summary?link=https%3A//example.com/article&summary=New%20summary%20text`
 - **Response**:
   ```json
   {

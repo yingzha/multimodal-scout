@@ -1,49 +1,24 @@
 # Multimodal Scout Frontend
 
-A modern, responsive web interface built with Next.js 14 and TypeScript that provides an intuitive way to discover, bookmark, and manage multimodal AI content.
+This is a modern, responsive web interface built with Next.js and TypeScript. It provides an intuitive UI to discover, bookmark, and manage multimodal AI content served by the backend.
 
-## Features
+## Frontend-Specific Features
 
-- **🎯 Smart Topic Management**: Default AI topics with ability to add custom keywords
-- **⚡ Real-Time Progress**: Streaming updates during content processing with visual feedback
-- **📊 Advanced Search Settings**: Configurable time ranges, result counts, and research/industry balance
-- **📚 Bookmark System**: Save articles with persistent storage and easy management
-- **📤 Upload Links**: Add your own URLs with automatic processing and smart categorization
-- **🔍 Content Filtering**: Filter results by content type (Research, Industry, etc.)
-- **🌙 Dark Mode**: System-aware theme toggle with localStorage persistence and smooth transitions
-- **📱 Responsive Design**: Works seamlessly on desktop and mobile devices
-- **🚀 Optimized UX**: Enhanced button states, loading animations, and smooth interactions
+- **🎯 Smart Topic Management**: Displays default topics and allows users to add/remove custom keywords.
+- **⚡ Real-Time Progress**: Renders live progress updates via SSE during content processing.
+- **📊 Advanced Search Settings**: Provides UI controls for time ranges, result counts, and content balance.
+- **📚 Bookmark System**: A dedicated UI for viewing, filtering, and managing saved articles.
+- **📤 Link Upload**: A form for submitting new URLs, with real-time validation and processing feedback.
+- **🌙 Dark Mode**: System-aware theme toggle with smooth transitions and persistence via localStorage.
 
-## Technology Stack
+## Frontend Architecture
 
-- **Framework**: Next.js 14 with App Router
+### Technology Stack
+
+- **Framework**: Next.js 14 (App Router)
 - **Language**: TypeScript
-- **Styling**: CSS with CSS Variables (theme-aware)
-- **State Management**: React Context (theme management)
-- **Build Tool**: Node.js with npm
-- **Containerization**: Docker with multi-stage builds
-
-## Quick Start with Docker
-
-### Prerequisites
-
-- Docker and Docker Compose (frontend is part of the main docker-compose setup)
-- No local Node.js installation required!
-
-### Development Setup
-
-```bash
-# Start all services from project root
-cd multimodal-scout
-docker-compose up -d
-
-# Frontend will be available at:
-# http://localhost:3000
-```
-
-The frontend automatically connects to the backend API and provides a complete user interface.
-
-## Architecture
+- **Styling**: Standard CSS with CSS Variables for theme-aware styling.
+- **State Management**: React Hooks (`useState`, `useEffect`) and Context API for theme management.
 
 ### Component Structure
 
@@ -53,190 +28,36 @@ src/frontend/
 │   ├── components/
 │   │   └── ThemeToggle.tsx  # Dark mode toggle component
 │   ├── context/
-│   │   └── ThemeContext.tsx # Theme state management
-│   ├── globals.css          # Global styles with CSS variables
-│   ├── layout.tsx           # Root layout with ThemeProvider
-│   └── page.tsx             # Main application component
-├── package.json             # Dependencies and scripts
-├── next.config.js           # Next.js configuration
-└── tsconfig.json           # TypeScript configuration
+│   │   └── ThemeContext.tsx # Manages theme state (dark/light)
+│   ├── globals.css          # Global styles and theme-aware CSS variables
+│   ├── layout.tsx           # Root layout that includes the ThemeProvider
+│   └── page.tsx             # The main single-page application component
+├── package.json             # Frontend dependencies and scripts
+└── next.config.js           # Next.js configuration
 ```
-
-### Key Components
-
-**Main Application (`page.tsx`)**
-- **Topic Management**: Default topics with custom keyword addition
-- **Search Settings**: Time range, result count, and content balance controls
-- **Real-Time Progress**: SSE-based progress updates with visual feedback
-- **Results Display**: Paginated results with filtering and bookmark capabilities
-- **Bookmark Management**: Persistent bookmark system with tag filtering
-
-**Theme System**
-- **ThemeContext**: React Context for theme state management
-- **ThemeToggle**: Toggle component with moon/sun icons
-- **CSS Variables**: Theme-aware styling with smooth transitions
 
 ### State Management
 
-The application uses React's built-in state management with hooks:
+The application relies on a combination of React's built-in hooks for state management:
 
-- `useState`: Component-level state for UI interactions
-- `useEffect`: Side effects for data fetching and DOM updates
-- `useContext`: Theme state management with persistence
-- Real-time state updates via Server-Sent Events (SSE)
+- **`useState`**: Manages local component state for UI elements, inputs, and fetched data.
+- **`useEffect`**: Handles side effects, such as fetching initial data or interacting with the browser.
+- **`useContext`**: Manages the global theme state, allowing any component to access and update the current theme.
 
-## User Experience Features
-
-### 🎯 **Intelligent Topic Management**
-- **Default Topics**: Pre-configured AI topics with lock indicators (🔒)
-- **Custom Topics**: Add/remove personal keywords with validation
-- **Feedback System**: Real-time messages for duplicate detection and validation
-
-### ⚡ **Enhanced Loading States**
-- **Visual Progress**: Animated progress bars and percentage indicators
-- **Button Feedback**: Color changes, scaling, and spinner animations
-- **Status Messages**: Clear messaging about processing stages
-
-### 📊 **Advanced Controls**
-- **Time Range**: Quick selection (1, 3, 7 days) or custom input
-- **Result Count**: Slider control (5-50 results)
-- **Content Balance**: Research/Industry ratio slider (0-100%)
-- **Smart Search**: Always-enabled balanced search with optimized thresholds
-
-### 📚 **Bookmark Experience**
-- **One-Click Bookmarking**: Star/unstar articles with visual feedback
-- **Upload Links**: Dedicated upload form with URL validation and processing feedback
-- **AI Processing**: Automatic title extraction, summary generation, and smart categorization
-- **Bookmark Management**: Dedicated view with filtering and removal
-- **Persistence**: Bookmarks saved across sessions
-- **Tag Filtering**: Filter by content type in both results and bookmarks
-
-### 🔍 **Content Discovery**
-- **Smart Filtering**: Click tags to filter by content type
-- **Expandable Summaries**: "Read more" for long summaries with smart detection
-- **Pagination**: Smooth navigation through large result sets
-- **External Links**: Direct access to original articles
+Real-time data during content processing is pushed from the server via **Server-Sent Events (SSE)** and updated directly into the component state.
 
 ## API Integration
 
-The frontend communicates with the FastAPI backend through:
+The frontend communicates with the FastAPI backend via two methods:
 
-### RESTful Endpoints
-- `GET /api/topics` - Fetch default topics
-- `POST /api/fetch` - Standard content fetching
-- `POST /api/bookmarks` - Bookmark management
-- `DELETE /api/bookmarks` - Remove bookmarks
-- `GET /api/bookmarks` - Fetch saved bookmarks
-- `POST /api/upload-link` - Process and bookmark user-uploaded URLs
+1.  **REST Endpoints**: Used for standard operations like fetching topics, managing bookmarks, and uploading links.
+2.  **Server-Sent Events (SSE)**: A persistent connection to the `/api/fetch-stream` endpoint provides a stream of real-time status updates during content discovery.
 
-### Real-Time Communication
-- `POST /api/fetch-stream` - Server-Sent Events for real-time progress
-- Progressive loading with detailed status updates
-- Error handling with user-friendly messages
+## Development Notes
 
-## Development Features
-
-### 🔄 **Hot Reload**
-- Automatic reloading during development
-- Live updates for code changes
-- Preserved state where possible
-
-### 🎨 **Modern Styling**
-- **CSS Variables**: Theme-aware styling with automatic dark/light mode support
-- **Responsive Design**: Mobile-first responsive layouts
-- **Animations**: Smooth transitions and micro-interactions
-- **Accessibility**: Proper focus management and ARIA labels
-- **System Integration**: Automatic detection of user's preferred color scheme
-
-### 📦 **Optimized Builds**
-- **Next.js Optimization**: Automatic code splitting and optimization
-- **TypeScript**: Full type safety and developer experience
-- **Production Ready**: Minified bundles and optimized assets
-
-## Configuration
-
-### Environment Variables
-
-The frontend uses the following environment variable:
-
-```bash
-NEXT_PUBLIC_API_URL=http://localhost:8000
-```
-
-This is automatically set in the Docker configuration and points to the backend API.
-
-### Styling Configuration
-
-**CSS Variables** (`globals.css`):
-- Theme-aware color schemes (light/dark)
-- Smooth transition animations
-- Consistent spacing and typography
-- Component-specific styling with theme support
-
-## Development Workflow
-
-### Making Changes
-
-1. **Component Updates**: Edit `app/page.tsx` for main functionality
-2. **Styling Changes**: Modify `app/globals.css` for global styles
-3. **Configuration**: Update config files as needed
-
-### Testing Changes
-
-```bash
-# View logs
-docker-compose logs -f frontend
-
-# Rebuild after major changes
-docker-compose build frontend
-docker-compose restart frontend
-```
-
-### Production Build
-
-```bash
-# Build optimized version
-docker-compose exec frontend npm run build
-
-# Test production build locally
-docker-compose exec frontend npm start
-```
-
-## Browser Support
-
-- **Modern Browsers**: Chrome, Firefox, Safari, Edge (latest versions)
-- **Mobile Browsers**: iOS Safari, Chrome Mobile, Firefox Mobile
-- **Features Used**: ES6+, CSS Grid, Flexbox, WebSocket/SSE
-
-## Performance
-
-- **Initial Load**: ~100KB (optimized bundles)
-- **Runtime**: Minimal JavaScript with efficient React patterns
-- **Caching**: Next.js automatic caching for static assets
-- **Streaming**: Real-time updates without page refreshes
-
-## Deployment
-
-The frontend is containerized and deploys automatically with the main application:
-
-```bash
-# Production deployment
-docker-compose up -d
-
-# The frontend will be built and served automatically
-# Available at http://localhost:3000
-```
-
-## No Local Setup Required!
-
-Unlike traditional frontend development, you don't need to:
-- Install Node.js or npm locally
-- Manage package versions
-- Configure build tools
-- Set up development servers
-
-Docker handles everything automatically. Just run `docker-compose up` and start developing!
+- **Hot Reload**: The Next.js development server, running inside Docker, supports hot reloading. Any changes made to the code are reflected in the browser automatically.
+- **Dependencies**: All Node.js dependencies are defined in `package.json` and managed with `npm`. These are installed automatically within the Docker container, so no local `npm install` is needed.
 
 ---
 
-**Built with Next.js 14, TypeScript, and Tailwind CSS ✨**
+**Built with Next.js 14 and TypeScript ✨**

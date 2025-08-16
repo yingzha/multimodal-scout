@@ -27,7 +27,7 @@ export default function Home() {
   const [paginatedBookmarks, setPaginatedBookmarks] = useState<any[]>([])
   const [showReadMore, setShowReadMore] = useState<Set<string>>(new Set())
   const [maxResults, setMaxResults] = useState(10)
-  const itemsPerPage = maxResults
+  const itemsPerPage = 5
   const [researchRatio, setResearchRatio] = useState(0.5)
   const [uploadUrl, setUploadUrl] = useState('')
   const [isUploading, setIsUploading] = useState(false)
@@ -477,13 +477,13 @@ export default function Home() {
     return (
       <div className="flex justify-center items-center gap-2 mt-6 p-4 bg-gray-100 rounded-lg">
         <span className="text-sm text-gray-700 mr-4">
-          Page {currentPage} of {totalPages} ({totalItems} items)
+          Page {currentPage} of {totalPages}
         </span>
         
         <button
           onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
           disabled={currentPage === 1}
-          className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg disabled:bg-gray-400 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
+          className="px-4 py-2 text-sm text-gray-700 rounded-lg disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
         >
           Previous
         </button>
@@ -494,8 +494,8 @@ export default function Home() {
             onClick={() => setCurrentPage(page)}
             className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
               currentPage === page
-                ? 'bg-blue-600 text-white border-blue-600'
-                : 'border-gray-300 hover:bg-gray-50 bg-white'
+                ? 'bg-white text-gray-700 border-blue-600'
+                : 'border-gray-300 text-gray-700'
             }`}
           >
             {page}
@@ -505,7 +505,7 @@ export default function Home() {
         <button
           onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
           disabled={currentPage === totalPages}
-          className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg disabled:bg-gray-400 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
+          className="px-4 py-2 text-sm text-gray-700 rounded-lg disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
         >
           Next
         </button>

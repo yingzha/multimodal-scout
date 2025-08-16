@@ -1,249 +1,89 @@
 # Multimodal Scout Backend
 
-A Python-based content scouting system that scrapes, summarizes, and filters sources from Hacker News and Hugging Face using AI-powered summarization and semantic search.
+This backend service, built with Python and FastAPI, is the core of the Multimodal Scout application. It handles all content scraping, AI-powered processing, and data management.
 
-## Features
+## Backend-Specific Features
 
-- **Multi-source scraping**: Hacker News stories and Hugging Face trending papers
-- **AI-powered summarization**: Generates summaries using Google Gemini API
-- **Smart Balanced Filtering**: Advanced filtering with separate semantic thresholds for research (0.65) vs industry (0.55) content
-- **Configurable results**: User-adjustable result limits (5-50) and research/industry balance ratios
-- **Intelligent search**: Keyword search prioritized first, then semantic search by relevance score
-- **Comprehensive caching**: PostgreSQL database for summaries and embeddings with persistent storage
-- **Real-time progress**: Server-Sent Events (SSE) for streaming progress updates
-- **Cache management**: Built-in CLI tools for cleanup, search, and analytics
+- **Multi-source scraping**: Fetches content from Hacker News and Hugging Face.
+- **AI-powered summarization**: Generates summaries using the Google Gemini API and caches them.
+- **Smart Balanced Filtering**: Implements an advanced pipeline with separate semantic thresholds for research (0.65) vs. industry (0.55) content.
+- **Real-time progress**: Uses Server-Sent Events (SSE) to stream progress updates to the frontend.
+- **Cache management**: Includes a CLI for database cache cleanup, search, and analytics.
 
-## Quick Start with Docker
+## Development & Management Commands
 
-### Prerequisites
-
-- Docker and Docker Compose installed
-- Google API key for summary generation
-
-### Setup
-
-```bash
-# Clone and navigate to project
-cd multimodal-scout
-
-# Set up environment variables
-cp .env.example .env
-# Edit .env and add your GOOGLE_API_KEY
-
-# Start services (builds dependencies automatically)
-docker-compose up -d
-
-# Check logs
-docker-compose logs -f backend
-```
-
-That's it! Docker automatically:
-- Installs all Python dependencies using uv
-- Sets up PostgreSQL database
-- Runs database migrations
-- Starts the application
-
-## Usage Examples
-
-### Cache Management
-
-```bash
-# View cache statistics
-docker-compose exec backend python -m src.backend.cache_manager stats
-
-# Search summaries by content
-docker-compose exec backend python -m src.backend.cache_manager search --query "AI" --limit 5
-
-# View recent summaries
-docker-compose exec backend python -m src.backend.cache_manager recent --days 7
-
-# Clean up old summaries (older than 30 days)
-docker-compose exec backend python -m src.backend.cache_manager cleanup --days 30
-
-# Migrate existing JSON cache to database
-docker-compose exec backend python -m src.backend.cache_manager migrate
-```
+All commands should be run from the project's root directory.
 
 ### Database Operations
 
 ```bash
-# Connect to PostgreSQL directly
+# Connect directly to the PostgreSQL container
 docker-compose exec postgres psql -U scout_user -d multimodal_scout
 
-# Run database migrations
+# Apply the latest database migrations
 docker-compose exec backend alembic upgrade head
 
-# Create new migration
-docker-compose exec backend alembic revision --autogenerate -m "Add new feature"
+# Create a new, auto-generated migration file
+docker-compose exec backend alembic revision --autogenerate -m "Your migration message"
 
 # View migration history
 docker-compose exec backend alembic history
 ```
 
-### Development Commands
+### Cache Management CLI
+
+The `cache_manager.py` script provides tools for inspecting and managing the database cache.
 
 ```bash
-# Run one-off commands
+# View cache statistics (total items, age, etc.)
+docker-compose exec backend python -m src.backend.cache_manager stats
+
+# Search cached summaries by content
+docker-compose exec backend python -m src.backend.cache_manager search --query "AI" --limit 5
+
+# Clean up old summaries (e.g., older than 30 days)
+docker-compose exec backend python -m src.backend.cache_manager cleanup --days 30
+```
+
+### General Development
+
+```bash
+# Run a one-off script (e.g., the scraper)
 docker-compose exec backend python -m src.backend.scraper
 
-# Access container shell for debugging
+# Access the backend container's shell for debugging
 docker-compose exec backend bash
 
-# View real-time logs
+# View real-time logs for the backend service
 docker-compose logs -f backend
 
-# Restart specific service
+# Restart the backend service
 docker-compose restart backend
 ```
 
-## Docker Management
-
-### Basic Operations
-
-```bash
-# Start services in background
-docker-compose up -d
-
-# Start services with live logs
-docker-compose up
-
-# Stop services
-docker-compose down
-
-# Stop and remove all data (destructive)
-docker-compose down -v
-
-# Rebuild after code changes
-docker-compose up --build -d
-```
-
-### Troubleshooting
-
-```bash
-# Check service status
-docker-compose ps
-
-# View detailed logs
-docker-compose logs backend --tail=50
-
-# Restart all services
-docker-compose restart
-
-# Reset everything (destructive)
-docker-compose down -v
-docker-compose up --build
-```
-
-## Configuration
-
-### Environment Variables
-
-Create `.env` file with:
-```bash
-DATABASE_URL=postgresql://scout_user:scout_password@postgres:5432/multimodal_scout
-GOOGLE_API_KEY=your_google_api_key_here
-DEBUG=false
-```
-
-### Keywords Configuration
-
-Edit `src/backend/constants.py` to modify filtering keywords:
-
-```python
-INTERESTED_KEYWORDS = [
-    "artificial intelligence", "machine learning", "deep learning",
-    # Add your keywords here
-]
-```
-
-## Architecture
-
-### Docker Services
-
-- **postgres**: PostgreSQL 15 database with persistent storage
-- **backend**: Main application container using uv for fast dependency management
+## Backend Architecture
 
 ### Core Components
 
-- **`pipeline.py`**: Main content processing pipeline with advanced filtering logic
-- **`scraper.py`**: Web scraping for sources (Hugging Face, Hacker News)
-- **`search.py`**: Keyword and semantic search with embedding generation and caching
-- **`app.py`**: FastAPI server with streaming endpoints and Smart Balanced Search
-- **`database.py`**: SQLAlchemy models for PostgreSQL (summaries, embeddings, bookmarks)
-- **`cache_manager.py`**: CLI cache management tool with statistics and cleanup
-- **`utils.py`**: Utility functions including AI summary generation
-- **`constants.py`**: Configuration including semantic search thresholds
-- **`merger.py`**: Legacy merger functionality (being phased out)
+- **`app.py`**: The main FastAPI application, serving API endpoints.
+- **`pipeline.py`**: Contains the primary content processing logic, including smart filtering.
+- **`scraper.py`**: Handles web scraping from Hacker News and Hugging Face.
+- **`search.py`**: Manages keyword and semantic searches, including embedding generation.
+- **`database.py`**: Defines SQLAlchemy models for PostgreSQL tables (bookmarks, summaries, etc.).
+- **`cache_manager.py`**: Implements the command-line interface for cache management.
+- **`constants.py`**: Stores configuration values, such as semantic search thresholds.
 
 ### Data Flow
 
-1. **Scraping**: Collect sources from Hugging Face and Hacker News
-2. **Enrichment**: Generate AI summaries using Google Gemini (cached in PostgreSQL with local timestamps)
-3. **Advanced Filtering**: 
-   - Priority 1: Keyword search results (research first, then industry)
-   - Priority 2: Semantic search with separate thresholds (research: 0.65, industry: 0.55)
-   - Smart balancing: Configurable research/industry ratios with overflow handling
-4. **Embedding Caching**: Store Google Gemini embeddings with pre-generation for optimized searches
-5. **Batch Operations**: Use `add_summaries_batch()` for efficient bulk database updates
-6. **Result Delivery**: Return balanced, ordered results with real-time progress updates
-7. **Management**: CLI tools for cache cleanup, statistics, and content search
+1.  **Scraping**: The cron job or a manual trigger runs the `scraper` to collect content.
+2.  **Enrichment**: The `pipeline` generates AI summaries via Google Gemini for new content.
+3.  **Caching**: All summaries and vector embeddings are stored in the PostgreSQL database to prevent reprocessing.
+4.  **Filtering**: When a user requests content, the `pipeline` applies a multi-stage filter:
+    1.  Keyword matches are prioritized.
+    2.  Semantic search results are added based on relevance scores.
+    3.  The final list is balanced according to the user's research/industry preference.
+5.  **Delivery**: Results are streamed to the frontend via an SSE connection.
 
-## Example Workflows
+### Dependencies
 
-### Daily Operation
-
-```bash
-# Start the system
-docker-compose up -d
-
-# Check what's been processed
-docker-compose exec backend python -m src.backend.cache_manager stats
-
-# Search for specific topics
-docker-compose exec backend python -m src.backend.cache_manager search --query "machine learning"
-
-# View recent activity
-docker-compose exec backend python -m src.backend.cache_manager recent --days 3
-```
-
-### Weekly Maintenance
-
-```bash
-# Clean up old data
-docker-compose exec backend python -m src.backend.cache_manager cleanup --days 30
-
-# Check system health
-docker-compose ps
-docker-compose logs backend --tail=20
-
-# Update and restart
-git pull
-docker-compose up --build -d
-```
-
-### Database Backup
-
-```bash
-# Create backup
-docker-compose exec postgres pg_dump -U scout_user multimodal_scout > backup_$(date +%Y%m%d).sql
-
-# Restore backup (destructive)
-docker-compose exec postgres psql -U scout_user multimodal_scout < backup_20250807.sql
-```
-
-## Development Notes
-
-- Dependencies are managed with `uv` and automatically installed in Docker
-- Code changes are reflected immediately via volume mounts
-- Database data persists between container restarts
-- All Python dependencies are locked in `uv.lock` for reproducible builds
-
-## No Local Setup Required!
-
-Unlike traditional setups, you don't need to:
-- Install Python dependencies locally
-- Set up PostgreSQL
-- Manage virtual environments
-- Install uv or other tools
-
-Docker handles all of this automatically. Just run `docker-compose up` and you're ready to go!
+Python dependencies are managed with `uv` and defined in `pyproject.toml`. They are automatically installed within the Docker container, so no local installation is required.

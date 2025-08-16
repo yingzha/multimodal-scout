@@ -1,164 +1,89 @@
-# Development Guide
+# Development Workflow Guide
 
-## Prerequisites
+This guide provides a streamlined workflow for developers actively working on the Multimodal Scout project. For initial setup, see the root [README.md](../README.md).
 
-- Docker and Docker Compose
-- Google Gemini API key
-- Git
+## Making Changes
 
-## Quick Development Setup
+The project is configured for hot reloading. When you save changes to a file, the relevant service will automatically update.
 
-```bash
-git clone https://github.com/yingzha/multimodal-scout.git
-cd multimodal-scout
-echo "GOOGLE_API_KEY=your_api_key_here" > .env
-docker-compose up -d
-```
-
-## Development Workflow
-
-### Making Changes
-
-**Backend changes:**
-- Edit files in `src/backend/`
-- Changes auto-reload thanks to volume mounts
-
-**Frontend changes:**
-- Edit files in `src/frontend/app/`
-- Changes auto-reload in development mode
-
-**Database changes:**
-1. Modify models in `src/backend/database.py`
-2. Create migration: `docker-compose exec backend alembic revision --autogenerate -m "Description"`
-3. Apply migration: `docker-compose exec backend alembic upgrade head`
-
-### Viewing Logs
-
-```bash
-# All services
-docker-compose logs -f
-
-# Specific service
-docker-compose logs -f backend
-docker-compose logs -f frontend
-docker-compose logs -f cron
-
-# Cron job monitoring
-docker-compose logs cron --tail=50
-```
-
-### Database Access
-
-```bash
-docker-compose exec postgres psql -U scout_user -d multimodal_scout
-```
-
-### Rebuilding Containers
-
-```bash
-# After dependency changes
-docker-compose build
-
-# Clean rebuild
-docker-compose down
-docker-compose up -d --build
-```
+-   **Backend Changes**: Edit files in the `src/backend/` directory.
+-   **Frontend Changes**: Edit files in the `src/frontend/` directory.
+-   **Database Schema Changes**:
+    1.  Modify the SQLAlchemy models in `src/backend/database.py`.
+    2.  Generate a new migration script:
+        ```bash
+        docker-compose exec backend alembic revision --autogenerate -m "Your migration message"
+        ```
+    3.  Apply the migration to the database:
+        ```bash
+        docker-compose exec backend alembic upgrade head
+        ```
 
 ## Testing
 
-### Backend Tests
+### Backend Unit Tests
+
+Run the backend test suite using `pytest`:
 
 ```bash
 docker-compose run --rm backend pytest tests/backend/
 ```
 
-### Frontend Tests
+### Frontend Checks
+
+-   **Type Checking**: Run the TypeScript compiler to check for type errors.
+    ```bash
+    docker-compose exec frontend npx tsc --noEmit
+    ```
+-   **Build Test**: Create a production build to ensure it compiles correctly.
+    ```bash
+    docker-compose exec frontend npm run build
+    ```
+
+### Integration Tests (API)
+
+You can use `curl` to test the running API endpoints directly.
 
 ```bash
-# Build test
-docker-compose exec frontend npm run build
+# Check health
+curl -s http://localhost:8000/
 
-# Type checking
-docker-compose exec frontend npx tsc --noEmit
-```
-
-### Integration Tests
-
-```bash
-# Test API endpoints
+# Fetch topics
 curl -s http://localhost:8000/api/topics
+
+# Fetch content
 curl -s -X POST "http://localhost:8000/api/fetch" \
   -H "Content-Type: application/json" \
-  -d '{"selectedDays": 1, "maxResults": 2, "topics": ["ai"], "researchRatio": 0.5}'
+  -d '{"selectedDays": 1, "topics": ["ai"]}'
 
-# Test bookmarks functionality
-curl -s http://localhost:8000/api/bookmarks
+# Add a bookmark
 curl -s -X POST "http://localhost:8000/api/bookmarks" \
   -H "Content-Type: application/json" \
   -d '{"title": "Test", "link": "http://example.com", "source": "Test", "summary": "Test summary"}'
 
-# Test summary editing
-curl -s -X PUT "http://localhost:8000/api/bookmarks/summary?link=http%3A//example.com&summary=Updated%20summary"
-
-# Test frontend-backend connectivity
-curl -s -I http://localhost:3000
+# Update a summary
+curl -s -X PUT "http://localhost:8000/api/bookmarks/summary?link=http%3A%2F%2Fexample.com&summary=Updated%20summary"
 ```
 
-## New Features
+## Common Docker Commands
 
-### Summary Editing
-- Users can edit bookmark summaries inline by clicking the ✏️ icon
-- Edited summaries are marked with "User edited" badge
-- Edited summaries are prioritized in fetch results over cached summaries
+-   **View Logs in Real-Time**:
+    ```bash
+    # Follow logs for all services
+    docker-compose logs -f
 
-### Automated Scraping
-- **Production-ready cron jobs**: Docker-based scheduled tasks with proper environment isolation
-- **Reliable execution**: Fixed environment variable inheritance and database connectivity issues
-- **Comprehensive logging**: Detailed monitoring with timestamps, performance metrics, and visual indicators
-- **Hacker News**: Scraped every hour (0 * * * *) with automatic content processing
-- **Hugging Face papers**: Collected every 6 hours (0 */6 * * *) with trending paper detection
-- **Automatic AI processing**: Summary generation and database caching for all new content
+    # Follow logs for a specific service (e.g., backend)
+    docker-compose logs -f backend
+    ```
 
-#### Cron Job Management
-```bash
-# Check cron job status
-docker-compose exec cron crontab -l
+-   **Access the Database**:
+    ```bash
+    docker-compose exec postgres psql -U scout_user -d multimodal_scout
+    ```
 
-# Test individual scrapers manually
-docker-compose exec cron /app/cron_env.sh /root/.local/bin/uv run python -m src.backend.run_scraper backend.scraper.scrape_hacker_news
-
-# Monitor cron job execution
-docker-compose logs cron -f
-
-# Restart cron service
-docker-compose restart cron
-```
-
-### Upload Custom Links
-- Users can upload any URL to be processed and bookmarked
-- Automatic content categorization (Research/Industry/General)
-- Smart summary generation
-
-### Cache Management
-```bash
-# View cache statistics
-docker-compose exec backend python -m src.backend.cache_manager stats
-
-# Cleanup old cache entries
-docker-compose exec backend python -m src.backend.cache_manager cleanup
-```
-
-## Recent Improvements
-
-### Performance Optimizations
-- **Batch Database Operations**: Summary updates now use `add_summaries_batch()` for efficient bulk operations
-- **Local Time Handling**: All database timestamps now use local time instead of UTC for better user experience
-- **Embedding Pre-generation**: Cron jobs now pre-generate embeddings for faster semantic search
-- **Consolidated Storage**: Summary storage consolidated to eliminate table redundancy
-
-### Database Changes
-- **Local Timestamps**: All `created_at`, `updated_at`, and `bookmarked_at` fields now use local time
-- **Batch Operations**: New `add_summaries_batch()` method reduces database round trips
-- **Optimized Queries**: Pipeline queries by `created_at` for accurate upload time filtering
-
-That's it! Docker handles all the environment complexity.
+-   **Rebuild a Service**:
+    If you change dependencies (e.g., in `pyproject.toml` or `package.json`), you will need to rebuild the service's image.
+    ```bash
+    docker-compose up -d --build <service_name>
+    # e.g., docker-compose up -d --build backend
+    ```
