@@ -50,22 +50,23 @@ def _is_non_english_summary(text: str) -> bool:
     if re.search(r'[\u0400-\u04ff]', text):
         return True
     
-    # Common French words (basic check)
-    french_patterns = ['le ', 'la ', 'les ', 'de ', 'du ', 'des ', 'un ', 'une ', 'et ', 'est ', 'dans ', 'sur ', 'avec ', 'pour ', 'par ', 'comme ', 'plus ', 'mais ', 'qui ', 'que ', 'ce ', 'cette ', 'ces ']
-    french_count = sum(1 for pattern in french_patterns if pattern in text.lower())
-    if french_count > 3:  # If more than 3 French words detected
+    # Use word boundaries to avoid false positives in English text
+    # Common French words (basic check) - using word boundaries
+    french_patterns = [r'\ble\b', r'\bla\b', r'\bles\b', r'\bdu\b', r'\bun\b', r'\bune\b', r'\bet\b', r'\best\b', r'\bdans\b', r'\bsur\b', r'\bavec\b', r'\bpour\b', r'\bpar\b', r'\bcomme\b', r'\bmais\b', r'\bqui\b', r'\bque\b', r'\bce\b', r'\bcette\b', r'\bces\b']
+    french_count = sum(1 for pattern in french_patterns if re.search(pattern, text.lower()))
+    if french_count > 5:  # Increased threshold to reduce false positives
         return True
     
-    # Common German words (basic check)  
-    german_patterns = ['der ', 'die ', 'das ', 'den ', 'dem ', 'des ', 'ein ', 'eine ', 'einen ', 'und ', 'ist ', 'in ', 'mit ', 'von ', 'zu ', 'für ', 'auf ', 'als ', 'bei ', 'nach ', 'über ', 'durch ', 'um ']
-    german_count = sum(1 for pattern in german_patterns if pattern in text.lower())
-    if german_count > 3:  # If more than 3 German words detected
+    # Common German words (basic check) - using word boundaries and excluding common English words
+    german_patterns = [r'\bder\b', r'\bdie\b', r'\bdas\b', r'\bden\b', r'\bdem\b', r'\beine\b', r'\beinen\b', r'\bund\b', r'\bist\b', r'\bmit\b', r'\bvon\b', r'\bzu\b', r'\bfür\b', r'\bauf\b', r'\bals\b', r'\bbei\b', r'\bnach\b', r'\büber\b', r'\bdurch\b']
+    german_count = sum(1 for pattern in german_patterns if re.search(pattern, text.lower()))
+    if german_count > 5:  # Increased threshold to reduce false positives
         return True
     
-    # Common Spanish words (basic check)
-    spanish_patterns = ['el ', 'la ', 'los ', 'las ', 'de ', 'del ', 'un ', 'una ', 'y ', 'es ', 'en ', 'con ', 'por ', 'para ', 'como ', 'más ', 'pero ', 'que ', 'se ', 'su ', 'sus ', 'este ', 'esta ', 'estos ', 'estas ']
-    spanish_count = sum(1 for pattern in spanish_patterns if pattern in text.lower())
-    if spanish_count > 3:  # If more than 3 Spanish words detected
+    # Common Spanish words (basic check) - using word boundaries
+    spanish_patterns = [r'\bel\b', r'\bla\b', r'\blos\b', r'\blas\b', r'\bdel\b', r'\bun\b', r'\buna\b', r'\by\b', r'\bes\b', r'\ben\b', r'\bcon\b', r'\bpor\b', r'\bpara\b', r'\bcomo\b', r'\bmás\b', r'\bpero\b', r'\bque\b', r'\bse\b', r'\bsu\b', r'\bsus\b', r'\beste\b', r'\besta\b', r'\bestos\b', r'\bestas\b']
+    spanish_count = sum(1 for pattern in spanish_patterns if re.search(pattern, text.lower()))
+    if spanish_count > 5:  # Increased threshold to reduce false positives
         return True
     
     return False
