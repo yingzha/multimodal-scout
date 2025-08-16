@@ -16,7 +16,7 @@ A smart content discovery platform that automatically finds, curates, and helps 
 
 ### Prerequisites
 - Docker and Docker Compose
-- Google Gemini API key ([Get one here](https://makersuite.google.com/app/apikey))
+- Google Gemini API key
 
 ### Installation
 
@@ -49,7 +49,7 @@ The application runs in separate, containerized services:
 
 ```
 Frontend (Next.js)          Backend (FastAPI)           External Services
-      ↓                            ↓                            ↓
+       ↓                           ↓                            ↓
 ┌─────────────┐             ┌─────────────┐              ┌─────────────┐
 │   Web UI    │    SSE      │   API       │              │ Google      │
 │  (React)    │ ←────────→  │  Endpoints  │ ←──────────→ │ Gemini AI   │

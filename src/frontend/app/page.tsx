@@ -103,6 +103,7 @@ export default function Home() {
 
   useEffect(() => {
     fetchDefaultTopics()
+    loadBookmarkStatus()
   }, [])
 
   const handleAddKeyword = () => {
@@ -170,6 +171,21 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Failed to toggle bookmark:', error)
+    }
+  }
+
+  const loadBookmarkStatus = async () => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const response = await fetch(`${apiUrl}/api/bookmarks`)
+      
+      if (response.ok) {
+        const data = await response.json()
+        const bookmarkedLinks = new Set(data.items.map((bookmark: any) => bookmark.link as string))
+        setBookmarkedItems(bookmarkedLinks)
+      }
+    } catch (error) {
+      console.error('Failed to load bookmark status:', error)
     }
   }
 
@@ -550,6 +566,8 @@ export default function Home() {
         setCurrentPage(1)
         setProgress(100)
         setProgressMessage('Complete!')
+        // Load bookmark status for the new search results
+        loadBookmarkStatus()
         break
     }
   }
