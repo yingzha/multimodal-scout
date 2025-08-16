@@ -43,7 +43,7 @@ class TestPipeline(unittest.TestCase):
         
         # Mock save_sources to return new sources that need summaries
         mock_save_sources.return_value = {
-            'new_sources': [mock_hf_paper],  # Only HF paper is new and needs summary
+            'new_sources': [mock_hf_paper.link],  # HF paper needs summary generation
             'updated_sources': [],
             'skipped_sources': 0,
             'total_processed': 2

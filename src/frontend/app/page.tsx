@@ -267,7 +267,7 @@ export default function Home() {
         const data = await response.json()
         setBookmarkedCards(data.items)
         setShowBookmarks(true)
-        setShowResults(false) // Hide search results when showing bookmarks
+        // Keep search results available - don't hide them
         setExpandedSummaries(new Set()) // Clear expanded state when switching views
         setSelectedTag(null) // Clear tag filter when switching to bookmarks
         setBookmarksPage(1) // Reset to first page when showing bookmarks
@@ -683,14 +683,15 @@ export default function Home() {
               {customTopics.map((topic, index) => (
                 <span
                   key={`custom-${index}`}
-                  className="inline-flex items-center px-4 py-2 bg-green-600 rounded-full text-white"
+                  className="inline-flex items-center px-4 py-2 bg-white rounded-full text-gray-800 border border-gray-200"
                 >
                   {topic}
                   <button
                     onClick={() => handleRemoveCustomTopic(topic)}
-                    className="ml-3 w-5 h-5 bg-white bg-opacity-20 rounded-full flex items-center justify-center text-white hover:bg-red-500 hover:bg-opacity-100 focus:outline-none transition-colors text-sm font-bold"
+                    className="ml-3 w-5 h-5 rounded-full flex items-center justify-center hover:bg-red-500 focus:outline-none transition-colors text-sm font-bold"
+                    title="Remove keyword"
                   >
-  
+                    ×
                   </button>
                 </span>
               ))}
@@ -879,7 +880,7 @@ export default function Home() {
         )}
 
         {/* Results Section */}
-        {showResults && fetchedItems.length > 0 && (
+        {showResults && fetchedItems.length > 0 && !showBookmarks && (
           <div className="mt-12">
             <div className="flex justify-between items-center mb-6">
               <div className="flex items-center gap-3">
