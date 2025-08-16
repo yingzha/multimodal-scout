@@ -13,13 +13,11 @@ GEMINI_MODEL_NAME = "gemini-2.5-flash"
 # This can be expanded with more specific terms related to your focus area,
 # such as "multimodal", "llm", "computer vision", etc.
 INTERESTED_KEYWORDS = [
-    'open-source multimodal models',
-    'multimodal APIs',
-    'multimodal retrieval',
+    'multimodal',
     'document processing',
-    'image processing',
-    'video processing',
-    'multimodal agents',
+    'computer vision',
+    'video understanding',
+    'visual agents',
 ]
 
 # --- Search Configuration ---

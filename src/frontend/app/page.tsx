@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import ThemeToggle from './components/ThemeToggle'
 
 export default function Home() {
   const [selectedDays, setSelectedDays] = useState(1)
@@ -706,25 +707,26 @@ export default function Home() {
               <button
                 onClick={handleGearClick}
                 disabled={isLoading}
-                className={`bg-gray-100 p-3 text-gray-700 hover:text-gray-900 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors ${  
+                className={`bg-gray-100 p-3 text-gray-700 hover:text-gray-900 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors flex items-center justify-center ${  
                   isLoading ? 'cursor-not-allowed opacity-50' : ''
-                }`} 
+                }`}
                 title="Advanced Search Settings (double-click to close)"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
               </button>
               <button
                 onClick={handleViewBookmarks}
-                className="bg-gray-100 p-3 text-gray-700 hover:text-gray-900 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
+                className="bg-gray-100 p-3 text-gray-700 hover:text-gray-900 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors flex items-center justify-center"
                 title="My Bookmarks"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                 </svg>
               </button>
+              <ThemeToggle />
             </div>
 
             <button
@@ -743,7 +745,7 @@ export default function Home() {
 
         {/* Advanced Settings Panel */}
         {!showBookmarks && showAdvancedSettings && (
-          <div className="bg-blue-50 rounded-lg p-6 mb-8">
+          <div className="rounded-lg p-6 mb-8">
             {/* Time Range Selector */}
           <div className="mb-6">
             <div className="flex items-center justify-center space-x-4">
@@ -819,7 +821,7 @@ export default function Home() {
             </div>
           </div>
           
-          <div className="text-xs text-blue-700 bg-blue-100 p-3 rounded">
+          <div className="text-xs text-blue-700 p-3 rounded">
             <div className="flex items-start gap-2">
               <span className="flex-shrink-0">🎯</span>
               <div>
@@ -846,7 +848,7 @@ export default function Home() {
         {/* Progress Message - Hide when viewing bookmarks */}
         {!showBookmarks && isLoading && progressMessage && (
           <div className="mt-6 text-center">
-            <div className="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-800 rounded-lg">
+            <div className="inline-flex items-center px-4 py-2 text-blue-800 rounded-lg">
               <div className="animate-spin w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full mr-3"></div>
               <span className="text-sm font-medium">{progressMessage}</span>
             </div>
@@ -1016,7 +1018,7 @@ export default function Home() {
             
             {/* Upload Link Section */}
             <div className="mb-4">
-              <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
+              <div className="rounded-lg p-6 border border-blue-200">
                 <div className="space-y-2">
                   <div className="flex gap-3">
                     <input
@@ -1050,9 +1052,9 @@ export default function Home() {
                   {/* Upload Progress Bar */}
                   {isUploading && (
                     <div className="space-y-3">
-                      <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="w-full rounded-full h-2">
                         <div 
-                          className="bg-blue-600 h-2 rounded-full transition-all duration-500 ease-out"
+                          className="h-2 rounded-full transition-all duration-500 ease-out"
                           style={{ width: `${uploadProgress}%` }}
                         ></div>
                       </div>
@@ -1065,18 +1067,18 @@ export default function Home() {
                   {uploadMessage && (
                     <div className={`text-sm font-medium p-3 rounded-lg ${
                       uploadMessage.includes('successfully')
-                        ? 'text-green-700 bg-green-100 border border-green-200'
+                        ? 'text-green-700 border border-green-200'
                         : uploadMessage.includes('Processing')
-                        ? 'text-blue-700 bg-blue-100 border border-blue-200'
+                        ? 'text-blue-700 border border-blue-200'
                         : uploadMessage.includes('already been added !') || uploadMessage.includes('already bookmarked !')
-                        ? 'text-orange-700 bg-orange-100 border border-orange-200'
-                        : 'text-red-700 bg-red-100 border border-red-200'
+                        ? 'text-orange-700 border border-orange-200'
+                        : 'text-red-700 border border-red-200'
                     }`}>
                       {uploadMessage}
                     </div>
                   )}
                 </div>
-                <div className="mt-6 text-xs text-gray-600 bg-blue-100 p-3 rounded">
+                <div className="mt-6 text-xs text-gray-600 p-3 rounded">
                   <div className="flex items-start gap-2">
                     <span className="flex-shrink-0">💡</span>
                     <div>
