@@ -181,7 +181,7 @@ export default function Home() {
       
       if (response.ok) {
         const data = await response.json()
-        const bookmarkedLinks = new Set(data.items.map((bookmark: any) => bookmark.link as string))
+        const bookmarkedLinks = new Set<string>(data.items.map((bookmark: any) => String(bookmark.link)))
         setBookmarkedItems(bookmarkedLinks)
       }
     } catch (error) {
