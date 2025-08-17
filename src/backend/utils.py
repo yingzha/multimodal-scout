@@ -1,4 +1,5 @@
 import re
+import time
 from typing import Optional
 
 import requests
@@ -9,6 +10,20 @@ from .constants import GEMINI_MODEL_NAME, USER_AGENT
 from .logger import logger
 from .client import genai_client, AI_ENABLED
 
+
+def _retry_with_backoff(func, max_retries=3, base_delay=1.0):
+    """Retry a function with exponential backoff."""
+    for attempt in range(max_retries):
+        try:
+            return func()
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise e
+            
+            delay = base_delay * (2 ** attempt)
+            logger.warning(f"Attempt {attempt + 1} failed: {e}. Retrying in {delay:.1f}s...")
+            time.sleep(delay)
+    
 
 def _fetch_article_text(link: HttpUrl) -> Optional[str]:
     """Fetches and extracts the main text content from a URL."""
@@ -90,7 +105,7 @@ def generate_summary_from_link(link: HttpUrl) -> Optional[str]:
         logger.info("Could not extract sufficient text to summarize. Return the original text instead")
         return article_text
 
-    try:
+    def _generate_summary():
         prompt = f"""Please provide a concise, one-paragraph summary of the following article text in English only. 
         
 Regardless of the source language, always respond in English. Focus on the key points and main insights.
@@ -118,8 +133,11 @@ Provide a concise English summary focusing on the main points."""
             summary = response.text.strip()
         
         return summary
+
+    try:
+        return _retry_with_backoff(_generate_summary, max_retries=3, base_delay=2.0)
     except Exception as e:
-        logger.error(f"Error generating summary with Gemini: {e}")
+        logger.error(f"Error generating summary with Gemini after retries: {e}")
         return None
 
 
@@ -177,7 +195,8 @@ def categorize_content(title: str, content: str, url: str) -> str:
                 return "Industry"
         
         # Use AI to categorize based on content
-        prompt = f"""Analyze the following article and categorize it as exactly one of: "Research", "Industry", or "General"
+        def _categorize():
+            prompt = f"""Analyze the following article and categorize it as exactly one of: "Research", "Industry", or "General"
 
 Guidelines:
 - Research: Academic papers, research findings, scientific studies, conference proceedings, peer-reviewed content
@@ -189,14 +208,20 @@ Content preview: {content[:1000]}
 
 Respond with only one word: Research, Industry, or General"""
 
-        response = genai_client.models.generate_content(model=GEMINI_MODEL_NAME, contents=[prompt])
-        category = response.text.strip()
-        
-        # Validate the response
-        if category in ["Research", "Industry", "General"]:
-            return category
-        else:
-            logger.warning(f"AI returned invalid category '{category}', defaulting to General")
+            response = genai_client.models.generate_content(model=GEMINI_MODEL_NAME, contents=[prompt])
+            return response.text.strip()
+
+        try:
+            category = _retry_with_backoff(_categorize, max_retries=2, base_delay=1.0)
+            
+            # Validate the response
+            if category in ["Research", "Industry", "General"]:
+                return category
+            else:
+                logger.warning(f"AI returned invalid category '{category}', defaulting to General")
+                return "General"
+        except Exception as inner_e:
+            logger.warning(f"Failed to categorize with AI after retries: {inner_e}, defaulting to General")
             return "General"
             
     except Exception as e:

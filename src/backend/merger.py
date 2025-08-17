@@ -1,3 +1,4 @@
+import time
 from typing import List
 
 from .schema import SourceSchema
@@ -29,10 +30,15 @@ def enrich_sources_with_summaries(sources: List[SourceSchema]) -> List[SourceSch
     logger.info(f"Found {len(sources_with_summaries)} sources with existing summaries, generating for {len(sources_needing_summaries)} remaining sources...")
     newly_generated = []
     
-    for source in sources_needing_summaries:
+    for i, source in enumerate(sources_needing_summaries):
+        # Add a small delay between API calls to avoid rate limiting (except for first item)
+        if i > 0:
+            time.sleep(0.5)  # 500ms delay between requests
+            
         new_summary = generate_summary_from_link(source.source_link)
         if new_summary is None and str(source.source_link) != str(source.link):
             logger.warning(f"2nd attempt to generate summary from link for: {source.link}")
+            time.sleep(1.0)  # Longer delay before retry
             new_summary = generate_summary_from_link(source.link)
         
         if new_summary:
