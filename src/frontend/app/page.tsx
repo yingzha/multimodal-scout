@@ -247,7 +247,10 @@ export default function Home() {
   }
 
   const handleViewBookmarks = async () => {
+    // Close advanced settings when navigating to bookmarks
+    setShowAdvancedSettings(false)
     // Toggle bookmarks view
+
     if (showBookmarks) {
       setShowBookmarks(false)
       setBookmarkedCards([])
@@ -763,7 +766,7 @@ export default function Home() {
         </div>
 
         {/* Advanced Settings Panel */}
-        {!showBookmarks && showAdvancedSettings && (
+        {showAdvancedSettings && (
           <div className="rounded-lg p-6 mb-8">
             {/* Time Range Selector */}
           <div className="mb-6">
@@ -880,7 +883,7 @@ export default function Home() {
         )}
 
         {/* Results Section */}
-        {showResults && fetchedItems.length > 0 && !showBookmarks && (
+        {showResults && fetchedItems.length > 0 && (!showBookmarks || showAdvancedSettings) && (
           <div className="mt-12">
             <div className="flex justify-between items-center mb-6">
               <div className="flex items-center gap-3">
@@ -1018,8 +1021,8 @@ export default function Home() {
         )}
 
         {/* Bookmarks Section */}
-        {showBookmarks && (
-          <div className="mt-4">
+        {showBookmarks && !showAdvancedSettings && (
+          <div className="mt-12">
             {selectedTag && (
               <div className="mb-6">
                 <div className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
