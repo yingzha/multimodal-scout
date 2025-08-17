@@ -6,7 +6,7 @@ This backend service, built with Python and FastAPI, is the core of the Multimod
 
 - **Multi-source scraping**: Fetches content from Hacker News and Hugging Face.
 - **AI-powered summarization**: Generates summaries using the Google Gemini API and caches them.
-- **Smart Balanced Filtering**: Implements an advanced pipeline with separate semantic thresholds for research (0.65) vs. industry (0.55) content.
+- **Smart Balanced Filtering**: Implements an advanced pipeline with separate semantic thresholds for research vs. industry content.
 - **Real-time progress**: Uses Server-Sent Events (SSE) to stream progress updates to the frontend.
 - **Cache management**: Includes a CLI for database cache cleanup, search, and analytics.
 
@@ -39,10 +39,10 @@ The `cache_manager.py` script provides tools for inspecting and managing the dat
 docker-compose exec backend python -m src.backend.cache_manager stats
 
 # Search cached summaries by content
-docker-compose exec backend python -m src.backend.cache_manager search --query "AI" --limit 5
+docker-compose exec backend python -m src.backend.cache_manager search --cache-type summary --query "AI" --limit 5
 
 # Clean up old summaries (e.g., older than 30 days)
-docker-compose exec backend python -m src.backend.cache_manager cleanup --days 30
+docker-compose exec backend python -m src.backend.cache_manager cleanup --cache-type summary --days 30
 ```
 
 ### General Development

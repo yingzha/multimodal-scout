@@ -28,13 +28,11 @@ Currently, no authentication is required for API access.
   ```json
   {
     "topics": [
-      "open-source multimodal models",
-      "multimodal APIs", 
-      "multimodal retrieval",
+      "multimodal", 
       "document processing",
-      "image processing",
+      "computer vision",
       "video processing",
-      "multimodal agents"
+      "visual agents"
     ]
   }
   ```
