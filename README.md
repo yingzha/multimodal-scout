@@ -34,6 +34,8 @@ A smart content discovery platform that automatically finds, curates, and helps 
     docker-compose up -d
     ```
 
+    **Note:** On first run, the database tables will be automatically created when the backend starts. If you encounter any database connection issues, ensure PostgreSQL is fully started before the backend attempts to connect.
+
 3.  **Open Your Browser:**
     - **Frontend:** http://localhost:3000
     - **API Docs:** http://localhost:8000/docs

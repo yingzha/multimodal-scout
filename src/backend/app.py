@@ -24,6 +24,18 @@ app = FastAPI(
     version="1.0.0"
 )
 
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database tables on startup"""
+    try:
+        logger.info("🚀 Initializing database tables...")
+        db_manager.create_tables()
+        logger.info("✅ Database tables initialized successfully")
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize database tables: {e}", exc_info=True)
+        # Don't raise here to allow the app to start even if DB init fails
+        # This allows for debugging and manual intervention
+
 # Add CORS middleware to allow frontend connections
 app.add_middleware(
     CORSMiddleware,
