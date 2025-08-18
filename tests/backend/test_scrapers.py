@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 from feedparser.util import FeedParserDict
 
 from src.backend.scraper import (
-    scrape_hacker_news,
+    scrape_rss_sources,
     scrape_huggingface_trending_papers
 )
 from src.backend.schema import SourceSchema
@@ -89,11 +89,11 @@ class TestScrapers(unittest.TestCase):
         self.assertIsInstance(paper.date, datetime)
 
     @patch('src.backend.scraper.feedparser.parse')
-    def test_scrape_hacker_news(self, mock_parse):
+    def test_scrape_rss_sources(self, mock_parse):
         # Setup the mock response for feedparser.parse
         mock_parse.return_value = MOCK_HN_FEED
 
-        results = scrape_hacker_news()
+        results = scrape_rss_sources()
 
         # Asserts that stories with comments links were parsed
         self.assertEqual(len(results), 2)

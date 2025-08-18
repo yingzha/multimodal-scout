@@ -29,7 +29,7 @@ mock_hn_story = SourceSchema(
 class TestPipeline(unittest.TestCase):
 
     @patch('src.backend.pipeline.scrape_huggingface_trending_papers')
-    @patch('src.backend.pipeline.scrape_hacker_news')
+    @patch('src.backend.pipeline.scrape_rss_sources')
     @patch('src.backend.database.db_manager.get_session')
     @patch('src.backend.database.db_manager.save_sources')
     @patch('src.backend.database.db_manager.add_summaries_batch')

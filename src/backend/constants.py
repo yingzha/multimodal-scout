@@ -27,3 +27,7 @@ SEMANTIC_SIMILARITY_THRESHOLD = 0.6
 RESEARCH_THRESHOLD = 0.65
 # Lower threshold for industry content to include more variety
 INDUSTRY_THRESHOLD = 0.55
+
+# --- RSS Sources Configuration ---
+# Maximum number of items to retrieve from each RSS feed
+RSS_FEED_LIMIT = 30

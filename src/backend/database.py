@@ -19,13 +19,13 @@ class EmbeddingArrayType(TypeDecorator):
     """Custom type to handle embedding arrays for both PostgreSQL and SQLite."""
     impl = Text
     cache_ok = True
-    
+
     def load_dialect_impl(self, dialect):
         if dialect.name == 'postgresql':
             return dialect.type_descriptor(ARRAY(Float))
         else:
             return dialect.type_descriptor(Text())
-    
+
     def process_bind_param(self, value, dialect):
         if value is None:
             return value
@@ -33,7 +33,7 @@ class EmbeddingArrayType(TypeDecorator):
             return value  # PostgreSQL handles lists directly
         else:
             return json.dumps(value)  # SQLite stores as JSON string
-    
+
     def process_result_value(self, value, dialect):
         if value is None:
             return value
@@ -47,7 +47,7 @@ Base = declarative_base()
 
 class Source(Base):
     __tablename__ = "sources"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     title = Column(String, nullable=False)
     authors = Column(JSON, nullable=False)
@@ -62,7 +62,7 @@ class Source(Base):
 
 class EmbeddingCache(Base):
     __tablename__ = "embedding_cache"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     text = Column(Text, nullable=False, index=True)
     text_hash = Column(String(64), unique=True, nullable=False, index=True)
@@ -72,7 +72,7 @@ class EmbeddingCache(Base):
 
 class Bookmark(Base):
     __tablename__ = "bookmarks"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     title = Column(String, nullable=False)
     link = Column(String, nullable=False, index=True)
@@ -85,21 +85,21 @@ class DatabaseManager:
     def __init__(self, database_url: Optional[str] = None):
         if database_url is None:
             database_url = os.getenv('DATABASE_URL', 'postgresql://localhost/multimodal_scout')
-        
+
         self.engine = create_engine(database_url)
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
-        
+
         # In-memory cache to track recently processed sources (by link)
         # This helps avoid reprocessing the same sources across method calls
         self._processed_sources_cache = set()
         self._cache_max_size = 10000  # Limit cache size to prevent memory issues
-    
+
     def get_session(self) -> Session:
         return self.SessionLocal()
 
     def create_tables(self):
         Base.metadata.create_all(bind=self.engine)
-    
+
     def _manage_cache_size(self):
         """Keep cache size under control to prevent memory issues."""
         if len(self._processed_sources_cache) > self._cache_max_size:
@@ -108,11 +108,11 @@ class DatabaseManager:
             cache_list = list(self._processed_sources_cache)
             self._processed_sources_cache = set(cache_list[len(cache_list)//2:])
             logger.info(f"Cache size reduced from {len(cache_list)} to {len(self._processed_sources_cache)}")
-    
+
     def _is_recently_processed(self, link: str) -> bool:
         """Check if a source was recently processed."""
         return link in self._processed_sources_cache
-    
+
     def _mark_as_processed(self, link: str):
         """Mark a source as recently processed."""
         self._processed_sources_cache.add(link)
@@ -124,12 +124,12 @@ class DatabaseManager:
         with self.get_session() as session:
             source = session.query(Source).filter(Source.link == url).first()
             return source.summary if source else None
-    
+
     def get_summaries_batch(self, urls: List[str]) -> Dict[str, str]:
         """Get summaries for multiple URLs in a single query (batch operation)."""
         if not urls:
             return {}
-            
+
         with self.get_session() as session:
             sources = session.query(Source).filter(Source.link.in_(urls)).all()
             return {source.link: source.summary for source in sources if source.summary}
@@ -152,16 +152,16 @@ class DatabaseManager:
         """Add summaries for multiple URLs in a single transaction (batch operation)."""
         if not url_summary_pairs:
             return {}
-            
+
         with self.get_session() as session:
             urls = list(url_summary_pairs.keys())
             sources = session.query(Source).filter(Source.link.in_(urls)).all()
-            
+
             # Create a mapping of URL to source for quick lookup
             url_to_source = {source.link: source for source in sources}
             results = {}
             updated_count = 0
-            
+
             for url, summary in url_summary_pairs.items():
                 if url in url_to_source:
                     source = url_to_source[url]
@@ -172,7 +172,7 @@ class DatabaseManager:
                 else:
                     results[url] = False
                     logger.warning(f"Cannot add summary - source not found for URL: {url}")
-            
+
             session.commit()
             logger.info(f"Batch updated summaries for {updated_count} sources out of {len(url_summary_pairs)} requested")
             return results
@@ -190,7 +190,7 @@ class DatabaseManager:
             return [{"url": s.link, "summary": s.summary, "created_at": s.created_at.isoformat(), "updated_at": s.updated_at.isoformat()} for s in results]
 
     def cleanup_summaries(self, days_to_keep: int = 30) -> int:
-        """Clear summaries from old sources (consolidated approach).""" 
+        """Clear summaries from old sources (consolidated approach)."""
         cutoff_date = datetime.now() - timedelta(days=days_to_keep)
         with self.get_session() as session:
             # Set summary to NULL for old sources instead of deleting records
@@ -229,17 +229,17 @@ class DatabaseManager:
         Optimized batch save with in-memory deduplication and single DB query.
         Performance improvements:
         - Deduplicates sources by link within the batch
-        - Single batch query to check existing sources instead of N queries  
+        - Single batch query to check existing sources instead of N queries
         - Separates updates and inserts for better performance
-        
+
         Returns:
             Dict with processing statistics including new_sources list for further processing
         """
         if not sources:
             return {'new_sources': [], 'updated_sources': [], 'skipped_sources': 0, 'total_processed': 0}
-            
+
         from .schema import SourceSchema
-        
+
         # Step 1: Filter out recently processed sources using in-memory cache
         fresh_sources = []
         cache_hits = 0
@@ -249,10 +249,10 @@ class DatabaseManager:
                 fresh_sources.append(source)
             else:
                 cache_hits += 1
-        
+
         if cache_hits > 0:
             logger.info(f"Cache optimization: Skipped {cache_hits} recently processed sources")
-        
+
         # Step 2: Deduplicate remaining sources by link within this batch
         seen_links = set()
         deduplicated_sources = []
@@ -261,31 +261,31 @@ class DatabaseManager:
             if link_str not in seen_links:
                 seen_links.add(link_str)
                 deduplicated_sources.append(source)
-        
+
         logger.info(f"Processing pipeline: {len(sources)} → {len(fresh_sources)} (after cache) → {len(deduplicated_sources)} (after dedup)")
-        
+
         if not deduplicated_sources:
             return {'new_sources': [], 'updated_sources': [], 'skipped_sources': cache_hits, 'total_processed': 0}
-            
+
         with self.get_session() as session:
             # Step 2: Single batch query to get all existing sources
             all_links = [str(source.link) for source in deduplicated_sources]
             existing_sources = session.query(Source).filter(Source.link.in_(all_links)).all()
             existing_links_map = {source.link: source for source in existing_sources}
-            
+
             logger.info(f"Found {len(existing_sources)} existing sources out of {len(deduplicated_sources)} to process")
-            
+
             # Step 3: Separate updates and inserts
             sources_to_update = []
             sources_to_insert = []
-            
+
             for source_schema in deduplicated_sources:
                 link_str = str(source_schema.link)
                 if link_str in existing_links_map:
                     sources_to_update.append((source_schema, existing_links_map[link_str]))
                 else:
                     sources_to_insert.append(source_schema)
-            
+
             # Step 4: Batch update existing sources
             for source_schema, existing in sources_to_update:
                 existing.title = source_schema.title
@@ -298,7 +298,7 @@ class DatabaseManager:
                 existing.tags = source_schema.tags
                 existing.date = source_schema.date
                 existing.updated_at = datetime.now()
-            
+
             # Step 5: Batch insert new sources
             if sources_to_insert:
                 new_sources = []
@@ -317,23 +317,23 @@ class DatabaseManager:
                         'updated_at': datetime.now()
                     }
                     new_sources.append(Source(**source_data))
-                
+
                 session.add_all(new_sources)
                 logger.info(f"Batch inserting {len(new_sources)} new sources")
-            
+
             if sources_to_update:
                 logger.info(f"Batch updating {len(sources_to_update)} existing sources")
-                
+
             # Single commit for all operations
             session.commit()
-            
+
             # Step 6: Mark all processed sources in cache to avoid reprocessing
             for source in deduplicated_sources:
                 if source.summary:
                     self._mark_as_processed(str(source.link))
-            
+
             logger.info(f"✅ Successfully processed {len(deduplicated_sources)} sources ({len(sources_to_insert)} new, {len(sources_to_update)} updated)")
-            
+
             # Return processing statistics
             return {
                 'new_sources': [source.link for source in sources_to_insert],
@@ -349,14 +349,14 @@ class DatabaseManager:
             existing = session.query(Bookmark).filter(Bookmark.link == link).first()
             if existing:
                 return str(existing.id)
-            
+
             # Handle both old and new schema
             try:
                 new_bookmark = Bookmark(title=title, link=link, source_tag=source_tag, summary=summary, summary_edited=None)
             except TypeError:
                 # If summary_edited field doesn't exist, create without it
                 new_bookmark = Bookmark(title=title, link=link, source_tag=source_tag, summary=summary)
-            
+
             session.add(new_bookmark)
             session.commit()
             return str(new_bookmark.id)
@@ -429,7 +429,7 @@ class DatabaseManager:
     def search_bookmarks(self, query: str, limit: int = 10) -> List[Dict[str, str]]:
         with self.get_session() as session:
             results = session.query(Bookmark).filter(
-                Bookmark.title.ilike(f"%{query}%") | 
+                Bookmark.title.ilike(f"%{query}%") |
                 Bookmark.summary.ilike(f"%{query}%")
             ).order_by(desc(Bookmark.bookmarked_at)).limit(limit).all()
             return [{
@@ -464,7 +464,7 @@ class DatabaseManager:
             recent_count = session.query(EmbeddingCache).filter(EmbeddingCache.created_at >= week_ago).count()
             models_used = session.query(EmbeddingCache.model_name).distinct().all()
             return {
-                'total_embeddings': total_count, 
+                'total_embeddings': total_count,
                 'recent_embeddings_7_days': recent_count,
                 'models_used': [m[0] for m in models_used]
             }

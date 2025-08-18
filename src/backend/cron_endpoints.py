@@ -6,7 +6,7 @@ These endpoints replace the Docker cron container when running on Google Cloud.
 from fastapi import FastAPI, HTTPException, Header
 from typing import Optional
 
-from .scraper import scrape_huggingface_trending_papers, scrape_hacker_news
+from .scraper import scrape_huggingface_trending_papers, scrape_rss_sources
 from .merger import enrich_sources_with_summaries_and_embeddings
 from .database import db_manager
 from .logger import logger
@@ -19,72 +19,72 @@ def verify_scheduler_request(x_cloudscheduler: Optional[str] = Header(None)):
     if not x_cloudscheduler:
         raise HTTPException(status_code=401, detail="Unauthorized - not from Cloud Scheduler")
 
-@cron_app.post("/cron/hacker-news")
-async def cron_hacker_news(x_cloudscheduler: Optional[str] = Header(None)):
-    """Cron job endpoint for Hacker News scraping."""
+@cron_app.post("/cron/rss-sources")
+async def cron_rss_sources(x_cloudscheduler: Optional[str] = Header(None)):
+    """Cron job endpoint for RSS sources scraping."""
     verify_scheduler_request(x_cloudscheduler)
-    
+
     try:
-        logger.info("🕐 Starting Hacker News cron job...")
-        
-        # Scrape Hacker News
-        sources = scrape_hacker_news()
+        logger.info("🕐 Starting RSS sources cron job...")
+
+        # Scrape RSS sources
+        sources = scrape_rss_sources()
         if not sources:
-            logger.warning("No Hacker News sources found")
+            logger.warning("No RSS sources found")
             return {"status": "completed", "message": "No sources found", "count": 0}
-        
-        logger.info(f"📰 Found {len(sources)} Hacker News sources")
-        
+
+        logger.info(f"📰 Found {len(sources)} RSS sources")
+
         # Enrich with summaries and pre-generate embeddings
         enriched_sources = enrich_sources_with_summaries_and_embeddings(sources)
-        
+
         # Save to database
         save_result = db_manager.save_sources(enriched_sources)
         logger.info(f"Save result: {save_result}")
-        
-        logger.info(f"✅ Hacker News cron job completed: {len(enriched_sources)} sources processed")
-        
+
+        logger.info(f"✅ RSS sources cron job completed: {len(enriched_sources)} sources processed")
+
         return {
             "status": "completed",
-            "message": f"Successfully processed {len(enriched_sources)} Hacker News sources",
+            "message": f"Successfully processed {len(enriched_sources)} RSS sources",
             "count": len(enriched_sources)
         }
-        
+
     except Exception as e:
-        logger.error(f"❌ Hacker News cron job failed: {e}", exc_info=True)
+        logger.error(f"❌ RSS sources cron job failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Cron job failed: {str(e)}")
 
 @cron_app.post("/cron/hugging-face")
 async def cron_hugging_face(x_cloudscheduler: Optional[str] = Header(None)):
     """Cron job endpoint for Hugging Face scraping."""
     verify_scheduler_request(x_cloudscheduler)
-    
+
     try:
         logger.info("🕐 Starting Hugging Face cron job...")
-        
+
         # Scrape Hugging Face
         sources = scrape_huggingface_trending_papers()
         if not sources:
             logger.warning("No Hugging Face sources found")
             return {"status": "completed", "message": "No sources found", "count": 0}
-        
+
         logger.info(f"🤗 Found {len(sources)} Hugging Face sources")
-        
+
         # Enrich with summaries and pre-generate embeddings
         enriched_sources = enrich_sources_with_summaries_and_embeddings(sources)
-        
+
         # Save to database
         save_result = db_manager.save_sources(enriched_sources)
         logger.info(f"Save result: {save_result}")
-        
+
         logger.info(f"✅ Hugging Face cron job completed: {len(enriched_sources)} sources processed")
-        
+
         return {
-            "status": "completed", 
+            "status": "completed",
             "message": f"Successfully processed {len(enriched_sources)} Hugging Face sources",
             "count": len(enriched_sources)
         }
-        
+
     except Exception as e:
         logger.error(f"❌ Hugging Face cron job failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Cron job failed: {str(e)}")

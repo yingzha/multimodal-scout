@@ -70,7 +70,7 @@ Mon Aug 11 16:00:15 UTC 2025: Hacker News cron job completed
 **Detailed Processing Logs:**
 ```
 🤖 CRON JOB STARTED: 2025-08-11 16:00:00
-📋 Target scraper: backend.scraper.scrape_hacker_news
+📋 Target scraper: backend.scraper.scrape_rss_sources
 🚀 Starting scheduled scraping job...
 📊 Scraping completed in 0.26s
 📈 Scraped 30 items
@@ -123,8 +123,8 @@ Google API quota exceeded
 Test individual cron jobs manually:
 
 ```bash
-# Test Hacker News scraper
-docker-compose exec cron /app/cron_env.sh /root/.local/bin/uv run python -m src.backend.run_scraper backend.scraper.scrape_hacker_news
+# Test RSS sources scraper
+docker-compose exec cron /app/cron_env.sh /root/.local/bin/uv run python -m src.backend.run_scraper backend.scraper.scrape_rss_sources
 
 # Test Hugging Face scraper  
 docker-compose exec cron /app/cron_env.sh /root/.local/bin/uv run python -m src.backend.run_scraper backend.scraper.scrape_huggingface_trending_papers

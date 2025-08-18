@@ -33,31 +33,31 @@ def _get_embedding(text: str) -> np.ndarray:
             return np.array(cached_embedding)
     except Exception as e:
         logger.warning(f"Failed to get embedding from cache: {e}")
-    
+
     # Generate new embedding
     try:
         result = genai_client.models.embed_content(
             model="gemini-embedding-001",
             contents=text
         )
-        
+
         if hasattr(result, 'embeddings') and len(result.embeddings) > 0:
             embedding = result.embeddings[0]
             if hasattr(embedding, 'values'):
                 embedding_values = list(embedding.values)
-                
+
                 # Cache the new embedding using the new abstracted method
                 try:
                     db_manager.add_embedding_for_text(text, embedding_values, "gemini-embedding-001")
                     logger.info(f"Generated and cached new embedding for text: {text[:50]}...")
                 except Exception as e:
                     logger.warning(f"Failed to cache embedding: {e}")
-                
+
                 return np.array(embedding_values)
 
         logger.error(f"No embeddings found in result: {result}")
         return np.array([])
-            
+
     except Exception as e:
         logger.error(f"Failed to get embedding for text '{text[:50]}...': {e}")
         return np.array([])
@@ -68,28 +68,28 @@ def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     try:
         if a.size == 0 or b.size == 0:
             return 0.0
-        
+
         # Ensure vectors are 1D
         a = np.atleast_1d(a).flatten()
         b = np.atleast_1d(b).flatten()
-        
+
         if len(a) != len(b):
             logger.warning(f"Vector dimension mismatch: {len(a)} vs {len(b)}")
             return 0.0
-            
+
         # Calculate norms
         norm_a = np.linalg.norm(a)
         norm_b = np.linalg.norm(b)
-        
+
         if norm_a == 0 or norm_b == 0:
             return 0.0
-        
+
         # Normalize vectors and calculate cosine similarity
         a_norm = a / norm_a
         b_norm = b / norm_b
-        
+
         return float(np.dot(a_norm, b_norm))
-        
+
     except Exception as e:
         logger.error(f"Error calculating cosine similarity: {e}")
         return 0.0
@@ -142,43 +142,43 @@ def semantic_search_with_scores(
         return []
 
     matches = []
-    
+
     try:
         # Combine keywords into a single query
         query_text = " ".join(keywords)
         query_embedding = _get_embedding(query_text)
-        
+
         if len(query_embedding) == 0:
             logger.warning("Failed to get query embedding, skipping semantic search")
             return []
 
         logger.info(f"Running Gemini semantic search on {len(sources)} sources with query: '{query_text}'")
-        
+
         for source in sources:
             if not source.summary or source.summary.strip() == "":
                 continue
-                
+
             # Get embedding for the source summary
             source_embedding = _get_embedding(source.summary)
-            
+
             if len(source_embedding) == 0:
                 continue
-                
+
             # Calculate similarity
             similarity = _cosine_similarity(query_embedding, source_embedding)
-            
+
             # Add to matches if no threshold or meets threshold
             if threshold is None or similarity > threshold:
                 matches.append((source, similarity))
                 if threshold is not None and similarity > threshold:
                     logger.info(f"Gemini semantic match found for: '{source.title}' (Score: {similarity:.3f})")
-                
+
     except Exception as e:
         logger.error(f"Error in Gemini semantic search: {e}")
         return []
 
     # Sort by similarity score in descending order
     matches.sort(key=lambda x: x[1], reverse=True)
-    
+
     logger.info(f"Gemini semantic search completed: {len(matches)} matches found")
     return matches

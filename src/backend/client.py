@@ -12,7 +12,7 @@ try:
     api_key = os.getenv('GOOGLE_API_KEY')
     if not api_key:
         raise ValueError("GOOGLE_API_KEY environment variable not set")
-    
+
     genai_client = genai.Client(api_key=api_key)
     AI_ENABLED = True
     logger.info("Google Gemini client initialized successfully")

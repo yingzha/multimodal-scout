@@ -14,7 +14,7 @@ suitable for streaming APIs.
 from typing import List, Dict, Any, Generator
 from datetime import datetime, timedelta
 
-from .scraper import scrape_huggingface_trending_papers, scrape_hacker_news
+from .scraper import scrape_huggingface_trending_papers, scrape_rss_sources
 from .logger import logger
 from .schema import SourceSchema
 from .database import db_manager
@@ -38,7 +38,7 @@ def _apply_balanced_filtering(sources: List[SourceSchema], keywords: List[str], 
         source for source in sources
         if source.link not in matched_links and source.summary
     ]
-    
+
     if semantic_candidates:
         logger.info(f"Running semantic search on {len(semantic_candidates)} remaining sources...")
         # Separate candidates by content type for different thresholds
@@ -52,7 +52,7 @@ def _apply_balanced_filtering(sources: List[SourceSchema], keywords: List[str], 
                 research_candidates.append(source)
             else:
                 industry_candidates.append(source)
-        
+
         # Run semantic search with research threshold (more selective)
         if research_candidates:
             logger.info(f"Running semantic search on {len(research_candidates)} research sources with threshold {RESEARCH_THRESHOLD}")
@@ -60,7 +60,7 @@ def _apply_balanced_filtering(sources: List[SourceSchema], keywords: List[str], 
                 research_candidates, keywords, threshold=RESEARCH_THRESHOLD
             )
             sources_with_scores.extend(research_results)
-        
+
         # Run semantic search with industry threshold (more inclusive)
         if industry_candidates:
             logger.info(f"Running semantic search on {len(industry_candidates)} industry sources with threshold {INDUSTRY_THRESHOLD}")
@@ -68,38 +68,38 @@ def _apply_balanced_filtering(sources: List[SourceSchema], keywords: List[str], 
                 industry_candidates, keywords, threshold=INDUSTRY_THRESHOLD
             )
             sources_with_scores.extend(industry_results)
-    
+
     # Sort by relevance score (descending), then by date (most recent first)
     sorted_sources = sorted(
-        sources_with_scores, 
-        key=lambda x: (x[1], x[0].date), 
+        sources_with_scores,
+        key=lambda x: (x[1], x[0].date),
         reverse=True
     )
-    
+
     # Apply research/industry balancing
     research_count = int(max_results * research_ratio)
     industry_count = max_results - research_count
-    
+
     logger.info(f"Balancing results: {research_count} research, {industry_count} industry")
-    
+
     # Separate by source type
     research_sources = []
     industry_sources = []
-    
+
     for source, score in sorted_sources:
         source_tag = "General"
         if hasattr(source, 'tags') and source.tags:
             source_tag = source.tags[0].capitalize() if source.tags[0] else "General"
-        
+
         if source_tag.lower() == "research":
             research_sources.append((source, score))
         else:
             industry_sources.append((source, score))
-    
+
     # Take balanced amounts from each category
     selected_research = research_sources[:research_count]
     selected_industry = industry_sources[:industry_count]
-    
+
     # If we don't have enough of one type, fill with the other
     total_selected = len(selected_research) + len(selected_industry)
     if total_selected < max_results:
@@ -109,17 +109,17 @@ def _apply_balanced_filtering(sources: List[SourceSchema], keywords: List[str], 
             additional_industry = industry_sources[len(selected_industry):len(selected_industry) + remaining_slots]
             selected_industry.extend(additional_industry)
         elif len(selected_industry) < industry_count:
-            # Need more industry, take from research  
+            # Need more industry, take from research
             additional_research = research_sources[len(selected_research):len(selected_research) + remaining_slots]
             selected_research.extend(additional_research)
-    
+
     # Combine and re-sort by score
     balanced_sources = selected_research + selected_industry
     balanced_sources.sort(key=lambda x: (x[1], x[0].date), reverse=True)
-    
+
     # Extract just the sources
     limited_results = [source for source, score in balanced_sources]
-    
+
     logger.info(f"Balanced filtering complete: {len([s for s in limited_results if hasattr(s, 'tags') and s.tags and s.tags[0].lower() == 'research'])} research, {len([s for s in limited_results if not hasattr(s, 'tags') or not s.tags or s.tags[0].lower() != 'research'])} industry/other")
     return limited_results
 
@@ -133,13 +133,13 @@ def process_content_pipeline(
     """
     The main processing pipeline.
     1. Always scrape fresh content first
-    2. Save new content to database 
+    2. Save new content to database
     3. Query database for sources within date range
     Yields progress updates and finally the results.
     """
     # Step 1: Always scrape fresh content to get latest trending items
     yield {'type': 'status', 'message': 'Scraping fresh content from Hugging Face and Hacker News...'}
-    
+
     fresh_sources = []
     source_names = []
 
@@ -147,7 +147,7 @@ def process_content_pipeline(
     scraping_weight = 10
     summary_weight = 70
     filtering_weight = 20
- 
+
     current_progress = scraping_weight
     yield {'type': 'start', 'message': 'Starting unified processing pipeline...', 'total': 100, 'processed': int((current_progress/total_weight)*100)}
 
@@ -162,14 +162,14 @@ def process_content_pipeline(
         yield {'type': 'error', 'message': f'Failed to fetch Hugging Face papers: {str(e)}'}
 
     try:
-        hn_items = scrape_hacker_news()
-        if hn_items:
-            fresh_sources.extend(hn_items)
-            source_names.append("Hacker News")
-    #        yield {'type': 'status', 'message': f'Found {len(hn_items)} fresh Hacker News items'}
+        rss_items = scrape_rss_sources()
+        if rss_items:
+            fresh_sources.extend(rss_items)
+            source_names.append("RSS Sources")
+    #        yield {'type': 'status', 'message': f'Found {len(rss_items)} fresh RSS items'}
     except Exception as e:
-        logger.error(f"Failed to fetch Hacker News items: {e}")
-        yield {'type': 'error', 'message': f'Failed to fetch Hacker News items: {str(e)}'}
+        logger.error(f"Failed to fetch RSS sources: {e}")
+        yield {'type': 'error', 'message': f'Failed to fetch RSS sources: {str(e)}'}
 
     # Step 2: Save fresh content to database first (without summaries)
     # This tells us which sources are truly new and need summary generation
@@ -178,10 +178,10 @@ def process_content_pipeline(
         new_sources = save_result['new_sources']
         updated_sources = save_result['updated_sources']
         skipped_sources = save_result['skipped_sources']
-        
+
         logger.info(f"Saved {save_result['total_processed']} sources: {len(new_sources)} new, {len(updated_sources)} updated, {skipped_sources} skipped")
         yield {'type': 'status', 'message': f'Saved {save_result["total_processed"]} sources ({len(new_sources)} new)'}
-        
+
         # Step 2b: Generate summaries for sources that don't have them (both new and updated)
         all_processed_sources = new_sources + updated_sources
         if all_processed_sources:
@@ -199,14 +199,14 @@ def process_content_pipeline(
                 # Show mid-progress for summaries
                 summary_progress = current_progress + (summary_weight * 0.5)
                 yield {'type': 'progress', 'message': 'Generating AI summaries...', 'processed': int((summary_progress/total_weight)*100), 'total': 100}
-                
+
                 # Enrich new sources with summaries and embeddings
                 enriched_new_sources = enrich_sources_with_summaries_and_embeddings(sources_needing_summaries)
-                
+
                 # Show final progress for this step
                 final_progress = current_progress + (summary_weight * 0.9)
                 yield {'type': 'progress', 'message': 'AI processing complete', 'processed': int((final_progress/total_weight)*100), 'total': 100}
-                
+
                 # Update the database with the new summaries using batch method
                 url_summary_pairs = {str(source.link): source.summary for source in enriched_new_sources if source.summary}
                 if url_summary_pairs:
@@ -218,7 +218,7 @@ def process_content_pipeline(
                 logger.info("All new sources already have summaries")
         else:
             logger.info("No new sources found - all were existing or skipped")
-            
+
     except Exception as e:
         logger.error(f"Failed to save sources to database: {e}")
         yield {'type': 'warning', 'message': f'Database save failed, proceeding with fresh content: {str(e)}'}
@@ -229,21 +229,21 @@ def process_content_pipeline(
     # Step 3: Query database for sources within the specified date range
     cutoff_date = datetime.now() - timedelta(days=selected_days)
     yield {'type': 'status', 'message': f'Fetching sources from database added in last {selected_days} days...'}
-    
+
     with db_manager.get_session() as session:
         from .database import Source
         db_sources = session.query(Source).filter(
             Source.created_at >= cutoff_date
         ).order_by(Source.created_at.desc()).all()
-    
+
     if db_sources:
         logger.info(f"Found {len(db_sources)} sources in database from last {selected_days} days")
         yield {'type': 'status', 'message': f'Found {len(db_sources)} sources from last {selected_days} days'}
-        
+
         # Convert database records back to SourceSchema objects
         all_sources = []
         db_source_names = set()
-        
+
         for db_source in db_sources:
             try:
                 # Determine source name from tags
@@ -254,7 +254,7 @@ def process_content_pipeline(
                         db_source_names.add("Research Papers")
                     elif source_tag.lower() == 'industry':
                         db_source_names.add("Industry News")
-                
+
                 # Create SourceSchema object from database record
                 source_schema = SourceSchema(
                     title=db_source.title,
@@ -267,23 +267,23 @@ def process_content_pipeline(
                     date=db_source.date
                 )
                 all_sources.append(source_schema)
-                
+
             except Exception as e:
                 logger.warning(f"Failed to convert database record to schema: {e}")
                 continue
-        
+
         # Use database source names for final output
         source_names = list(db_source_names)
         logger.info(f"Converted {len(all_sources)} database records to source schemas")
-        
+
     else:
         # Fallback to fresh content if no database records in date range
         logger.warning(f"No database records found for last {selected_days} days, using fresh scraped content")
         yield {'type': 'warning', 'message': f'No database records for {selected_days} days, using fresh content'}
         all_sources = fresh_sources
 
-   
-    
+
+
     if all_sources:
         # Get all edited summaries once at the beginning for efficiency
         bookmarks = db_manager.get_bookmarks()
@@ -293,23 +293,23 @@ def process_content_pipeline(
             if edited_summary:
                 edited_summaries_map[bookmark.link] = edited_summary
         logger.info(f"Found {len(edited_summaries_map)} edited summaries in bookmarks")
-        
+
         # Apply edited summaries to ALL sources first
         for source in all_sources:
             source_link = str(source.link)
             if source_link in edited_summaries_map:
                 source.summary = edited_summaries_map[source_link]
                 logger.info(f"Applied edited summary for: {source.title[:50]}")
-        
+
     filtered_sources = []
     if topics and all_sources:
         yield {'type': 'status', 'message': f'Applying smart balanced filtering for {len(all_sources)} items...'}
-        
+
         progress_50 = current_progress + (filtering_weight * 0.5)
         yield {'type': 'progress', 'message': 'Applying semantic search & balancing...', 'processed': int((progress_50 / total_weight) * 100), 'total': 100}
 
         filtered_sources = _apply_balanced_filtering(all_sources, topics, max_results, research_ratio)
-        
+
         complete_progress = current_progress + filtering_weight
         yield {'type': 'progress', 'message': f'Smart filtering complete! Found {len(filtered_sources)} balanced results.', 'processed': int((complete_progress / total_weight) * 100), 'total': 100}
 
@@ -323,7 +323,7 @@ def process_content_pipeline(
         source_tag = "General"
         if hasattr(source, 'tags') and source.tags:
             source_tag = source.tags[0].capitalize() if source.tags[0] else "General"
-        
+
         final_items.append({
             'title': source.title,
             'link': str(source.link),
@@ -333,7 +333,7 @@ def process_content_pipeline(
         })
 
     yield {'type': 'complete', 'message': f'Processing complete! Found {len(final_items)} relevant items.'}
-    
+
     yield {
         'type': 'result',
         'data': {

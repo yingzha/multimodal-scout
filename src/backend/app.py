@@ -71,14 +71,14 @@ async def fetch_top_items(request: FetchRequest):
     """
     try:
         logger.info(f"Fetching items for {request.selectedDays} days with topics: {request.topics}")
-        
+
         pipeline_generator = process_content_pipeline(
             topics=request.topics,
             max_results=request.maxResults,
             research_ratio=request.researchRatio,
             selected_days=request.selectedDays
         )
-        
+
         final_result = None
         # The pipeline is a generator, so we iterate through it to get the final result.
         # In the non-streaming case, we ignore progress events and just wait for the 'result' event.
@@ -86,7 +86,7 @@ async def fetch_top_items(request: FetchRequest):
             if event['type'] == 'result':
                 final_result = event['data']
                 break
-        
+
         if final_result:
             logger.info(f"Successfully prepared {len(final_result['items'])} items for response")
             return FetchResponse(
@@ -111,7 +111,7 @@ async def fetch_top_items_stream(request: FetchRequest):
     async def generate_stream():
         try:
             logger.info(f"Starting streaming fetch for {request.selectedDays} days with topics: {request.topics}")
-            
+
             pipeline_generator = process_content_pipeline(
                 topics=request.topics,
                 max_results=request.maxResults,
@@ -125,12 +125,12 @@ async def fetch_top_items_stream(request: FetchRequest):
                 await asyncio.sleep(0.01)
 
             yield "data: [DONE]\n\n"
-            
+
         except Exception as e:
             logger.error(f"Failed to fetch items in stream: {e}", exc_info=True)
             error_event = {'type': 'error', 'message': f'An unexpected error occurred: {str(e)}'}
             yield f"data: {json.dumps(error_event)}\n\n"
-    
+
     return StreamingResponse(
         generate_stream(),
         media_type="text/event-stream",
@@ -203,7 +203,7 @@ async def get_bookmarks():
             summary_edited = getattr(bookmark, 'summary_edited', None)
             display_summary = summary_edited or bookmark.summary or "No summary available"
             is_edited = bool(summary_edited)
-            
+
             bookmark_items.append(ItemResponse(
                 title=bookmark.title,
                 link=bookmark.link,
@@ -244,32 +244,32 @@ async def upload_link(request: UploadLinkRequest):
     try:
         url = str(request.url)
         logger.info(f"Processing uploaded link: {url}")
-        
+
         # Check if already bookmarked
         if db_manager.is_bookmarked(url):
             return UploadLinkResponse(
                 success=False,
                 message="This link is already bookmarked"
             )
-        
+
         # Extract title
         title = extract_title_from_url(request.url)
         if not title:
             title = f"Article from {request.url.host}"
-        
+
         # Extract content for categorization
         article_text = _fetch_article_text(request.url)
         if not article_text:
             article_text = ""
-        
+
         # Generate summary
         summary = generate_summary_from_link(request.url)
         if not summary:
             summary = "No summary available"
-        
+
         # Categorize content
         source_tag = categorize_content(title, article_text, url)
-        
+
         # Add to bookmarks
         bookmark_id = db_manager.add_bookmark(
             title=title,
@@ -277,12 +277,12 @@ async def upload_link(request: UploadLinkRequest):
             source_tag=source_tag,
             summary=summary
         )
-        
+
         # Also cache the summary for future reference
         db_manager.add_summary(url, summary)
-        
+
         logger.info(f"Successfully processed and bookmarked: {title} (Category: {source_tag})")
-        
+
         return UploadLinkResponse(
             success=True,
             message=f"Link processed and added to bookmarks as '{source_tag}' content",
@@ -291,7 +291,7 @@ async def upload_link(request: UploadLinkRequest):
             summary=summary,
             source_tag=source_tag
         )
-        
+
     except Exception as e:
         logger.error(f"Failed to process uploaded link: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to process link: {str(e)}")
@@ -305,60 +305,60 @@ async def export_bookmarks():
         from openpyxl.styles import Font, PatternFill
         from io import BytesIO
         from datetime import datetime
-        
+
         logger.info("Starting bookmark export to Excel")
-        
+
         # Get all bookmarks
         bookmarks = db_manager.get_bookmarks()
-        
+
         # Create workbook and worksheet
         wb = Workbook()
         ws = wb.active
         ws.title = "Bookmarks"
-        
+
         # Define headers
         headers = ["Title", "Summary", "Source URL", "Source Date"]
-        
+
         # Add headers with styling
         header_font = Font(bold=True, color="FFFFFF")
         header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-        
+
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=1, column=col, value=header)
             cell.font = header_font
             cell.fill = header_fill
-        
+
         # Add bookmark data
         for row, bookmark in enumerate(bookmarks, 2):
             # Handle both edited and original summaries
             summary_edited = getattr(bookmark, 'summary_edited', None)
             display_summary = summary_edited or bookmark.summary or "No summary available"
-            
+
             # Format date
             source_date = bookmark.bookmarked_at.strftime("%Y-%m-%d %H:%M:%S") if bookmark.bookmarked_at else "Unknown"
-            
+
             ws.cell(row=row, column=1, value=bookmark.title)
             ws.cell(row=row, column=2, value=display_summary)
             ws.cell(row=row, column=3, value=bookmark.link)
             ws.cell(row=row, column=4, value=source_date)
-        
+
         # Adjust column widths
         ws.column_dimensions['A'].width = 50  # Title
         ws.column_dimensions['B'].width = 80  # Summary
         ws.column_dimensions['C'].width = 60  # URL
         ws.column_dimensions['D'].width = 20  # Date
-        
+
         # Save to BytesIO
         excel_buffer = BytesIO()
         wb.save(excel_buffer)
         excel_buffer.seek(0)
-        
+
         # Generate filename with current timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"multimodal_scout_bookmarks_{timestamp}.xlsx"
-        
+
         logger.info(f"Successfully exported {len(bookmarks)} bookmarks to Excel")
-        
+
         # Return Excel file as response
         return Response(
             content=excel_buffer.getvalue(),
@@ -368,7 +368,7 @@ async def export_bookmarks():
                 "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             }
         )
-        
+
     except Exception as e:
         logger.error(f"Failed to export bookmarks: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to export bookmarks: {str(e)}")

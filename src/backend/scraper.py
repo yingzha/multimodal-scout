@@ -7,9 +7,41 @@ from bs4 import BeautifulSoup
 from pydantic import ValidationError
 
 from .logger import logger
-from .constants import USER_AGENT
+from .constants import USER_AGENT, RSS_FEED_LIMIT
 from .schema import SourceSchema
 from datetime import datetime
+from dateutil import parser as date_parser
+import re
+
+
+def parse_rss_date(date_string: str) -> str:
+    """
+    Parse RSS date string and return ISO format with timezone.
+    Handles multiple common RSS date formats.
+    """
+    try:
+        # Try common RSS date formats first
+        formats = [
+            '%a, %d %b %Y %H:%M:%S %z',  # RFC 2822 with timezone
+            '%a, %d %b %Y %H:%M:%S %Z',  # RFC 2822 with timezone name (GMT, UTC, etc.)
+            '%Y-%m-%dT%H:%M:%S%z',       # ISO format
+            '%Y-%m-%d %H:%M:%S',         # Simple format
+        ]
+
+        for fmt in formats:
+            try:
+                parsed_date = datetime.strptime(date_string, fmt)
+                return parsed_date.strftime('%Y-%m-%dT%H:%M:%S%z')
+            except ValueError:
+                continue
+
+        # If none of the common formats work, use dateutil parser as fallback
+        parsed_date = date_parser.parse(date_string)
+        return parsed_date.strftime('%Y-%m-%dT%H:%M:%S%z')
+
+    except Exception as e:
+        logger.warning(f"Could not parse date '{date_string}': {e}. Using current time.")
+        return datetime.now().strftime('%Y-%m-%dT%H:%M:%S%z')
 
 
 def scrape_huggingface_trending_papers() -> List[SourceSchema]:
@@ -98,66 +130,69 @@ def scrape_huggingface_trending_papers() -> List[SourceSchema]:
     return validated_papers
 
 
-def scrape_hacker_news() -> List[SourceSchema]:
+def scrape_rss_sources() -> List[SourceSchema]:
     """
-    Scrapes the top stories from the Hacker News RSS feed, validates them
-    against the SourceSchema, and returns a list of valid SourceSchema objects.
+    Scrapes stories from multiple RSS sources including Hacker News and Substack,
+    validates them against the SourceSchema, and returns a list of valid SourceSchema objects.
 
     Returns:
         List[SourceSchema]: A list of Pydantic objects, each representing a
-                            valid and parsed story.
+                            valid and parsed story from various RSS sources.
     """
-    url = "https://news.ycombinator.com/rss"
-    logger.info(f"Attempting to fetch data from: {url}")
-
+    urls = ["https://news.ycombinator.com/rss", "https://api.substack.com/feed/podcast/10845.rss"]
     validated_stories = []
-    try:
-        # feedparser handles the request and parsing
-        feed = feedparser.parse(url)
 
-        # Check for parsing errors
-        if feed.bozo:
-            logger.warning(f"Malformed feed from {url}. Reason: {feed.bozo_exception}")
+    for url in urls:
+        logger.info(f"Attempting to fetch data from: {url}")
 
-        logger.info(f"Successfully fetched and parsed feed. Found {len(feed.entries)} entries.")
+        try:
+            # feedparser handles the request and parsing
+            feed = feedparser.parse(url)
 
-        for entry in feed.entries:
-            try:
-                # The user wants the primary link to be the Hacker News discussion link.
-                # If the comments link is not available, we skip the entry as it's essential
-                # for the mandatory 'link' field in the schema.
-                comments_link = getattr(entry, 'comments', None)
-                if not comments_link:
-                    logger.info(f"Skipping story '{entry.get('title', 'N/A')}' because it has no comments link.")
-                    continue
+            # Check for parsing errors
+            if feed.bozo:
+                logger.warning(f"Malformed feed from {url}. Reason: {feed.bozo_exception}")
 
-                # Heuristic to determine if the story is a research paper
-                title_lower = entry.title.lower()
-                link_lower = entry.link.lower()
-                is_research = (
-                    'arxiv.org' in link_lower
-                    or '[pdf]' in title_lower
-                    or 'paper' in title_lower
-                )
+            logger.info(f"Successfully fetched and parsed feed. Found {len(feed.entries)} entries.")
 
-                story_data = {
-                    'title': entry.title,
-                    'authors': [entry.author] if hasattr(entry, 'author') and entry.author else ['Unknown Author'],
-                    'link': comments_link,
-                    'source_link': entry.link,
-                    'summary': None,
-                    'keywords': None, 'tags': ['research'] if is_research else ['industry'],
-                    'date': datetime.strptime(entry.published, '%a, %d %b %Y %H:%M:%S %z').strftime('%Y-%m-%dT%H:%M:%S%z'),
-                }
+            # Limit to top RSS_FEED_LIMIT entries for each feed
+            entries_to_process = feed.entries[:RSS_FEED_LIMIT]
+            logger.info(f"Processing top {len(entries_to_process)} entries from {url}")
 
-                validated_story = SourceSchema(**story_data)
-                validated_stories.append(validated_story)
+            for entry in entries_to_process:
+                try:
+                    # For Hacker News, use comments link as primary link if available
+                    comments_link = getattr(entry, 'comments', None)
+                    primary_link = comments_link if comments_link else entry.link
 
-            except ValidationError as e:
-                logger.warning(f"Skipping story '{entry.get('title', 'N/A')}' due to validation error: {e}")
+                    # Heuristic to determine if the story is a research paper
+                    title_lower = entry.title.lower()
+                    link_lower = entry.link.lower()
+                    is_research = (
+                        'arxiv.org' in link_lower
+                        or '[pdf]' in title_lower
+                        or 'paper' in title_lower
+                    )
 
-    except Exception as err:
-        logger.error(f"An unexpected error occurred while scraping Hacker News: {err}", exc_info=True)
+                    story_data = {
+                        'title': entry.title,
+                        'authors': [entry.author] if hasattr(entry, 'author') and entry.author else ['Unknown Author'],
+                        'link': primary_link,
+                        'source_link': entry.link,
+                        'summary': None,
+                        'keywords': None,
+                        'tags': ['research'] if is_research else ['industry'],
+                        'date': parse_rss_date(entry.published),
+                    }
 
-    logger.info(f"Successfully scraped and validated {len(validated_stories)} stories from Hacker News.")
+                    validated_story = SourceSchema(**story_data)
+                    validated_stories.append(validated_story)
+
+                except ValidationError as e:
+                    logger.warning(f"Skipping story '{entry.get('title', 'N/A')}' due to validation error: {e}")
+
+        except Exception as err:
+            logger.error(f"An unexpected error occurred while scraping {url}: {err}", exc_info=True)
+
+    logger.info(f"Successfully scraped and validated {len(validated_stories)} stories from {len(urls)} RSS feeds.")
     return validated_stories
