@@ -20,24 +20,28 @@ def _retry_with_backoff(func, max_retries=3, base_delay=1.0):
             if attempt == max_retries - 1:
                 raise e
 
-            delay = base_delay * (2 ** attempt)
-            logger.warning(f"Attempt {attempt + 1} failed: {e}. Retrying in {delay:.1f}s...")
+            delay = base_delay * (2**attempt)
+            logger.warning(
+                f"Attempt {attempt + 1} failed: {e}. Retrying in {delay:.1f}s..."
+            )
             time.sleep(delay)
 
 
 def _fetch_article_text(link: HttpUrl) -> Optional[str]:
     """Fetches and extracts the main text content from a URL."""
     try:
-        response = requests.get(str(link), headers={'User-Agent': USER_AGENT}, timeout=20)
+        response = requests.get(
+            str(link), headers={"User-Agent": USER_AGENT}, timeout=20
+        )
         response.raise_for_status()
-        soup = BeautifulSoup(response.text, 'html.parser')
+        soup = BeautifulSoup(response.text, "html.parser")
 
         # Heuristic to find main content: look for <article>, then <body>, and get <p> tags.
-        main_content = soup.find('article') or soup.find('body')
+        main_content = soup.find("article") or soup.find("body")
         if not main_content:
             return None
 
-        paragraphs = main_content.find_all('p')
+        paragraphs = main_content.find_all("p")
         return " ".join([p.get_text() for p in paragraphs])
     except requests.RequestException as e:
         logger.error(f"Error fetching article content from {link}: {e}")
@@ -54,33 +58,105 @@ def _is_non_english_summary(text: str) -> bool:
 
     # Check for common non-English character patterns
     # Chinese/Japanese/Korean characters
-    if re.search(r'[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]', text):
+    if re.search(r"[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]", text):
         return True
 
     # Arabic characters
-    if re.search(r'[\u0600-\u06ff]', text):
+    if re.search(r"[\u0600-\u06ff]", text):
         return True
 
     # Cyrillic characters
-    if re.search(r'[\u0400-\u04ff]', text):
+    if re.search(r"[\u0400-\u04ff]", text):
         return True
 
     # Use word boundaries to avoid false positives in English text
     # Common French words (basic check) - using word boundaries
-    french_patterns = [r'\ble\b', r'\bla\b', r'\bles\b', r'\bdu\b', r'\bun\b', r'\bune\b', r'\bet\b', r'\best\b', r'\bdans\b', r'\bsur\b', r'\bavec\b', r'\bpour\b', r'\bpar\b', r'\bcomme\b', r'\bmais\b', r'\bqui\b', r'\bque\b', r'\bce\b', r'\bcette\b', r'\bces\b']
-    french_count = sum(1 for pattern in french_patterns if re.search(pattern, text.lower()))
+    french_patterns = [
+        r"\ble\b",
+        r"\bla\b",
+        r"\bles\b",
+        r"\bdu\b",
+        r"\bun\b",
+        r"\bune\b",
+        r"\bet\b",
+        r"\best\b",
+        r"\bdans\b",
+        r"\bsur\b",
+        r"\bavec\b",
+        r"\bpour\b",
+        r"\bpar\b",
+        r"\bcomme\b",
+        r"\bmais\b",
+        r"\bqui\b",
+        r"\bque\b",
+        r"\bce\b",
+        r"\bcette\b",
+        r"\bces\b",
+    ]
+    french_count = sum(
+        1 for pattern in french_patterns if re.search(pattern, text.lower())
+    )
     if french_count > 5:  # Increased threshold to reduce false positives
         return True
 
     # Common German words (basic check) - using word boundaries and excluding common English words
-    german_patterns = [r'\bder\b', r'\bdie\b', r'\bdas\b', r'\bden\b', r'\bdem\b', r'\beine\b', r'\beinen\b', r'\bund\b', r'\bist\b', r'\bmit\b', r'\bvon\b', r'\bzu\b', r'\bfür\b', r'\bauf\b', r'\bals\b', r'\bbei\b', r'\bnach\b', r'\büber\b', r'\bdurch\b']
-    german_count = sum(1 for pattern in german_patterns if re.search(pattern, text.lower()))
+    german_patterns = [
+        r"\bder\b",
+        r"\bdie\b",
+        r"\bdas\b",
+        r"\bden\b",
+        r"\bdem\b",
+        r"\beine\b",
+        r"\beinen\b",
+        r"\bund\b",
+        r"\bist\b",
+        r"\bmit\b",
+        r"\bvon\b",
+        r"\bzu\b",
+        r"\bfür\b",
+        r"\bauf\b",
+        r"\bals\b",
+        r"\bbei\b",
+        r"\bnach\b",
+        r"\büber\b",
+        r"\bdurch\b",
+    ]
+    german_count = sum(
+        1 for pattern in german_patterns if re.search(pattern, text.lower())
+    )
     if german_count > 5:  # Increased threshold to reduce false positives
         return True
 
     # Common Spanish words (basic check) - using word boundaries
-    spanish_patterns = [r'\bel\b', r'\bla\b', r'\blos\b', r'\blas\b', r'\bdel\b', r'\bun\b', r'\buna\b', r'\by\b', r'\bes\b', r'\ben\b', r'\bcon\b', r'\bpor\b', r'\bpara\b', r'\bcomo\b', r'\bmás\b', r'\bpero\b', r'\bque\b', r'\bse\b', r'\bsu\b', r'\bsus\b', r'\beste\b', r'\besta\b', r'\bestos\b', r'\bestas\b']
-    spanish_count = sum(1 for pattern in spanish_patterns if re.search(pattern, text.lower()))
+    spanish_patterns = [
+        r"\bel\b",
+        r"\bla\b",
+        r"\blos\b",
+        r"\blas\b",
+        r"\bdel\b",
+        r"\bun\b",
+        r"\buna\b",
+        r"\by\b",
+        r"\bes\b",
+        r"\ben\b",
+        r"\bcon\b",
+        r"\bpor\b",
+        r"\bpara\b",
+        r"\bcomo\b",
+        r"\bmás\b",
+        r"\bpero\b",
+        r"\bque\b",
+        r"\bse\b",
+        r"\bsu\b",
+        r"\bsus\b",
+        r"\beste\b",
+        r"\besta\b",
+        r"\bestos\b",
+        r"\bestas\b",
+    ]
+    spanish_count = sum(
+        1 for pattern in spanish_patterns if re.search(pattern, text.lower())
+    )
     if spanish_count > 5:  # Increased threshold to reduce false positives
         return True
 
@@ -94,15 +170,22 @@ def generate_summary_from_link(link: HttpUrl) -> Optional[str]:
 
     # Skip obvious test/invalid URLs to avoid unnecessary network requests
     link_str = str(link).lower()
-    if any(test_domain in link_str for test_domain in ['example.com', 'example.org', 'test.com', 'localhost']):
+    if any(
+        test_domain in link_str
+        for test_domain in ["example.com", "example.org", "test.com", "localhost"]
+    ):
         logger.warning(f"Skipping summary generation for test URL: {link}")
         return None
 
     logger.info(f"Generating summary for: {link}")
     article_text = _fetch_article_text(link)
 
-    if not article_text or len(article_text.strip()) < 100:  # Don't summarize very short texts
-        logger.info("Could not extract sufficient text to summarize. Return the original text instead")
+    if (
+        not article_text or len(article_text.strip()) < 100
+    ):  # Don't summarize very short texts
+        logger.info(
+            "Could not extract sufficient text to summarize. Return the original text instead"
+        )
         return article_text
 
     def _generate_summary():
@@ -114,12 +197,16 @@ Article text:
 ---
 {article_text[:4000]}"""
 
-        response = genai_client.models.generate_content(model=GEMINI_MODEL_NAME, contents=[prompt])
+        response = genai_client.models.generate_content(
+            model=GEMINI_MODEL_NAME, contents=[prompt]
+        )
         summary = response.text.strip()
 
         # Validate that the summary is in English by checking for common non-English patterns
         if _is_non_english_summary(summary):
-            logger.warning(f"Generated summary appears to be non-English, regenerating...")
+            logger.warning(
+                f"Generated summary appears to be non-English, regenerating..."
+            )
             # Try again with more explicit English instruction
             english_prompt = f"""IMPORTANT: You must respond in English only. Do not use any other language.
 
@@ -129,7 +216,9 @@ Summarize this article in English, even if the source is in another language:
 
 Provide a concise English summary focusing on the main points."""
 
-            response = genai_client.models.generate_content(model=GEMINI_MODEL_NAME, contents=[english_prompt])
+            response = genai_client.models.generate_content(
+                model=GEMINI_MODEL_NAME, contents=[english_prompt]
+            )
             summary = response.text.strip()
 
         return summary
@@ -144,16 +233,18 @@ Provide a concise English summary focusing on the main points."""
 def extract_title_from_url(url: HttpUrl) -> Optional[str]:
     """Extract title from a webpage."""
     try:
-        response = requests.get(str(url), headers={'User-Agent': USER_AGENT}, timeout=20)
+        response = requests.get(
+            str(url), headers={"User-Agent": USER_AGENT}, timeout=20
+        )
         response.raise_for_status()
-        soup = BeautifulSoup(response.text, 'html.parser')
+        soup = BeautifulSoup(response.text, "html.parser")
 
-        title_tag = soup.find('title')
+        title_tag = soup.find("title")
         if title_tag:
             return title_tag.get_text().strip()
 
         # Fallback to h1 tag
-        h1_tag = soup.find('h1')
+        h1_tag = soup.find("h1")
         if h1_tag:
             return h1_tag.get_text().strip()
 
@@ -171,15 +262,37 @@ def categorize_content(title: str, content: str, url: str) -> str:
     try:
         # Check for obvious research indicators in URL and title
         research_indicators = [
-            'arxiv.org', 'papers.nips.cc', 'aclanthology.org', 'openreview.net',
-            'proceedings.', 'conference', 'journal', 'acm.org', 'ieee.org',
-            'research.', 'paper', 'arxiv', 'doi.org', 'scholar.google'
+            "arxiv.org",
+            "papers.nips.cc",
+            "aclanthology.org",
+            "openreview.net",
+            "proceedings.",
+            "conference",
+            "journal",
+            "acm.org",
+            "ieee.org",
+            "research.",
+            "paper",
+            "arxiv",
+            "doi.org",
+            "scholar.google",
         ]
 
         industry_indicators = [
-            'blog', 'medium.com', 'dev.to', 'hackernews', 'techcrunch',
-            'venturebeat', 'wired.com', 'theverge.com', 'arstechnica',
-            'company.', 'startup', 'product', 'release', 'announcement'
+            "blog",
+            "medium.com",
+            "dev.to",
+            "hackernews",
+            "techcrunch",
+            "venturebeat",
+            "wired.com",
+            "theverge.com",
+            "arstechnica",
+            "company.",
+            "startup",
+            "product",
+            "release",
+            "announcement",
         ]
 
         url_lower = url.lower()
@@ -208,7 +321,9 @@ Content preview: {content[:1000]}
 
 Respond with only one word: Research, Industry, or General"""
 
-            response = genai_client.models.generate_content(model=GEMINI_MODEL_NAME, contents=[prompt])
+            response = genai_client.models.generate_content(
+                model=GEMINI_MODEL_NAME, contents=[prompt]
+            )
             return response.text.strip()
 
         try:
@@ -218,10 +333,14 @@ Respond with only one word: Research, Industry, or General"""
             if category in ["Research", "Industry", "General"]:
                 return category
             else:
-                logger.warning(f"AI returned invalid category '{category}', defaulting to General")
+                logger.warning(
+                    f"AI returned invalid category '{category}', defaulting to General"
+                )
                 return "General"
         except Exception as inner_e:
-            logger.warning(f"Failed to categorize with AI after retries: {inner_e}, defaulting to General")
+            logger.warning(
+                f"Failed to categorize with AI after retries: {inner_e}, defaulting to General"
+            )
             return "General"
 
     except Exception as e:

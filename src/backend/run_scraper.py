@@ -11,11 +11,12 @@ import time
 from datetime import datetime
 
 # Add the src directory to Python path
-sys.path.insert(0, '/app/src')
+sys.path.insert(0, "/app/src")
 
 from backend.logger import logger
 from backend.database import db_manager
 from backend.merger import enrich_sources_with_summaries
+
 
 def main():
     """Run a scraper, generate summaries, and save to database."""
@@ -28,14 +29,16 @@ def main():
     logger.info("=" * 80)
 
     if len(sys.argv) != 2:
-        logger.error("❌ USAGE ERROR: python -m src.backend.run_scraper <scraper_function_name>")
+        logger.error(
+            "❌ USAGE ERROR: python -m src.backend.run_scraper <scraper_function_name>"
+        )
         sys.exit(1)
 
     scraper_function_name = sys.argv[1]
     logger.info(f"📋 Target scraper: {scraper_function_name}")
 
     try:
-        module_name, function_name = scraper_function_name.rsplit('.', 1)
+        module_name, function_name = scraper_function_name.rsplit(".", 1)
         logger.info(f"📦 Loading module: {module_name}")
         logger.info(f"🔧 Loading function: {function_name}")
 
@@ -44,7 +47,9 @@ def main():
         logger.info("✅ Scraper function loaded successfully")
 
     except (ImportError, AttributeError, ValueError) as e:
-        logger.error(f"❌ MODULE LOAD ERROR: Could not find scraper function: {scraper_function_name}")
+        logger.error(
+            f"❌ MODULE LOAD ERROR: Could not find scraper function: {scraper_function_name}"
+        )
         logger.error(f"❌ Error details: {e}")
         sys.exit(1)
 
@@ -75,12 +80,16 @@ def main():
                 db_manager.save_sources(enriched_results)
                 db_time = time.time() - db_start
                 logger.info(f"💾 Database save completed in {db_time:.2f}s")
-                logger.info(f"✅ Successfully saved {len(enriched_results)} items to database")
+                logger.info(
+                    f"✅ Successfully saved {len(enriched_results)} items to database"
+                )
             except Exception as db_error:
                 db_time = time.time() - db_start
                 logger.error(f"💾 Database save failed in {db_time:.2f}s")
                 logger.error(f"❌ Database error: {db_error}")
-                logger.info("⚠️  Continuing with cron job (summaries were cached successfully)")
+                logger.info(
+                    "⚠️  Continuing with cron job (summaries were cached successfully)"
+                )
         else:
             logger.info("📭 No items to process")
 
@@ -104,6 +113,7 @@ def main():
         logger.error("=" * 80)
         logger.error("Full error traceback:", exc_info=True)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

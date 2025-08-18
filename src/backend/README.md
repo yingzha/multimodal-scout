@@ -4,7 +4,7 @@ This backend service, built with Python and FastAPI, is the core of the Multimod
 
 ## Backend-Specific Features
 
-- **Multi-source scraping**: Fetches content from Hacker News and Hugging Face.
+- **Multi-source scraping**: Fetches content from multiple RSS sources (Hacker News, Substack) and Hugging Face.
 - **AI-powered summarization**: Generates summaries using the Google Gemini API and caches them.
 - **Smart Balanced Filtering**: Implements an advanced pipeline with separate semantic thresholds for research vs. industry content.
 - **Real-time progress**: Uses Server-Sent Events (SSE) to stream progress updates to the frontend.
@@ -67,7 +67,7 @@ docker-compose restart backend
 
 - **`app.py`**: The main FastAPI application, serving API endpoints.
 - **`pipeline.py`**: Contains the primary content processing logic, including smart filtering.
-- **`scraper.py`**: Handles web scraping from Hacker News and Hugging Face.
+- **`scraper.py`**: Handles web scraping from multiple RSS sources and Hugging Face.
 - **`search.py`**: Manages keyword and semantic searches, including embedding generation.
 - **`database.py`**: Defines SQLAlchemy models for PostgreSQL tables (bookmarks, summaries, etc.).
 - **`cache_manager.py`**: Implements the command-line interface for cache management.
@@ -86,4 +86,4 @@ docker-compose restart backend
 
 ### Dependencies
 
-Python dependencies are managed with `uv` and defined in `pyproject.toml`. They are automatically installed within the Docker container, so no local installation is required.
+Python dependencies are managed with `uv` and defined in `pyproject.toml`. Key dependencies include FastAPI, PostgreSQL drivers, Google Gemini client, and code quality tools (black, pylint). They are automatically installed within the Docker container, so no local installation is required.

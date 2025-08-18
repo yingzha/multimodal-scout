@@ -6,7 +6,7 @@ A smart content discovery platform that automatically finds, curates, and helps 
 
 ## Key Features
 
-- 🔍 **Automated Content Discovery**: Scrapes and processes content from Hacker News and Hugging Face.
+- 🔍 **Automated Content Discovery**: Scrapes and processes content from multiple RSS sources (Hacker News, Substack) and Hugging Face.
 - 🧠 **AI-Powered Summaries**: Generates intelligent summaries for articles using Google Gemini.
 - 🎯 **Smart Filtering**: Balances content between research and industry, with configurable result limits.
 - 📚 **Persistent Bookmarks**: Save articles, edit summaries, and export your collection to Excel.

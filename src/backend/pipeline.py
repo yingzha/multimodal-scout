@@ -19,10 +19,19 @@ from .logger import logger
 from .schema import SourceSchema
 from .database import db_manager
 from .search import keyword_search, semantic_search_with_scores
-from .constants import SEMANTIC_SIMILARITY_THRESHOLD, RESEARCH_THRESHOLD, INDUSTRY_THRESHOLD
+from .constants import (
+    SEMANTIC_SIMILARITY_THRESHOLD,
+    RESEARCH_THRESHOLD,
+    INDUSTRY_THRESHOLD,
+)
 
 
-def _apply_balanced_filtering(sources: List[SourceSchema], keywords: List[str], max_results: int = 10, research_ratio: float = 0.5) -> List[SourceSchema]:
+def _apply_balanced_filtering(
+    sources: List[SourceSchema],
+    keywords: List[str],
+    max_results: int = 10,
+    research_ratio: float = 0.5,
+) -> List[SourceSchema]:
     """
     Apply balanced filtering with relevance scoring and proper sorting.
     """
@@ -35,19 +44,24 @@ def _apply_balanced_filtering(sources: List[SourceSchema], keywords: List[str], 
     matched_links = {source.link for source in keyword_matches}
     # Pass 2: Semantic Search - for remaining sources with summaries, using content-specific thresholds
     semantic_candidates = [
-        source for source in sources
+        source
+        for source in sources
         if source.link not in matched_links and source.summary
     ]
 
     if semantic_candidates:
-        logger.info(f"Running semantic search on {len(semantic_candidates)} remaining sources...")
+        logger.info(
+            f"Running semantic search on {len(semantic_candidates)} remaining sources..."
+        )
         # Separate candidates by content type for different thresholds
         research_candidates = []
         industry_candidates = []
         for source in semantic_candidates:
             source_tag = "General"
-            if hasattr(source, 'tags') and source.tags:
-                source_tag = source.tags[0].capitalize() if source.tags[0] else "General"
+            if hasattr(source, "tags") and source.tags:
+                source_tag = (
+                    source.tags[0].capitalize() if source.tags[0] else "General"
+                )
             if source_tag.lower() == "research":
                 research_candidates.append(source)
             else:
@@ -55,7 +69,9 @@ def _apply_balanced_filtering(sources: List[SourceSchema], keywords: List[str], 
 
         # Run semantic search with research threshold (more selective)
         if research_candidates:
-            logger.info(f"Running semantic search on {len(research_candidates)} research sources with threshold {RESEARCH_THRESHOLD}")
+            logger.info(
+                f"Running semantic search on {len(research_candidates)} research sources with threshold {RESEARCH_THRESHOLD}"
+            )
             research_results = semantic_search_with_scores(
                 research_candidates, keywords, threshold=RESEARCH_THRESHOLD
             )
@@ -63,7 +79,9 @@ def _apply_balanced_filtering(sources: List[SourceSchema], keywords: List[str], 
 
         # Run semantic search with industry threshold (more inclusive)
         if industry_candidates:
-            logger.info(f"Running semantic search on {len(industry_candidates)} industry sources with threshold {INDUSTRY_THRESHOLD}")
+            logger.info(
+                f"Running semantic search on {len(industry_candidates)} industry sources with threshold {INDUSTRY_THRESHOLD}"
+            )
             industry_results = semantic_search_with_scores(
                 industry_candidates, keywords, threshold=INDUSTRY_THRESHOLD
             )
@@ -71,16 +89,16 @@ def _apply_balanced_filtering(sources: List[SourceSchema], keywords: List[str], 
 
     # Sort by relevance score (descending), then by date (most recent first)
     sorted_sources = sorted(
-        sources_with_scores,
-        key=lambda x: (x[1], x[0].date),
-        reverse=True
+        sources_with_scores, key=lambda x: (x[1], x[0].date), reverse=True
     )
 
     # Apply research/industry balancing
     research_count = int(max_results * research_ratio)
     industry_count = max_results - research_count
 
-    logger.info(f"Balancing results: {research_count} research, {industry_count} industry")
+    logger.info(
+        f"Balancing results: {research_count} research, {industry_count} industry"
+    )
 
     # Separate by source type
     research_sources = []
@@ -88,7 +106,7 @@ def _apply_balanced_filtering(sources: List[SourceSchema], keywords: List[str], 
 
     for source, score in sorted_sources:
         source_tag = "General"
-        if hasattr(source, 'tags') and source.tags:
+        if hasattr(source, "tags") and source.tags:
             source_tag = source.tags[0].capitalize() if source.tags[0] else "General"
 
         if source_tag.lower() == "research":
@@ -106,11 +124,15 @@ def _apply_balanced_filtering(sources: List[SourceSchema], keywords: List[str], 
         remaining_slots = max_results - total_selected
         if len(selected_research) < research_count:
             # Need more research, take from industry
-            additional_industry = industry_sources[len(selected_industry):len(selected_industry) + remaining_slots]
+            additional_industry = industry_sources[
+                len(selected_industry) : len(selected_industry) + remaining_slots
+            ]
             selected_industry.extend(additional_industry)
         elif len(selected_industry) < industry_count:
             # Need more industry, take from research
-            additional_research = research_sources[len(selected_research):len(selected_research) + remaining_slots]
+            additional_research = research_sources[
+                len(selected_research) : len(selected_research) + remaining_slots
+            ]
             selected_research.extend(additional_research)
 
     # Combine and re-sort by score
@@ -120,15 +142,14 @@ def _apply_balanced_filtering(sources: List[SourceSchema], keywords: List[str], 
     # Extract just the sources
     limited_results = [source for source, score in balanced_sources]
 
-    logger.info(f"Balanced filtering complete: {len([s for s in limited_results if hasattr(s, 'tags') and s.tags and s.tags[0].lower() == 'research'])} research, {len([s for s in limited_results if not hasattr(s, 'tags') or not s.tags or s.tags[0].lower() != 'research'])} industry/other")
+    logger.info(
+        f"Balanced filtering complete: {len([s for s in limited_results if hasattr(s, 'tags') and s.tags and s.tags[0].lower() == 'research'])} research, {len([s for s in limited_results if not hasattr(s, 'tags') or not s.tags or s.tags[0].lower() != 'research'])} industry/other"
+    )
     return limited_results
 
 
 def process_content_pipeline(
-    topics: List[str],
-    max_results: int,
-    research_ratio: float,
-    selected_days: int = 7
+    topics: List[str], max_results: int, research_ratio: float, selected_days: int = 7
 ) -> Generator[Dict[str, Any], None, None]:
     """
     The main processing pipeline.
@@ -138,7 +159,10 @@ def process_content_pipeline(
     Yields progress updates and finally the results.
     """
     # Step 1: Always scrape fresh content to get latest trending items
-    yield {'type': 'status', 'message': 'Scraping fresh content from Hugging Face and Hacker News...'}
+    yield {
+        "type": "status",
+        "message": "Scraping fresh content from Hugging Face and Hacker News...",
+    }
 
     fresh_sources = []
     source_names = []
@@ -149,7 +173,12 @@ def process_content_pipeline(
     filtering_weight = 20
 
     current_progress = scraping_weight
-    yield {'type': 'start', 'message': 'Starting unified processing pipeline...', 'total': 100, 'processed': int((current_progress/total_weight)*100)}
+    yield {
+        "type": "start",
+        "message": "Starting unified processing pipeline...",
+        "total": 100,
+        "processed": int((current_progress / total_weight) * 100),
+    }
 
     try:
         hf_papers = scrape_huggingface_trending_papers()
@@ -159,7 +188,10 @@ def process_content_pipeline(
     #        yield {'type': 'status', 'message': f'Found {len(hf_papers)} fresh Hugging Face papers'}
     except Exception as e:
         logger.error(f"Failed to fetch Hugging Face papers: {e}")
-        yield {'type': 'error', 'message': f'Failed to fetch Hugging Face papers: {str(e)}'}
+        yield {
+            "type": "error",
+            "message": f"Failed to fetch Hugging Face papers: {str(e)}",
+        }
 
     try:
         rss_items = scrape_rss_sources()
@@ -169,51 +201,91 @@ def process_content_pipeline(
     #        yield {'type': 'status', 'message': f'Found {len(rss_items)} fresh RSS items'}
     except Exception as e:
         logger.error(f"Failed to fetch RSS sources: {e}")
-        yield {'type': 'error', 'message': f'Failed to fetch RSS sources: {str(e)}'}
+        yield {"type": "error", "message": f"Failed to fetch RSS sources: {str(e)}"}
 
     # Step 2: Save fresh content to database first (without summaries)
     # This tells us which sources are truly new and need summary generation
     try:
         save_result = db_manager.save_sources(fresh_sources)
-        new_sources = save_result['new_sources']
-        updated_sources = save_result['updated_sources']
-        skipped_sources = save_result['skipped_sources']
+        new_sources = save_result["new_sources"]
+        updated_sources = save_result["updated_sources"]
+        skipped_sources = save_result["skipped_sources"]
 
-        logger.info(f"Saved {save_result['total_processed']} sources: {len(new_sources)} new, {len(updated_sources)} updated, {skipped_sources} skipped")
-        yield {'type': 'status', 'message': f'Saved {save_result["total_processed"]} sources ({len(new_sources)} new)'}
+        logger.info(
+            f"Saved {save_result['total_processed']} sources: {len(new_sources)} new, {len(updated_sources)} updated, {skipped_sources} skipped"
+        )
+        yield {
+            "type": "status",
+            "message": f'Saved {save_result["total_processed"]} sources ({len(new_sources)} new)',
+        }
 
         # Step 2b: Generate summaries for sources that don't have them (both new and updated)
         all_processed_sources = new_sources + updated_sources
         if all_processed_sources:
             # Check which sources actually need summaries
-            sources_needing_summaries = [source for source in fresh_sources if source.link in all_processed_sources]
+            sources_needing_summaries = [
+                source
+                for source in fresh_sources
+                if source.link in all_processed_sources
+            ]
 
             if sources_needing_summaries:
                 from .merger import enrich_sources_with_summaries_and_embeddings
-                logger.info(f"Generating summaries and embeddings for {len(sources_needing_summaries)} new sources...")
+
+                logger.info(
+                    f"Generating summaries and embeddings for {len(sources_needing_summaries)} new sources..."
+                )
 
                 # Show initial progress
                 initial_progress = current_progress + (summary_weight * 0.1)
-                yield {'type': 'progress', 'message': f'Starting AI processing for {len(sources_needing_summaries)} sources...', 'processed': int((initial_progress/total_weight)*100), 'total': 100}
+                yield {
+                    "type": "progress",
+                    "message": f"Starting AI processing for {len(sources_needing_summaries)} sources...",
+                    "processed": int((initial_progress / total_weight) * 100),
+                    "total": 100,
+                }
 
                 # Show mid-progress for summaries
                 summary_progress = current_progress + (summary_weight * 0.5)
-                yield {'type': 'progress', 'message': 'Generating AI summaries...', 'processed': int((summary_progress/total_weight)*100), 'total': 100}
+                yield {
+                    "type": "progress",
+                    "message": "Generating AI summaries...",
+                    "processed": int((summary_progress / total_weight) * 100),
+                    "total": 100,
+                }
 
                 # Enrich new sources with summaries and embeddings
-                enriched_new_sources = enrich_sources_with_summaries_and_embeddings(sources_needing_summaries)
+                enriched_new_sources = enrich_sources_with_summaries_and_embeddings(
+                    sources_needing_summaries
+                )
 
                 # Show final progress for this step
                 final_progress = current_progress + (summary_weight * 0.9)
-                yield {'type': 'progress', 'message': 'AI processing complete', 'processed': int((final_progress/total_weight)*100), 'total': 100}
+                yield {
+                    "type": "progress",
+                    "message": "AI processing complete",
+                    "processed": int((final_progress / total_weight) * 100),
+                    "total": 100,
+                }
 
                 # Update the database with the new summaries using batch method
-                url_summary_pairs = {str(source.link): source.summary for source in enriched_new_sources if source.summary}
+                url_summary_pairs = {
+                    str(source.link): source.summary
+                    for source in enriched_new_sources
+                    if source.summary
+                }
                 if url_summary_pairs:
                     update_results = db_manager.add_summaries_batch(url_summary_pairs)
-                    successful_updates = sum(1 for success in update_results.values() if success)
-                    logger.info(f"Updated {successful_updates} sources with summaries via batch operation")
-                    yield {'type': 'status', 'message': f'Updated {successful_updates} sources with AI summaries'}
+                    successful_updates = sum(
+                        1 for success in update_results.values() if success
+                    )
+                    logger.info(
+                        f"Updated {successful_updates} sources with summaries via batch operation"
+                    )
+                    yield {
+                        "type": "status",
+                        "message": f"Updated {successful_updates} sources with AI summaries",
+                    }
             else:
                 logger.info("All new sources already have summaries")
         else:
@@ -221,24 +293,44 @@ def process_content_pipeline(
 
     except Exception as e:
         logger.error(f"Failed to save sources to database: {e}")
-        yield {'type': 'warning', 'message': f'Database save failed, proceeding with fresh content: {str(e)}'}
+        yield {
+            "type": "warning",
+            "message": f"Database save failed, proceeding with fresh content: {str(e)}",
+        }
 
     current_progress += summary_weight
-    yield {'type': 'progress', 'message': 'Summary generation complete', 'processed': int((current_progress/total_weight)*100), 'total': 100}
+    yield {
+        "type": "progress",
+        "message": "Summary generation complete",
+        "processed": int((current_progress / total_weight) * 100),
+        "total": 100,
+    }
 
     # Step 3: Query database for sources within the specified date range
     cutoff_date = datetime.now() - timedelta(days=selected_days)
-    yield {'type': 'status', 'message': f'Fetching sources from database added in last {selected_days} days...'}
+    yield {
+        "type": "status",
+        "message": f"Fetching sources from database added in last {selected_days} days...",
+    }
 
     with db_manager.get_session() as session:
         from .database import Source
-        db_sources = session.query(Source).filter(
-            Source.created_at >= cutoff_date
-        ).order_by(Source.created_at.desc()).all()
+
+        db_sources = (
+            session.query(Source)
+            .filter(Source.created_at >= cutoff_date)
+            .order_by(Source.created_at.desc())
+            .all()
+        )
 
     if db_sources:
-        logger.info(f"Found {len(db_sources)} sources in database from last {selected_days} days")
-        yield {'type': 'status', 'message': f'Found {len(db_sources)} sources from last {selected_days} days'}
+        logger.info(
+            f"Found {len(db_sources)} sources in database from last {selected_days} days"
+        )
+        yield {
+            "type": "status",
+            "message": f"Found {len(db_sources)} sources from last {selected_days} days",
+        }
 
         # Convert database records back to SourceSchema objects
         all_sources = []
@@ -250,9 +342,9 @@ def process_content_pipeline(
                 source_tag = "General"
                 if db_source.tags and len(db_source.tags) > 0:
                     source_tag = db_source.tags[0].capitalize()
-                    if source_tag.lower() == 'research':
+                    if source_tag.lower() == "research":
                         db_source_names.add("Research Papers")
-                    elif source_tag.lower() == 'industry':
+                    elif source_tag.lower() == "industry":
                         db_source_names.add("Industry News")
 
                 # Create SourceSchema object from database record
@@ -264,7 +356,7 @@ def process_content_pipeline(
                     summary=db_source.summary,
                     keywords=db_source.keywords,
                     tags=db_source.tags or [],
-                    date=db_source.date
+                    date=db_source.date,
                 )
                 all_sources.append(source_schema)
 
@@ -278,18 +370,21 @@ def process_content_pipeline(
 
     else:
         # Fallback to fresh content if no database records in date range
-        logger.warning(f"No database records found for last {selected_days} days, using fresh scraped content")
-        yield {'type': 'warning', 'message': f'No database records for {selected_days} days, using fresh content'}
+        logger.warning(
+            f"No database records found for last {selected_days} days, using fresh scraped content"
+        )
+        yield {
+            "type": "warning",
+            "message": f"No database records for {selected_days} days, using fresh content",
+        }
         all_sources = fresh_sources
-
-
 
     if all_sources:
         # Get all edited summaries once at the beginning for efficiency
         bookmarks = db_manager.get_bookmarks()
         edited_summaries_map = {}
         for bookmark in bookmarks:
-            edited_summary = getattr(bookmark, 'summary_edited', None)
+            edited_summary = getattr(bookmark, "summary_edited", None)
             if edited_summary:
                 edited_summaries_map[bookmark.link] = edited_summary
         logger.info(f"Found {len(edited_summaries_map)} edited summaries in bookmarks")
@@ -303,42 +398,71 @@ def process_content_pipeline(
 
     filtered_sources = []
     if topics and all_sources:
-        yield {'type': 'status', 'message': f'Applying smart balanced filtering for {len(all_sources)} items...'}
+        yield {
+            "type": "status",
+            "message": f"Applying smart balanced filtering for {len(all_sources)} items...",
+        }
 
         progress_50 = current_progress + (filtering_weight * 0.5)
-        yield {'type': 'progress', 'message': 'Applying semantic search & balancing...', 'processed': int((progress_50 / total_weight) * 100), 'total': 100}
+        yield {
+            "type": "progress",
+            "message": "Applying semantic search & balancing...",
+            "processed": int((progress_50 / total_weight) * 100),
+            "total": 100,
+        }
 
-        filtered_sources = _apply_balanced_filtering(all_sources, topics, max_results, research_ratio)
+        filtered_sources = _apply_balanced_filtering(
+            all_sources, topics, max_results, research_ratio
+        )
 
         complete_progress = current_progress + filtering_weight
-        yield {'type': 'progress', 'message': f'Smart filtering complete! Found {len(filtered_sources)} balanced results.', 'processed': int((complete_progress / total_weight) * 100), 'total': 100}
+        yield {
+            "type": "progress",
+            "message": f"Smart filtering complete! Found {len(filtered_sources)} balanced results.",
+            "processed": int((complete_progress / total_weight) * 100),
+            "total": 100,
+        }
 
     else:
         filtered_sources = all_sources[:max_results]
         complete_progress = current_progress + filtering_weight
-        yield {'type': 'progress', 'message': f'No topic filtering requested - using first {max_results} items', 'processed': int((complete_progress / total_weight) * 100), 'total': 100}
+        yield {
+            "type": "progress",
+            "message": f"No topic filtering requested - using first {max_results} items",
+            "processed": int((complete_progress / total_weight) * 100),
+            "total": 100,
+        }
 
     final_items = []
     for source in filtered_sources:
         source_tag = "General"
-        if hasattr(source, 'tags') and source.tags:
+        if hasattr(source, "tags") and source.tags:
             source_tag = source.tags[0].capitalize() if source.tags[0] else "General"
 
-        final_items.append({
-            'title': source.title,
-            'link': str(source.link),
-            'summary': source.summary or "No summary available",
-            'source': source_tag,
-            'created_at': source.date.isoformat() if hasattr(source, 'date') and source.date else datetime.now().isoformat()
-        })
-
-    yield {'type': 'complete', 'message': f'Processing complete! Found {len(final_items)} relevant items.'}
+        final_items.append(
+            {
+                "title": source.title,
+                "link": str(source.link),
+                "summary": source.summary or "No summary available",
+                "source": source_tag,
+                "created_at": (
+                    source.date.isoformat()
+                    if hasattr(source, "date") and source.date
+                    else datetime.now().isoformat()
+                ),
+            }
+        )
 
     yield {
-        'type': 'result',
-        'data': {
-            'items': final_items,
-            'total_count': len(final_items),
-            'sources': list(set(source_names))
-        }
+        "type": "complete",
+        "message": f"Processing complete! Found {len(final_items)} relevant items.",
+    }
+
+    yield {
+        "type": "result",
+        "data": {
+            "items": final_items,
+            "total_count": len(final_items),
+            "sources": list(set(source_names)),
+        },
     }

@@ -5,7 +5,7 @@ Multimodal Scout uses Docker-based cron jobs to automatically collect content fr
 ## Overview
 
 The cron service runs in a separate Docker container and automatically:
-- Fetches Hacker News articles every hour
+- Fetches RSS sources (Hacker News, Substack) every hour
 - Collects Hugging Face trending papers every 6 hours
 - Generates AI summaries for new content
 - Pre-generates embeddings for faster semantic search
@@ -15,7 +15,7 @@ The cron service runs in a separate Docker container and automatically:
 
 | Job | Frequency | Schedule Expression | Description |
 |-----|-----------|---------------------|-------------|
-| Hacker News | Every hour | `0 * * * *` | Fetches latest HN articles at minute 0 |
+| RSS Sources | Every hour | `0 * * * *` | Fetches latest content from RSS feeds at minute 0 |
 | Hugging Face | Every 6 hours | `0 */6 * * *` | Collects trending papers at 00:00, 06:00, 12:00, 18:00 |
 
 ## Architecture
@@ -27,7 +27,7 @@ The cron service runs in a separate Docker container and automatically:
 │   Cron Daemon   │    │ Environment     │    │ Scraper Scripts │
 │   (system)      │────│ Script          │────│                 │
 │                 │    │ (cron_env.sh)   │    │ • run_scraper.py│
-│ • Schedule mgmt │    │ • DB connection │    │ • HN scraper    │
+│ • Schedule mgmt │    │ • DB connection │    │ • RSS scraper   │
 │ • Job execution │    │ • Path setup    │    │ • HF scraper    │
 │ • Logging       │    │ • Env isolation │    │ • AI processing │
 └─────────────────┘    └─────────────────┘    └─────────────────┘

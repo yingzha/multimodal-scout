@@ -13,7 +13,7 @@ def _normalize_text(text: str) -> str:
     if not text:
         return ""
     # Remove punctuation (anything not a word character or whitespace) and convert to lowercase
-    return re.sub(r'[^\w\s]', '', text.lower())
+    return re.sub(r"[^\w\s]", "", text.lower())
 
 
 def _get_embedding(text: str) -> np.ndarray:
@@ -37,19 +37,22 @@ def _get_embedding(text: str) -> np.ndarray:
     # Generate new embedding
     try:
         result = genai_client.models.embed_content(
-            model="gemini-embedding-001",
-            contents=text
+            model="gemini-embedding-001", contents=text
         )
 
-        if hasattr(result, 'embeddings') and len(result.embeddings) > 0:
+        if hasattr(result, "embeddings") and len(result.embeddings) > 0:
             embedding = result.embeddings[0]
-            if hasattr(embedding, 'values'):
+            if hasattr(embedding, "values"):
                 embedding_values = list(embedding.values)
 
                 # Cache the new embedding using the new abstracted method
                 try:
-                    db_manager.add_embedding_for_text(text, embedding_values, "gemini-embedding-001")
-                    logger.info(f"Generated and cached new embedding for text: {text[:50]}...")
+                    db_manager.add_embedding_for_text(
+                        text, embedding_values, "gemini-embedding-001"
+                    )
+                    logger.info(
+                        f"Generated and cached new embedding for text: {text[:50]}..."
+                    )
                 except Exception as e:
                     logger.warning(f"Failed to cache embedding: {e}")
 
@@ -95,7 +98,9 @@ def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
         return 0.0
 
 
-def keyword_search(sources: List[SourceSchema], keywords: List[str]) -> List[SourceSchema]:
+def keyword_search(
+    sources: List[SourceSchema], keywords: List[str]
+) -> List[SourceSchema]:
     """
     Performs a keyword search on a list of sources using normalized text.
 
@@ -114,7 +119,9 @@ def keyword_search(sources: List[SourceSchema], keywords: List[str]) -> List[Sou
         if source.summary:
             searchable_text += " " + _normalize_text(source.summary)
         if source.keywords:
-            searchable_text += " " + " ".join(_normalize_text(k) for k in source.keywords)
+            searchable_text += " " + " ".join(
+                _normalize_text(k) for k in source.keywords
+            )
 
         if any(keyword in searchable_text for keyword in normalized_keywords):
             matches.append(source)
@@ -152,7 +159,9 @@ def semantic_search_with_scores(
             logger.warning("Failed to get query embedding, skipping semantic search")
             return []
 
-        logger.info(f"Running Gemini semantic search on {len(sources)} sources with query: '{query_text}'")
+        logger.info(
+            f"Running Gemini semantic search on {len(sources)} sources with query: '{query_text}'"
+        )
 
         for source in sources:
             if not source.summary or source.summary.strip() == "":
@@ -171,7 +180,9 @@ def semantic_search_with_scores(
             if threshold is None or similarity > threshold:
                 matches.append((source, similarity))
                 if threshold is not None and similarity > threshold:
-                    logger.info(f"Gemini semantic match found for: '{source.title}' (Score: {similarity:.3f})")
+                    logger.info(
+                        f"Gemini semantic match found for: '{source.title}' (Score: {similarity:.3f})"
+                    )
 
     except Exception as e:
         logger.error(f"Error in Gemini semantic search: {e}")

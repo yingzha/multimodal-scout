@@ -87,3 +87,18 @@ curl -s -X PUT "http://localhost:8000/api/bookmarks/summary?link=http%3A%2F%2Fex
     docker-compose up -d --build <service_name>
     # e.g., docker-compose up -d --build backend
     ```
+
+## Code Quality Tools
+
+The backend includes code quality and formatting tools:
+
+```bash
+# Format Python code with black
+docker-compose exec backend uv run black src/backend/
+
+# Run pylint for code quality analysis
+docker-compose exec backend uv run pylint src/backend/
+
+# Install/sync new dependencies
+docker-compose exec backend uv sync
+```
