@@ -42,10 +42,15 @@ app = FastAPI(
 
 
 # Helper function for user-friendly error responses
-def create_user_friendly_error(error_type: str, user_message: str, technical_detail: str = None, status_code: int = 500):
+def create_user_friendly_error(
+    error_type: str,
+    user_message: str,
+    technical_detail: str = None,
+    status_code: int = 500,
+):
     """Create a user-friendly error response"""
     logger.error(f"{error_type}: {technical_detail or user_message}")
-    
+
     # Map common error types to user-friendly messages
     error_messages = {
         "database_error": "We're having trouble accessing our database. Please try again in a moment.",
@@ -53,18 +58,18 @@ def create_user_friendly_error(error_type: str, user_message: str, technical_det
         "validation_error": "The information provided doesn't meet our requirements. Please check and try again.",
         "not_found_error": "The requested item could not be found.",
         "rate_limit_error": "Too many requests. Please wait a moment before trying again.",
-        "processing_error": "We're having trouble processing your request. Please try again."
+        "processing_error": "We're having trouble processing your request. Please try again.",
     }
-    
+
     final_message = error_messages.get(error_type, user_message)
-    
+
     raise HTTPException(
         status_code=status_code,
         detail={
             "error": error_type,
             "message": final_message,
-            "details": technical_detail if technical_detail else None
-        }
+            "details": technical_detail if technical_detail else None,
+        },
     )
 
 
@@ -103,6 +108,7 @@ async def health_check():
     try:
         # Test database connection
         from sqlalchemy import text
+
         with db_manager.get_session() as session:
             session.execute(text("SELECT 1"))
         return {"status": "healthy", "database": "connected"}
@@ -126,22 +132,19 @@ async def get_default_topics():
     try:
         logger.info("Fetching default topics from constants")
         response = get_cached_topics()
-        
+
         # Add cache headers for better client-side caching
         return Response(
             content=response.json(),
             media_type="application/json",
             headers={
                 "Cache-Control": "public, max-age=3600",  # Cache for 30 minutes
-                "Content-Type": "application/json"
-            }
+                "Content-Type": "application/json",
+            },
         )
     except Exception as e:
         create_user_friendly_error(
-            "processing_error", 
-            "Unable to load topics at this time.",
-            str(e),
-            500
+            "processing_error", "Unable to load topics at this time.", str(e), 500
         )
 
 
@@ -254,10 +257,7 @@ async def add_bookmark(request: BookmarkRequest):
         )
     except Exception as e:
         create_user_friendly_error(
-            "database_error",
-            "Unable to save bookmark. Please try again.",
-            str(e),
-            500
+            "database_error", "Unable to save bookmark. Please try again.", str(e), 500
         )
 
 
@@ -300,11 +300,11 @@ async def get_bookmark(bookmark_id: str):
         bookmark = db_manager.get_bookmark_by_id(bookmark_id)
         if not bookmark:
             raise HTTPException(status_code=404, detail="Bookmark not found")
-        
+
         # Get the edited summary if available, otherwise use the original
         summary_edited = getattr(bookmark, "summary_edited", None)
         display_summary = summary_edited or bookmark.summary or "No summary available"
-        
+
         return {
             "id": str(bookmark.id),
             "title": bookmark.title,
@@ -312,16 +312,13 @@ async def get_bookmark(bookmark_id: str):
             "summary": display_summary,
             "source": bookmark.source_tag,
             "created_at": bookmark.bookmarked_at.isoformat(),
-            "summary_edited": bool(summary_edited)
+            "summary_edited": bool(summary_edited),
         }
     except HTTPException:
         raise
     except Exception as e:
         create_user_friendly_error(
-            "database_error",
-            "Unable to retrieve bookmark.",
-            str(e),
-            500
+            "database_error", "Unable to retrieve bookmark.", str(e), 500
         )
 
 
@@ -392,10 +389,7 @@ async def delete_bookmark(bookmark_id: str):
         raise
     except Exception as e:
         create_user_friendly_error(
-            "database_error",
-            "Unable to delete bookmark.",
-            str(e),
-            500
+            "database_error", "Unable to delete bookmark.", str(e), 500
         )
 
 
@@ -414,10 +408,7 @@ async def update_bookmark(bookmark_id: str, request: dict):
         raise
     except Exception as e:
         create_user_friendly_error(
-            "database_error",
-            "Unable to update bookmark.",
-            str(e),
-            500
+            "database_error", "Unable to update bookmark.", str(e), 500
         )
 
 
@@ -585,19 +576,20 @@ async def export_chrome_bookmarks():
         # Group bookmarks by source for subfolder organization
         research_bookmarks = []
         industry_bookmarks = []
-        
+
         for bookmark in bookmarks:
             source = bookmark.source_tag.lower() if bookmark.source_tag else ""
-            if source == 'research':
+            if source == "research":
                 research_bookmarks.append(bookmark)
             else:
                 industry_bookmarks.append(bookmark)
 
         # Generate Chrome bookmark HTML format
         timestamp = int(datetime.now().timestamp())
-        
+
         html_buffer = StringIO()
-        html_buffer.write(f'''<!DOCTYPE NETSCAPE-Bookmark-file-1>
+        html_buffer.write(
+            f"""<!DOCTYPE NETSCAPE-Bookmark-file-1>
 <!-- This is an automatically generated file.
      It will be read and overwritten.
      DO NOT EDIT! -->
@@ -609,43 +601,72 @@ async def export_chrome_bookmarks():
     <DL><p>
         <DT><H3 ADD_DATE="{timestamp}" LAST_MODIFIED="{timestamp}">Research</H3>
         <DL><p>
-''')
+"""
+        )
 
         # Add research bookmarks
         for bookmark in research_bookmarks:
-            add_date = int(bookmark.bookmarked_at.timestamp()) if bookmark.bookmarked_at else timestamp
-            title = escape((bookmark.title or "Untitled").replace('\n', ' ').replace('\r', ' ').strip())
+            add_date = (
+                int(bookmark.bookmarked_at.timestamp())
+                if bookmark.bookmarked_at
+                else timestamp
+            )
+            title = escape(
+                (bookmark.title or "Untitled")
+                .replace("\n", " ")
+                .replace("\r", " ")
+                .strip()
+            )
             url = escape(bookmark.link)
-            html_buffer.write(f'            <DT><A HREF="{url}" ADD_DATE="{add_date}">{title}</A>\n')
+            html_buffer.write(
+                f'            <DT><A HREF="{url}" ADD_DATE="{add_date}">{title}</A>\n'
+            )
 
-        html_buffer.write(f'''        </DL><p>
+        html_buffer.write(
+            f"""        </DL><p>
         <DT><H3 ADD_DATE="{timestamp}" LAST_MODIFIED="{timestamp}">Industry</H3>
         <DL><p>
-''')
+"""
+        )
 
         # Add industry bookmarks
         for bookmark in industry_bookmarks:
-            add_date = int(bookmark.bookmarked_at.timestamp()) if bookmark.bookmarked_at else timestamp
-            title = escape((bookmark.title or "Untitled").replace('\n', ' ').replace('\r', ' ').strip())
+            add_date = (
+                int(bookmark.bookmarked_at.timestamp())
+                if bookmark.bookmarked_at
+                else timestamp
+            )
+            title = escape(
+                (bookmark.title or "Untitled")
+                .replace("\n", " ")
+                .replace("\r", " ")
+                .strip()
+            )
             url = escape(bookmark.link)
-            html_buffer.write(f'            <DT><A HREF="{url}" ADD_DATE="{add_date}">{title}</A>\n')
+            html_buffer.write(
+                f'            <DT><A HREF="{url}" ADD_DATE="{add_date}">{title}</A>\n'
+            )
 
-        html_buffer.write('''        </DL><p>
+        html_buffer.write(
+            """        </DL><p>
     </DL><p>
 </DL><p>
-''')
+"""
+        )
 
         # Generate filename with timestamp
         timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"multimodal_scout_chrome_bookmarks_{timestamp_str}.html"
 
-        logger.info(f"Successfully exported {len(bookmarks)} bookmarks for Chrome ({len(research_bookmarks)} research, {len(industry_bookmarks)} industry)")
+        logger.info(
+            f"Successfully exported {len(bookmarks)} bookmarks for Chrome ({len(research_bookmarks)} research, {len(industry_bookmarks)} industry)"
+        )
 
         html_content = html_buffer.getvalue()
         html_buffer.close()
 
         return Response(
-            content=html_content.encode('utf-8'),
+            content=html_content.encode("utf-8"),
             media_type="text/html",
             headers={"Content-Disposition": f"attachment; filename={filename}"},
         )

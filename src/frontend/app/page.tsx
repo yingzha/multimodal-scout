@@ -1253,8 +1253,13 @@ export default function Home() {
                                 target.style.height = 'auto';
                                 target.style.height = `${target.scrollHeight}px`;
                               }}
-                              className="w-full p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm leading-relaxed text-left resize-none"
-                              style={{ textAlign: 'left', lineHeight: '1.6' }}
+                              className="w-full max-w-full p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm leading-relaxed text-left resize-none overflow-hidden"
+                              style={{
+                                textAlign: 'left',
+                                lineHeight: '1.6',
+                                boxSizing: 'border-box',
+                                resize: 'vertical'
+                              }}
                               data-editing-summary={item.link}
                               rows={4}
                               placeholder="Edit the summary..."

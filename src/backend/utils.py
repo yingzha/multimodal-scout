@@ -28,7 +28,7 @@ def _retry_with_backoff(func, max_retries=3, base_delay=1.0):
 
 
 def _fetch_article_text(link: HttpUrl) -> Optional[str]:
-    """Fetches and extracts the main text content from a URL."""
+    """Fetches and extracts the main text content from a URL, including image alt text."""
     try:
         response = requests.get(
             str(link), headers={"User-Agent": USER_AGENT}, timeout=20
@@ -41,8 +41,21 @@ def _fetch_article_text(link: HttpUrl) -> Optional[str]:
         if not main_content:
             return None
 
-        paragraphs = main_content.find_all("p")
-        return " ".join([p.get_text() for p in paragraphs])
+        # Extract content in document order (paragraphs and images)
+        content_parts = []
+
+        # Find all paragraphs and images in document order
+        for element in main_content.find_all(["p", "img"]):
+            if element.name == "p":
+                text = element.get_text().strip()
+                if text:  # Only add non-empty paragraphs
+                    content_parts.append(text)
+            elif element.name == "img":
+                alt_text = element.get("alt", "").strip()
+                if alt_text and len(alt_text) > 3:  # Only meaningful alt text
+                    content_parts.append(f"[Image: {alt_text}]")
+
+        return " ".join(content_parts)
     except requests.RequestException as e:
         logger.error(f"Error fetching article content from {link}: {e}")
         return None

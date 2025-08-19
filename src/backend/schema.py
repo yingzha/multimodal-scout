@@ -89,7 +89,7 @@ class UploadLinkResponse(BaseModel):
 
 class ErrorResponse(BaseModel):
     """Standardized error response model"""
-    
+
     error: str
     message: str
     details: str = None

@@ -491,7 +491,9 @@ class DatabaseManager:
         """Get a bookmark by its ID."""
         try:
             with self.get_session() as session:
-                return session.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+                return (
+                    session.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+                )
         except Exception as e:
             logger.error(f"Failed to get bookmark by ID: {e}")
             return None
@@ -500,7 +502,9 @@ class DatabaseManager:
         """Remove a bookmark by its ID."""
         try:
             with self.get_session() as session:
-                bookmark = session.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+                bookmark = (
+                    session.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+                )
                 if bookmark:
                     session.delete(bookmark)
                     session.commit()
@@ -514,12 +518,16 @@ class DatabaseManager:
         """Update a bookmark's summary by its ID."""
         try:
             with self.get_session() as session:
-                bookmark = session.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+                bookmark = (
+                    session.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+                )
                 if bookmark:
                     # Store the edited summary separately from the original
                     if hasattr(bookmark, "summary_edited"):
                         bookmark.summary_edited = summary
-                        logger.info(f"Updated edited summary for bookmark {bookmark_id}")
+                        logger.info(
+                            f"Updated edited summary for bookmark {bookmark_id}"
+                        )
                     else:
                         # Fallback for older schema
                         bookmark.summary = summary
