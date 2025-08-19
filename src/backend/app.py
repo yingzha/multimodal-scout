@@ -9,6 +9,7 @@ from fastapi.responses import StreamingResponse, Response
 from typing import List, Dict, Any
 import asyncio
 import json
+from functools import lru_cache
 
 from .constants import INTERESTED_KEYWORDS
 from .logger import logger
@@ -23,6 +24,7 @@ from .schema import (
     BookmarkResponse,
     UploadLinkRequest,
     UploadLinkResponse,
+    ErrorResponse,
 )
 from .utils import (
     generate_summary_from_link,
@@ -37,6 +39,33 @@ app = FastAPI(
     description="API for fetching AI/ML content from various sources",
     version="1.0.0",
 )
+
+
+# Helper function for user-friendly error responses
+def create_user_friendly_error(error_type: str, user_message: str, technical_detail: str = None, status_code: int = 500):
+    """Create a user-friendly error response"""
+    logger.error(f"{error_type}: {technical_detail or user_message}")
+    
+    # Map common error types to user-friendly messages
+    error_messages = {
+        "database_error": "We're having trouble accessing our database. Please try again in a moment.",
+        "external_api_error": "We're having trouble connecting to external services. Please try again.",
+        "validation_error": "The information provided doesn't meet our requirements. Please check and try again.",
+        "not_found_error": "The requested item could not be found.",
+        "rate_limit_error": "Too many requests. Please wait a moment before trying again.",
+        "processing_error": "We're having trouble processing your request. Please try again."
+    }
+    
+    final_message = error_messages.get(error_type, user_message)
+    
+    raise HTTPException(
+        status_code=status_code,
+        detail={
+            "error": error_type,
+            "message": final_message,
+            "details": technical_detail if technical_detail else None
+        }
+    )
 
 
 @app.on_event("startup")
@@ -64,8 +93,28 @@ app.add_middleware(
 
 @app.get("/")
 async def root():
-    """Health check endpoint"""
-    return {"message": "Multimodal Scout API is running", "status": "healthy"}
+    """Basic welcome endpoint"""
+    return {"message": "Multimodal Scout API", "version": "1.0.0", "docs": "/docs"}
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring"""
+    try:
+        # Test database connection
+        from sqlalchemy import text
+        with db_manager.get_session() as session:
+            session.execute(text("SELECT 1"))
+        return {"status": "healthy", "database": "connected"}
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        raise HTTPException(status_code=503, detail="Service unhealthy")
+
+
+@lru_cache(maxsize=1)
+def get_cached_topics() -> TopicResponse:
+    """Cache static topics data"""
+    return TopicResponse(topics=INTERESTED_KEYWORDS)
 
 
 @app.get("/api/topics", response_model=TopicResponse)
@@ -76,10 +125,24 @@ async def get_default_topics():
     """
     try:
         logger.info("Fetching default topics from constants")
-        return TopicResponse(topics=INTERESTED_KEYWORDS)
+        response = get_cached_topics()
+        
+        # Add cache headers for better client-side caching
+        return Response(
+            content=response.json(),
+            media_type="application/json",
+            headers={
+                "Cache-Control": "public, max-age=3600",  # Cache for 30 minutes
+                "Content-Type": "application/json"
+            }
+        )
     except Exception as e:
-        logger.error(f"Failed to fetch default topics: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch default topics")
+        create_user_friendly_error(
+            "processing_error", 
+            "Unable to load topics at this time.",
+            str(e),
+            500
+        )
 
 
 @app.post("/api/fetch", response_model=FetchResponse)
@@ -190,8 +253,12 @@ async def add_bookmark(request: BookmarkRequest):
             success=True, message="Bookmark added successfully", bookmark_id=bookmark_id
         )
     except Exception as e:
-        logger.error(f"Failed to add bookmark: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to add bookmark: {str(e)}")
+        create_user_friendly_error(
+            "database_error",
+            "Unable to save bookmark. Please try again.",
+            str(e),
+            500
+        )
 
 
 @app.delete("/api/bookmarks")

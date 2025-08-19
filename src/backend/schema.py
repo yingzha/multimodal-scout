@@ -85,3 +85,12 @@ class UploadLinkResponse(BaseModel):
     title: str = None
     summary: str = None
     source_tag: str = None
+
+
+class ErrorResponse(BaseModel):
+    """Standardized error response model"""
+    
+    error: str
+    message: str
+    details: str = None
+    code: str = None
