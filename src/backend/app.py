@@ -6,7 +6,8 @@ Provides REST API endpoints for fetching topics and scraping content.
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, Response
-from typing import List, Dict, Any
+from typing import List, Dict, Any, AsyncGenerator
+from contextlib import asynccontextmanager
 import asyncio
 import json
 from functools import lru_cache
@@ -34,10 +35,30 @@ from .utils import (
 )
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Handle application startup and shutdown"""
+    # Startup
+    try:
+        logger.info("🚀 Initializing database tables...")
+        db_manager.create_tables()
+        logger.info("✅ Database tables initialized successfully")
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize database tables: {e}", exc_info=True)
+        # Don't raise here to allow the app to start even if DB init fails
+        # This allows for debugging and manual intervention
+    
+    yield
+    
+    # Shutdown (if needed)
+    logger.info("🔄 Application shutting down...")
+
+
 app = FastAPI(
     title="Multimodal Scout API",
     description="API for fetching AI/ML content from various sources",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 
@@ -72,18 +93,6 @@ def create_user_friendly_error(
         },
     )
 
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize database tables on startup"""
-    try:
-        logger.info("🚀 Initializing database tables...")
-        db_manager.create_tables()
-        logger.info("✅ Database tables initialized successfully")
-    except Exception as e:
-        logger.error(f"❌ Failed to initialize database tables: {e}", exc_info=True)
-        # Don't raise here to allow the app to start even if DB init fails
-        # This allows for debugging and manual intervention
 
 
 # Add CORS middleware to allow frontend connections
@@ -135,7 +144,7 @@ async def get_default_topics():
 
         # Add cache headers for better client-side caching
         return Response(
-            content=response.json(),
+            content=response.model_dump_json(),
             media_type="application/json",
             headers={
                 "Cache-Control": "public, max-age=3600",  # Cache for 30 minutes

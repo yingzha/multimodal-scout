@@ -32,7 +32,7 @@ class TestApp(unittest.TestCase):
         ]
 
         # --- API Call ---
-        response = self.client.post("/api/fetch", json={
+        response = self.client.post("/api/content/search", json={
             "selectedDays": 7,
             "topics": ["ai"],
             "maxResults": 1,
@@ -60,7 +60,7 @@ class TestApp(unittest.TestCase):
         )
 
         # --- API Call ---
-        response = self.client.post("/api/fetch-stream", json={
+        response = self.client.post("/api/content/search/stream", json={
             "selectedDays": 7,
             "topics": ["ai"],
             "maxResults": 1,
