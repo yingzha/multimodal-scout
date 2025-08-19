@@ -46,23 +46,36 @@ You can use `curl` to test the running API endpoints directly.
 
 ```bash
 # Check health
-curl -s http://localhost:8000/
+curl -s http://localhost:8000/health
 
-# Fetch topics
+# Fetch topics  
 curl -s http://localhost:8000/api/topics
 
-# Fetch content
-curl -s -X POST "http://localhost:8000/api/fetch" \
+# Search content (RESTful endpoint)
+curl -s -X POST "http://localhost:8000/api/content/search" \
   -H "Content-Type: application/json" \
-  -d '{"selectedDays": 1, "topics": ["ai"]}'
+  -d '{"selectedDays": 1, "topics": ["ai"], "maxResults": 10, "researchRatio": 0.5}'
+
+# Create content from URL
+curl -s -X POST "http://localhost:8000/api/content" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/article"}'
 
 # Add a bookmark
 curl -s -X POST "http://localhost:8000/api/bookmarks" \
   -H "Content-Type: application/json" \
   -d '{"title": "Test", "link": "http://example.com", "source": "Test", "summary": "Test summary"}'
 
-# Update a summary
-curl -s -X PUT "http://localhost:8000/api/bookmarks/summary?link=http%3A%2F%2Fexample.com&summary=Updated%20summary"
+# Get specific bookmark (RESTful)
+curl -s http://localhost:8000/api/bookmarks/BOOKMARK_ID
+
+# Update bookmark summary (RESTful)
+curl -s -X PATCH "http://localhost:8000/api/bookmarks/BOOKMARK_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"summary": "Updated summary"}'
+
+# Delete bookmark (RESTful)
+curl -s -X DELETE "http://localhost:8000/api/bookmarks/BOOKMARK_ID"
 ```
 
 ## Common Docker Commands

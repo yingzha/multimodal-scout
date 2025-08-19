@@ -1,14 +1,27 @@
 # Multimodal Scout Backend
 
-This backend service, built with Python and FastAPI, is the core of the Multimodal Scout application. It handles all content scraping, AI-powered processing, and data management.
+This backend service, built with Python and FastAPI, is the core of the Multimodal Scout application. It handles all content scraping, AI-powered processing, and data management with a RESTful API design.
 
 ## Backend-Specific Features
 
-- **Multi-source scraping**: Fetches content from multiple RSS sources (Hacker News, Substack) and Hugging Face.
-- **AI-powered summarization**: Generates summaries using the Google Gemini API and caches them.
-- **Smart Balanced Filtering**: Implements an advanced pipeline with separate semantic thresholds for research vs. industry content.
-- **Real-time progress**: Uses Server-Sent Events (SSE) to stream progress updates to the frontend.
-- **Cache management**: Includes a CLI for database cache cleanup, search, and analytics.
+### Content Management
+- **Multi-source scraping**: Fetches content from multiple RSS sources (Hacker News, Substack) and Hugging Face
+- **AI-powered summarization**: Generates summaries using the Google Gemini API with intelligent caching
+- **Smart content categorization**: Automatically categorizes content as Research, Industry, or General
+- **Real-time progress**: Uses Server-Sent Events (SSE) to stream progress updates to the frontend
+
+### API & Performance
+- **RESTful API design**: Follows REST principles with proper resource naming and HTTP methods
+- **Health monitoring**: Dedicated `/health` endpoint with database connectivity testing
+- **Response caching**: Server-side caching (30-minute LRU cache) and client-side headers for improved performance
+- **User-friendly error handling**: Structured error responses with helpful messages
+- **Chrome bookmark export**: Generates Chrome-compatible bookmark files with folder organization
+
+### Data Management
+- **PostgreSQL database**: Robust data storage with UUID-based resource identification
+- **Cache management**: CLI tools for database cleanup, search, and analytics
+- **Automatic migrations**: Database schema management with Alembic
+- **Bookmark management**: Full CRUD operations with both legacy and RESTful endpoints
 
 ## Development & Management Commands
 

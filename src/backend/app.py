@@ -145,10 +145,10 @@ async def get_default_topics():
         )
 
 
-@app.post("/api/fetch", response_model=FetchResponse)
-async def fetch_top_items(request: FetchRequest):
+@app.post("/api/content/search", response_model=FetchResponse)
+async def search_content(request: FetchRequest):
     """
-    Fetch top items from various sources based on topics and time range.
+    Search for content from various sources based on topics and time range.
     This is the non-streaming version that uses the core pipeline.
     """
     try:
@@ -192,10 +192,10 @@ async def fetch_top_items(request: FetchRequest):
         raise HTTPException(status_code=500, detail=f"Failed to fetch items: {str(e)}")
 
 
-@app.post("/api/fetch-stream")
-async def fetch_top_items_stream(request: FetchRequest):
+@app.post("/api/content/search/stream")
+async def search_content_stream(request: FetchRequest):
     """
-    Fetch top items with streaming progress updates using the core pipeline.
+    Search for content with streaming progress updates using the core pipeline.
     Uses Server-Sent Events (SSE) to provide real-time progress.
     """
 
@@ -293,6 +293,38 @@ async def check_bookmark(link: str):
         )
 
 
+@app.get("/api/bookmarks/{bookmark_id}")
+async def get_bookmark(bookmark_id: str):
+    """Get a specific bookmark by ID"""
+    try:
+        bookmark = db_manager.get_bookmark_by_id(bookmark_id)
+        if not bookmark:
+            raise HTTPException(status_code=404, detail="Bookmark not found")
+        
+        # Get the edited summary if available, otherwise use the original
+        summary_edited = getattr(bookmark, "summary_edited", None)
+        display_summary = summary_edited or bookmark.summary or "No summary available"
+        
+        return {
+            "id": str(bookmark.id),
+            "title": bookmark.title,
+            "link": bookmark.link,
+            "summary": display_summary,
+            "source": bookmark.source_tag,
+            "created_at": bookmark.bookmarked_at.isoformat(),
+            "summary_edited": bool(summary_edited)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        create_user_friendly_error(
+            "database_error",
+            "Unable to retrieve bookmark.",
+            str(e),
+            500
+        )
+
+
 @app.get("/api/bookmarks")
 async def get_bookmarks():
     """Get all bookmarks"""
@@ -346,9 +378,52 @@ async def update_bookmark_summary(link: str, summary: str):
         )
 
 
-@app.post("/api/upload-link", response_model=UploadLinkResponse)
-async def upload_link(request: UploadLinkRequest):
-    """Process and bookmark a user-uploaded link"""
+@app.delete("/api/bookmarks/{bookmark_id}")
+async def delete_bookmark(bookmark_id: str):
+    """Delete a specific bookmark by ID"""
+    try:
+        logger.info(f"Removing bookmark with ID: {bookmark_id}")
+        success = db_manager.remove_bookmark_by_id(bookmark_id)
+        if success:
+            return {"message": "Bookmark deleted successfully"}
+        else:
+            raise HTTPException(status_code=404, detail="Bookmark not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        create_user_friendly_error(
+            "database_error",
+            "Unable to delete bookmark.",
+            str(e),
+            500
+        )
+
+
+@app.patch("/api/bookmarks/{bookmark_id}")
+async def update_bookmark(bookmark_id: str, request: dict):
+    """Update a bookmark's summary by ID"""
+    try:
+        summary = request.get("summary", "")
+        logger.info(f"Updating summary for bookmark: {bookmark_id}")
+        success = db_manager.update_bookmark_summary_by_id(bookmark_id, summary)
+        if success:
+            return {"message": "Bookmark updated successfully"}
+        else:
+            raise HTTPException(status_code=404, detail="Bookmark not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        create_user_friendly_error(
+            "database_error",
+            "Unable to update bookmark.",
+            str(e),
+            500
+        )
+
+
+@app.post("/api/content", response_model=UploadLinkResponse)
+async def create_content(request: UploadLinkRequest):
+    """Create content item from user-provided link"""
     try:
         url = str(request.url)
         logger.info(f"Processing uploaded link: {url}")

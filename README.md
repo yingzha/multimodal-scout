@@ -7,11 +7,13 @@ A smart content discovery platform that automatically finds, curates, and helps 
 ## Key Features
 
 - 🔍 **Automated Content Discovery**: Scrapes and processes content from multiple RSS sources (Hacker News, Substack) and Hugging Face.
-- 🧠 **AI-Powered Summaries**: Generates intelligent summaries for articles using Google Gemini.
+- 🧠 **AI-Powered Summaries**: Generates intelligent summaries for articles using Google Gemini with caching for improved performance.
 - 🎯 **Smart Filtering**: Balances content between research and industry, with configurable result limits.
-- 📚 **Persistent Bookmarks**: Save articles, edit summaries, and export your collection to Excel.
+- 📚 **Advanced Bookmark Management**: Save articles, edit summaries, and export your collection to Excel or Chrome-compatible HTML format.
 - 📤 **Upload & Process Links**: Add your own URLs for automatic scraping, summarization, and categorization.
 - ⏰ **Real-time Progress**: Live progress updates during content fetching and processing via SSE.
+- 🏥 **Health Monitoring**: Built-in health checks and monitoring for production deployments.
+- 🚀 **RESTful API**: Well-designed API following REST principles with comprehensive documentation.
 - 🌙 **Modern UI**: A clean, responsive interface with dark mode support.
 
 ## Quick Start
@@ -74,9 +76,10 @@ Frontend (Next.js)          Backend (FastAPI)           External Services
 
 For more detailed information on development, deployment, and specific service architecture, please see the READMEs in the service directories:
 
-- **📖 [Backend README](src/backend/README.md)**
-- **🛠 [Frontend README](src/frontend/README.md)**
-- **⏰ [Cron Job Docs](docs/cron-jobs.md)**
+- **📖 [Backend README](src/backend/README.md)** - API architecture, database operations, and development commands
+- **🛠 [Frontend README](src/frontend/README.md)** - React/Next.js implementation and UI components
+- **🔗 [API Documentation](docs/api.md)** - Complete REST API reference with examples
+- **⏰ [Cron Job Docs](docs/cron-jobs.md)** - Automated content scraping configuration
 
 ## Contributing
 

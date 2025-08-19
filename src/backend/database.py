@@ -487,6 +487,50 @@ class DatabaseManager:
                 .all()
             )
 
+    def get_bookmark_by_id(self, bookmark_id: str) -> Optional[Bookmark]:
+        """Get a bookmark by its ID."""
+        try:
+            with self.get_session() as session:
+                return session.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+        except Exception as e:
+            logger.error(f"Failed to get bookmark by ID: {e}")
+            return None
+
+    def remove_bookmark_by_id(self, bookmark_id: str) -> bool:
+        """Remove a bookmark by its ID."""
+        try:
+            with self.get_session() as session:
+                bookmark = session.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+                if bookmark:
+                    session.delete(bookmark)
+                    session.commit()
+                    return True
+                return False
+        except Exception as e:
+            logger.error(f"Failed to remove bookmark by ID: {e}")
+            return False
+
+    def update_bookmark_summary_by_id(self, bookmark_id: str, summary: str) -> bool:
+        """Update a bookmark's summary by its ID."""
+        try:
+            with self.get_session() as session:
+                bookmark = session.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+                if bookmark:
+                    # Store the edited summary separately from the original
+                    if hasattr(bookmark, "summary_edited"):
+                        bookmark.summary_edited = summary
+                        logger.info(f"Updated edited summary for bookmark {bookmark_id}")
+                    else:
+                        # Fallback for older schema
+                        bookmark.summary = summary
+                        logger.info(f"Updated summary for bookmark {bookmark_id}")
+                    session.commit()
+                    return True
+                return False
+        except Exception as e:
+            logger.error(f"Failed to update bookmark summary by ID: {e}")
+            return False
+
     def get_bookmarks_by_date(
         self, start_date: datetime, end_date: Optional[datetime] = None
     ) -> List[Dict[str, str]]:

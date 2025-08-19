@@ -376,7 +376,7 @@ export default function Home() {
       setUploadProgress(25)
       setUploadProgressMessage('Fetching content from URL...')
       
-      const response = await fetch(`${apiUrl}/api/upload-link`, {
+      const response = await fetch(`${apiUrl}/api/content`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -653,7 +653,7 @@ export default function Home() {
       const allTopics = [...defaultTopics, ...customTopics]
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       
-      const response = await fetch(`${apiUrl}/api/fetch-stream`, {
+      const response = await fetch(`${apiUrl}/api/content/search/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ selectedDays, topics: allTopics, maxResults, researchRatio })
