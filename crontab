@@ -4,9 +4,9 @@ DATABASE_URL=postgresql://scout_user:scout_password@postgres:5432/multimodal_sco
 PATH=/root/.local/bin:/usr/local/bin:/usr/bin:/bin
 # 
 # RSS sources scraper - runs every hour at minute 0  
-0 * * * * cd /app && echo "$(date): Starting RSS sources cron job" >> /var/log/cron.log && /app/cron_env.sh /root/.local/bin/uv run python -m src.backend.run_scraper backend.scraper.scrape_rss_sources >> /var/log/cron.log 2>&1 && echo "$(date): RSS sources cron job completed" >> /var/log/cron.log
+0 * * * * root cd /app && echo "$(date): Starting RSS sources cron job" >> /var/log/cron.log && /app/cron_env.sh /root/.local/bin/uv run python -m src.backend.run_scraper backend.scraper.scrape_rss_sources >> /var/log/cron.log 2>&1 && echo "$(date): RSS sources cron job completed" >> /var/log/cron.log
 #
 # Hugging Face scraper - runs every 6 hours at minute 0
-0 */6 * * * cd /app && echo "$(date): Starting Hugging Face cron job" >> /var/log/cron.log && /app/cron_env.sh /root/.local/bin/uv run python -m src.backend.run_scraper backend.scraper.scrape_huggingface_trending_papers >> /var/log/cron.log 2>&1 && echo "$(date): Hugging Face cron job completed" >> /var/log/cron.log
+0 */6 * * * root cd /app && echo "$(date): Starting Hugging Face cron job" >> /var/log/cron.log && /app/cron_env.sh /root/.local/bin/uv run python -m src.backend.run_scraper backend.scraper.scrape_huggingface_trending_papers >> /var/log/cron.log 2>&1 && echo "$(date): Hugging Face cron job completed" >> /var/log/cron.log
 #
 # Empty line at end (required for cron)

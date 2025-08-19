@@ -479,6 +479,44 @@ export default function Home() {
     }
   }
 
+  const handleExportChromeBookmarks = async () => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const response = await fetch(`${apiUrl}/api/bookmarks/export/chrome`, {
+        method: 'GET'
+      })
+
+      if (response.ok) {
+        // Get the filename from the response headers
+        const contentDisposition = response.headers.get('Content-Disposition')
+        let filename = 'multimodal_scout_chrome_bookmarks.html'
+        
+        if (contentDisposition) {
+          const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
+          if (filenameMatch && filenameMatch[1]) {
+            filename = filenameMatch[1].replace(/['"]/g, '')
+          }
+        }
+
+        // Convert response to blob and download
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.style.display = 'none'
+        a.href = url
+        a.download = filename
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+      } else {
+        console.error('Failed to export Chrome bookmarks')
+      }
+    } catch (error) {
+      console.error('Failed to export Chrome bookmarks:', error)
+    }
+  }
+
   // Pagination component
   const PaginationControls = ({ currentPage, setCurrentPage, totalItems, itemsPerPage }: {
     currentPage: number
@@ -1120,11 +1158,11 @@ export default function Home() {
                 }
               </div>
               <button
-                onClick={handleExportBookmarks}
-                className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-green-600 rounded-full hover:bg-green-50 focus:outline-none transition-colors"
-                title="Export bookmarks to Excel"
+                onClick={handleExportChromeBookmarks}
+                className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-blue-600 rounded-full hover:bg-blue-50 focus:outline-none transition-colors"
+                title="Export bookmarks for Chrome (with Research and Industry folders)"
               >
-                📊
+                🌐
               </button>
             </div>
 

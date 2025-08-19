@@ -424,6 +424,97 @@ async def export_bookmarks():
         )
 
 
+@app.get("/api/bookmarks/export/chrome")
+async def export_chrome_bookmarks():
+    """Export bookmarks in Chrome-compatible HTML format"""
+    try:
+        from datetime import datetime
+        from html import escape
+        from io import StringIO
+
+        logger.info("Starting Chrome bookmark export")
+
+        # Get all bookmarks
+        bookmarks = db_manager.get_bookmarks()
+
+        if not bookmarks:
+            raise HTTPException(status_code=404, detail="No bookmarks found to export")
+
+        # Group bookmarks by source for subfolder organization
+        research_bookmarks = []
+        industry_bookmarks = []
+        
+        for bookmark in bookmarks:
+            source = bookmark.source_tag.lower() if bookmark.source_tag else ""
+            if source == 'research':
+                research_bookmarks.append(bookmark)
+            else:
+                industry_bookmarks.append(bookmark)
+
+        # Generate Chrome bookmark HTML format
+        timestamp = int(datetime.now().timestamp())
+        
+        html_buffer = StringIO()
+        html_buffer.write(f'''<!DOCTYPE NETSCAPE-Bookmark-file-1>
+<!-- This is an automatically generated file.
+     It will be read and overwritten.
+     DO NOT EDIT! -->
+<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+<TITLE>Bookmarks</TITLE>
+<H1>Bookmarks</H1>
+<DL><p>
+    <DT><H3 ADD_DATE="{timestamp}" LAST_MODIFIED="{timestamp}" PERSONAL_TOOLBAR_FOLDER="true">Multimodal Scout</H3>
+    <DL><p>
+        <DT><H3 ADD_DATE="{timestamp}" LAST_MODIFIED="{timestamp}">Research</H3>
+        <DL><p>
+''')
+
+        # Add research bookmarks
+        for bookmark in research_bookmarks:
+            add_date = int(bookmark.bookmarked_at.timestamp()) if bookmark.bookmarked_at else timestamp
+            title = escape((bookmark.title or "Untitled").replace('\n', ' ').replace('\r', ' ').strip())
+            url = escape(bookmark.link)
+            html_buffer.write(f'            <DT><A HREF="{url}" ADD_DATE="{add_date}">{title}</A>\n')
+
+        html_buffer.write(f'''        </DL><p>
+        <DT><H3 ADD_DATE="{timestamp}" LAST_MODIFIED="{timestamp}">Industry</H3>
+        <DL><p>
+''')
+
+        # Add industry bookmarks
+        for bookmark in industry_bookmarks:
+            add_date = int(bookmark.bookmarked_at.timestamp()) if bookmark.bookmarked_at else timestamp
+            title = escape((bookmark.title or "Untitled").replace('\n', ' ').replace('\r', ' ').strip())
+            url = escape(bookmark.link)
+            html_buffer.write(f'            <DT><A HREF="{url}" ADD_DATE="{add_date}">{title}</A>\n')
+
+        html_buffer.write('''        </DL><p>
+    </DL><p>
+</DL><p>
+''')
+
+        # Generate filename with timestamp
+        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"multimodal_scout_chrome_bookmarks_{timestamp_str}.html"
+
+        logger.info(f"Successfully exported {len(bookmarks)} bookmarks for Chrome ({len(research_bookmarks)} research, {len(industry_bookmarks)} industry)")
+
+        html_content = html_buffer.getvalue()
+        html_buffer.close()
+
+        return Response(
+            content=html_content.encode('utf-8'),
+            media_type="text/html",
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to export Chrome bookmarks: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail=f"Failed to export Chrome bookmarks: {str(e)}"
+        )
+
+
 if __name__ == "__main__":
     import uvicorn
 
