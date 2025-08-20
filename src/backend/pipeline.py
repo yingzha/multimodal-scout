@@ -11,7 +11,7 @@ yields real-time progress updates and the final processed results, making it
 suitable for streaming APIs.
 """
 
-from typing import List, Dict, Any, Generator
+from typing import List, Dict, Any, AsyncGenerator
 from datetime import datetime, timedelta
 import asyncio
 
@@ -149,9 +149,9 @@ def _apply_balanced_filtering(
     return limited_results
 
 
-def process_content_pipeline(
+async def process_content_pipeline(
     topics: List[str], max_results: int, research_ratio: float, selected_days: int = 7
-) -> Generator[Dict[str, Any], None, None]:
+) -> AsyncGenerator[Dict[str, Any], None]:
     """
     The main processing pipeline.
     1. Always scrape fresh content first
@@ -183,7 +183,7 @@ def process_content_pipeline(
 
     try:
         # Use concurrent scraping for better performance
-        hf_papers, rss_items = asyncio.run(scrape_all_sources_concurrent())
+        hf_papers, rss_items = await scrape_all_sources_concurrent()
 
         if hf_papers:
             fresh_sources.extend(hf_papers)

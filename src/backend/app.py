@@ -177,7 +177,7 @@ async def search_content(request: FetchRequest):
         final_result = None
         # The pipeline is a generator, so we iterate through it to get the final result.
         # In the non-streaming case, we ignore progress events and just wait for the 'result' event.
-        for event in pipeline_generator:
+        async for event in pipeline_generator:
             if event["type"] == "result":
                 final_result = event["data"]
                 break
@@ -223,7 +223,7 @@ async def search_content_stream(request: FetchRequest):
                 selected_days=request.selectedDays,
             )
 
-            for event in pipeline_generator:
+            async for event in pipeline_generator:
                 yield f"data: {json.dumps(event)}\n\n"
                 # Add a small sleep to allow the client to process the event
                 await asyncio.sleep(0.01)

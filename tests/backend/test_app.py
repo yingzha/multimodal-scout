@@ -15,10 +15,10 @@ class TestApp(unittest.TestCase):
     @patch('src.backend.app.process_content_pipeline')
     def test_fetch_top_items_endpoint(self, mock_pipeline):
         # --- Setup Mock ---
-        # Mock the final 'result' event from the pipeline
-        mock_pipeline.return_value = [
-            {'type': 'status', 'message': '...'}, 
-            {'type': 'result', 'data': {
+        # Mock the final 'result' event from the pipeline as an async generator
+        async def mock_async_generator():
+            yield {'type': 'status', 'message': '...'}
+            yield {'type': 'result', 'data': {
                 'items': [{
                     'title': 'Test Item', 
                     'link': 'http://example.com', 
@@ -29,7 +29,8 @@ class TestApp(unittest.TestCase):
                 'total_count': 1,
                 'sources': ['Test Source']
             }}
-        ]
+        
+        mock_pipeline.return_value = mock_async_generator()
 
         # --- API Call ---
         response = self.client.post("/api/content/search", json={
@@ -49,15 +50,14 @@ class TestApp(unittest.TestCase):
     @patch('src.backend.app.process_content_pipeline')
     def test_fetch_top_items_stream_endpoint(self, mock_pipeline):
         # --- Setup Mock ---
-        # Mock a sequence of events yielded by the pipeline
-        mock_pipeline.return_value = (
-            e for e in [
-                {'type': 'start', 'message': 'Starting'},
-                {'type': 'progress', 'processed': 50, 'total': 100},
-                {'type': 'complete', 'message': 'Finished'},
-                {'type': 'result', 'data': {'items': [], 'total_count': 0, 'sources': []}}
-            ]
-        )
+        # Mock a sequence of events yielded by the pipeline as an async generator
+        async def mock_async_generator():
+            yield {'type': 'start', 'message': 'Starting'}
+            yield {'type': 'progress', 'processed': 50, 'total': 100}
+            yield {'type': 'complete', 'message': 'Finished'}
+            yield {'type': 'result', 'data': {'items': [], 'total_count': 0, 'sources': []}}
+        
+        mock_pipeline.return_value = mock_async_generator()
 
         # --- API Call ---
         response = self.client.post("/api/content/search/stream", json={

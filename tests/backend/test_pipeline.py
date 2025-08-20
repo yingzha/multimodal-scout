@@ -1,4 +1,5 @@
 import unittest
+import asyncio
 from unittest.mock import patch, MagicMock, AsyncMock
 from datetime import datetime
 
@@ -28,17 +29,27 @@ mock_hn_story = SourceSchema(
 
 class TestPipeline(unittest.TestCase):
 
-    @patch('src.backend.pipeline.asyncio.run')
+    @patch('src.backend.pipeline.scrape_all_sources_concurrent')
     @patch('src.backend.database.db_manager.get_session')
     @patch('src.backend.database.db_manager.save_sources')
     @patch('src.backend.database.db_manager.add_summaries_batch')
     @patch('src.backend.database.db_manager.get_bookmarks')
     @patch('src.backend.merger.enrich_sources_with_summaries_and_embeddings')
     @patch('src.backend.pipeline._apply_balanced_filtering')
-    def test_process_content_pipeline_full_flow(self, mock_filter, mock_enrich, mock_get_bookmarks, mock_add_summaries_batch, mock_save_sources, mock_get_session, mock_asyncio_run):
+    def test_process_content_pipeline_full_flow(self, mock_filter, mock_enrich, mock_get_bookmarks, mock_add_summaries_batch, mock_save_sources, mock_get_session, mock_scrape_all):
+        """Test pipeline flow by running the async test method."""
+        asyncio.run(self._async_test_process_content_pipeline_full_flow(
+            mock_filter, mock_enrich, mock_get_bookmarks, mock_add_summaries_batch, 
+            mock_save_sources, mock_get_session, mock_scrape_all
+        ))
+
+    async def _async_test_process_content_pipeline_full_flow(self, mock_filter, mock_enrich, mock_get_bookmarks, mock_add_summaries_batch, mock_save_sources, mock_get_session, mock_scrape_all):
         # --- Setup Mocks ---
         # Mock the concurrent scraping function to return both HF papers and RSS items
-        mock_asyncio_run.return_value = ([mock_hf_paper], [mock_hn_story])
+        # Make sure to set this as an async mock that returns a coroutine
+        async def mock_scraping():
+            return ([mock_hf_paper], [mock_hn_story])
+        mock_scrape_all.side_effect = mock_scraping
         
         # Mock save_sources to return new sources that need summaries
         mock_save_sources.return_value = {
@@ -73,7 +84,7 @@ class TestPipeline(unittest.TestCase):
         mock_db_source1.authors = ["Author A"]
         mock_db_source1.link = "http://hf.co/paper/1"
         mock_db_source1.source_link = "http://hf.co/paper/1"
-        mock_db_source1.summary = "A newly generated summary."
+        mock_db_source1.summary = None  # This source needs a summary
         mock_db_source1.keywords = None
         mock_db_source1.tags = ["research"]
         mock_db_source1.date = datetime.now()
@@ -103,7 +114,9 @@ class TestPipeline(unittest.TestCase):
             research_ratio=0.5
         )
         
-        events = list(pipeline_generator)
+        events = []
+        async for event in pipeline_generator:
+            events.append(event)
 
         # --- Assertions ---
         # Check for key events in the pipeline flow
