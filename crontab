@@ -1,6 +1,5 @@
 # Multimodal Scout Scraper Cron Jobs
 # Set environment variables for cron jobs
-DATABASE_URL=postgresql://scout_user:scout_password@postgres:5432/multimodal_scout
 PATH=/root/.local/bin:/usr/local/bin:/usr/bin:/bin
 # 
 # Full content processing pipeline - runs every 2 hours at minute 0

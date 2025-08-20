@@ -4,10 +4,15 @@
 # Set PATH for cron environment
 export PATH="/root/.local/bin:/usr/local/bin:/usr/bin:/bin"
 
-# Pass through environment variables from container environment
-# (These are set via docker-compose.yml environment section)
-export DATABASE_URL="${DATABASE_URL}"
-export GOOGLE_API_KEY="${GOOGLE_API_KEY}"
+# Load environment variables from the container environment file
+if [ -f /app/.container_env ]; then
+    source /app/.container_env
+else
+    # Fallback: Pass through environment variables from container environment
+    # (These are set via docker-compose.yml environment section)
+    export DATABASE_URL="${DATABASE_URL}"
+    export GOOGLE_API_KEY="${GOOGLE_API_KEY}"
+fi
 
 # Verify required environment variables
 if [ -z "$GOOGLE_API_KEY" ]; then

@@ -41,4 +41,4 @@ RUN chmod 0644 /etc/cron.d/scraper-cron && \
 # Scripts are run via python -m, no need to make them executable
 
 # Start cron and tail the log file (outputs to docker logs)
-CMD ["sh", "-c", "cron && tail -f /var/log/cron.log"]
+CMD ["sh", "-c", "echo 'export DATABASE_URL=\"'$DATABASE_URL'\"' > /app/.container_env && echo 'export GOOGLE_API_KEY=\"'$GOOGLE_API_KEY'\"' >> /app/.container_env && cron && tail -f /var/log/cron.log"]
