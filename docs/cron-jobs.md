@@ -5,18 +5,18 @@ Multimodal Scout uses Docker-based cron jobs to automatically collect content fr
 ## Overview
 
 The cron service runs in a separate Docker container and automatically:
-- Fetches RSS sources (Hacker News, Substack) every hour
-- Collects Hugging Face trending papers every 6 hours
+- Runs the complete content processing pipeline every 2 hours
+- Fetches content from all sources (Hacker News, Substack, Hugging Face) 
 - Generates AI summaries for new content
-- Pre-generates embeddings for faster semantic search
-- Saves processed content to the database with optimized batch operations
+- Creates embeddings for semantic search
+- Applies filtering and content processing
+- Saves everything to the database with optimized batch operations
 
 ## Schedule
 
 | Job | Frequency | Schedule Expression | Description |
 |-----|-----------|---------------------|-------------|
-| RSS Sources | Every hour | `0 * * * *` | Fetches latest content from RSS feeds at minute 0 |
-| Hugging Face | Every 6 hours | `0 */6 * * *` | Collects trending papers at 00:00, 06:00, 12:00, 18:00 |
+| Full Pipeline | Every 2 hours | `0 */2 * * *` | Complete content processing: scraping + AI processing + database storage |
 
 ## Architecture
 
@@ -24,11 +24,11 @@ The cron service runs in a separate Docker container and automatically:
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Cron Daemon   │    │ Environment     │    │ Scraper Scripts │
+│   Cron Daemon   │    │ Environment     │    │ Pipeline Runner │
 │   (system)      │────│ Script          │────│                 │
-│                 │    │ (cron_env.sh)   │    │ • run_scraper.py│
-│ • Schedule mgmt │    │ • DB connection │    │ • RSS scraper   │
-│ • Job execution │    │ • Path setup    │    │ • HF scraper    │
+│                 │    │ (cron_env.sh)   │    │ • run_pipeline.py│
+│ • Schedule mgmt │    │ • DB connection │    │ • Full pipeline │
+│ • Job execution │    │ • Path setup    │    │ • All scrapers  │
 │ • Logging       │    │ • Env isolation │    │ • AI processing │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
@@ -63,32 +63,35 @@ Cron logs include:
 
 **Job Start/End Markers:**
 ```
-Mon Aug 11 16:00:00 UTC 2025: Starting Hacker News cron job
-Mon Aug 11 16:00:15 UTC 2025: Hacker News cron job completed
+Mon Aug 19 16:00:00 UTC 2025: Starting full pipeline cron job
+Mon Aug 19 16:00:45 UTC 2025: Full pipeline cron job completed
 ```
 
 **Detailed Processing Logs:**
 ```
-🤖 CRON JOB STARTED: 2025-08-11 16:00:00
-📋 Target scraper: backend.scraper.scrape_rss_sources
-🚀 Starting scheduled scraping job...
-📊 Scraping completed in 0.26s
-📈 Scraped 30 items
-🧠 Generating summaries for items without summaries...
-💾 Database save completed in 0.45s
-✅ SUCCESS: Scraping job completed successfully
-⏱️  Total execution time: 15.23s
-🏁 Job ended: 2025-08-11 16:00:15
+🤖 PIPELINE CRON JOB STARTED: 2025-08-19 16:00:00
+🚀 Starting full content processing pipeline...
+📋 STATUS: Scraping fresh content from Hugging Face and RSS sources...
+📋 START: Starting unified processing pipeline...
+📋 STATUS: Concurrent scraping complete: 50 HF papers, 60 RSS items
+📋 STATUS: Saved 110 sources (60 new)
+⏳ PROGRESS: 17% - Starting AI processing for 60 sources...
+⏳ PROGRESS: 45% - Generating AI summaries...
+📊 FINAL RESULTS: 100 items processed
+📊 SOURCES: Research Papers, Industry News
+✅ SUCCESS: Pipeline cron job completed successfully
+⏱️  Total execution time: 45.23s
+🏁 Job ended: 2025-08-19 16:00:45
 ```
 
 ### Performance Metrics
 
-Each cron job logs:
-- **Scraping time**: Time to fetch content from sources
-- **Summary generation time**: AI processing duration
-- **Database save time**: Persistence operation time
-- **Total execution time**: Complete job duration
-- **Item counts**: Number of articles processed
+Each pipeline run logs:
+- **Total execution time**: Complete pipeline duration (typically 30-90s depending on new content)
+- **Progress tracking**: Real-time percentage completion through pipeline stages
+- **Item counts**: Number of sources processed from each feed (HF papers, RSS items)
+- **Processing breakdown**: Concurrent scraping, AI summary generation, database operations
+- **Final results**: Total items available after filtering and processing
 
 ## Troubleshooting
 
@@ -120,14 +123,15 @@ Google API quota exceeded
 
 ### Manual Testing
 
-Test individual cron jobs manually:
+Test the pipeline manually:
 
 ```bash
-# Test RSS sources scraper
-docker-compose exec cron /app/cron_env.sh /root/.local/bin/uv run python -m src.backend.run_scraper backend.scraper.scrape_rss_sources
+# Test full pipeline (recommended)
+docker-compose exec cron /app/cron_env.sh /root/.local/bin/uv run python -m src.backend.run_pipeline
 
-# Test Hugging Face scraper  
-docker-compose exec cron /app/cron_env.sh /root/.local/bin/uv run python -m src.backend.run_scraper backend.scraper.scrape_huggingface_trending_papers
+# Test individual scrapers (for debugging)
+docker-compose exec cron /app/cron_env.sh /root/.local/bin/uv run python -m src.backend.run_scraper src.backend.scraper.scrape_rss_sources
+docker-compose exec cron /app/cron_env.sh /root/.local/bin/uv run python -m src.backend.run_scraper src.backend.scraper.scrape_huggingface_trending_papers
 
 # Test database connection
 docker-compose exec cron /app/cron_env.sh /root/.local/bin/uv run python -c "from src.backend.database import db_manager; print('Database connected')"
@@ -154,6 +158,7 @@ Edit `crontab` file to modify job schedules:
 
 ```bash
 # Crontab format: minute hour day month weekday command
+0 */2 * * *   # Every 2 hours at minute 0 (current pipeline)
 0 * * * *     # Every hour at minute 0
 0 */6 * * *   # Every 6 hours at minute 0  
 0 0 * * *     # Daily at midnight

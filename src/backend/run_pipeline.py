@@ -11,7 +11,9 @@ import time
 from datetime import datetime
 
 # Add the project root directory to Python path
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+project_root = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 sys.path.insert(0, project_root)
 
 from src.backend.logger import logger
@@ -40,18 +42,18 @@ async def main():
             topics=[],  # No topic filtering for cron jobs
             max_results=100,
             research_ratio=0.5,
-            selected_days=1  # Process content from last day
+            selected_days=1,  # Process content from last day
         )
 
         # Process all pipeline events and log key milestones
         event_count = 0
         final_result = None
-        
+
         async for event in pipeline_generator:
             event_count += 1
             event_type = event.get("type", "unknown")
             message = event.get("message", "")
-            
+
             # Log important events
             if event_type in ["status", "start", "complete", "error"]:
                 logger.info(f"📋 {event_type.upper()}: {message}")
@@ -62,10 +64,12 @@ async def main():
             elif event_type == "result":
                 final_result = event.get("data", {})
                 logger.info("🎯 RESULT: Pipeline completed with final results")
-            
+
             # Safety break to prevent infinite loops
             if event_count > 50:
-                logger.warning("⚠️  Pipeline generated more than 50 events, stopping for safety")
+                logger.warning(
+                    "⚠️  Pipeline generated more than 50 events, stopping for safety"
+                )
                 break
 
         # Log final results

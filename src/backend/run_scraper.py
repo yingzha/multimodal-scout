@@ -13,7 +13,9 @@ import inspect
 from datetime import datetime
 
 # Add the project root directory to Python path
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+project_root = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 sys.path.insert(0, project_root)
 
 from src.backend.logger import logger
