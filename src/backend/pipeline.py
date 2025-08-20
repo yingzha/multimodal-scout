@@ -450,7 +450,8 @@ async def process_content_pipeline(
         # Mark all cards as seen now that they're being shown
         db_manager.mark_cards_seen(session_id, all_links)
 
-    final_items = []
+    # Build items with new status
+    all_items = []
     for source in filtered_sources:
         source_tag = "General"
         if hasattr(source, "tags") and source.tags:
@@ -459,7 +460,7 @@ async def process_content_pipeline(
         link_str = str(source.link)
         is_new = link_str in new_links if session_id else False
 
-        final_items.append(
+        all_items.append(
             {
                 "title": source.title,
                 "link": link_str,
@@ -473,6 +474,11 @@ async def process_content_pipeline(
                 "is_new": is_new,
             }
         )
+
+    # Sort items: new cards first, then rest in original order
+    new_items = [item for item in all_items if item["is_new"]]
+    existing_items = [item for item in all_items if not item["is_new"]]
+    final_items = new_items + existing_items
 
     yield {
         "type": "complete",
