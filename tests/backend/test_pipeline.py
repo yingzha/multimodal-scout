@@ -28,18 +28,17 @@ mock_hn_story = SourceSchema(
 
 class TestPipeline(unittest.TestCase):
 
-    @patch('src.backend.pipeline.scrape_huggingface_trending_papers')
-    @patch('src.backend.pipeline.scrape_rss_sources')
+    @patch('src.backend.pipeline.asyncio.run')
     @patch('src.backend.database.db_manager.get_session')
     @patch('src.backend.database.db_manager.save_sources')
     @patch('src.backend.database.db_manager.add_summaries_batch')
     @patch('src.backend.database.db_manager.get_bookmarks')
     @patch('src.backend.merger.enrich_sources_with_summaries_and_embeddings')
     @patch('src.backend.pipeline._apply_balanced_filtering')
-    def test_process_content_pipeline_full_flow(self, mock_filter, mock_enrich, mock_get_bookmarks, mock_add_summaries_batch, mock_save_sources, mock_get_session, mock_scrape_hn, mock_scrape_hf):
+    def test_process_content_pipeline_full_flow(self, mock_filter, mock_enrich, mock_get_bookmarks, mock_add_summaries_batch, mock_save_sources, mock_get_session, mock_asyncio_run):
         # --- Setup Mocks ---
-        mock_scrape_hf.return_value = [mock_hf_paper]
-        mock_scrape_hn.return_value = [mock_hn_story]
+        # Mock the concurrent scraping function to return both HF papers and RSS items
+        mock_asyncio_run.return_value = ([mock_hf_paper], [mock_hn_story])
         
         # Mock save_sources to return new sources that need summaries
         mock_save_sources.return_value = {

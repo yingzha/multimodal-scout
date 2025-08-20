@@ -13,8 +13,9 @@ suitable for streaming APIs.
 
 from typing import List, Dict, Any, Generator
 from datetime import datetime, timedelta
+import asyncio
 
-from .scraper import scrape_huggingface_trending_papers, scrape_rss_sources
+from .scraper import scrape_all_sources_concurrent
 from .logger import logger
 from .schema import SourceSchema
 from .database import db_manager
@@ -181,27 +182,28 @@ def process_content_pipeline(
     }
 
     try:
-        hf_papers = scrape_huggingface_trending_papers()
+        # Use concurrent scraping for better performance
+        hf_papers, rss_items = asyncio.run(scrape_all_sources_concurrent())
+
         if hf_papers:
             fresh_sources.extend(hf_papers)
             source_names.append("Hugging Face")
-    #        yield {'type': 'status', 'message': f'Found {len(hf_papers)} fresh Hugging Face papers'}
-    except Exception as e:
-        logger.error(f"Failed to fetch Hugging Face papers: {e}")
-        yield {
-            "type": "error",
-            "message": f"Failed to fetch Hugging Face papers: {str(e)}",
-        }
 
-    try:
-        rss_items = scrape_rss_sources()
         if rss_items:
             fresh_sources.extend(rss_items)
             source_names.append("RSS Sources")
-    #        yield {'type': 'status', 'message': f'Found {len(rss_items)} fresh RSS items'}
+
+        yield {
+            "type": "status",
+            "message": f"Concurrent scraping complete: {len(hf_papers)} HF papers, {len(rss_items)} RSS items",
+        }
+
     except Exception as e:
-        logger.error(f"Failed to fetch RSS sources: {e}")
-        yield {"type": "error", "message": f"Failed to fetch RSS sources: {str(e)}"}
+        logger.error(f"Failed to fetch sources concurrently: {e}")
+        yield {
+            "type": "error",
+            "message": f"Failed to fetch sources concurrently: {str(e)}",
+        }
 
     # Step 2: Save fresh content to database first (without summaries)
     # This tells us which sources are truly new and need summary generation

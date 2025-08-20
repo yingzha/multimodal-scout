@@ -1,6 +1,8 @@
 import json
 from typing import List
+import asyncio
 
+import aiohttp
 import feedparser
 import requests
 from bs4 import BeautifulSoup
@@ -46,7 +48,7 @@ def parse_rss_date(date_string: str) -> str:
         return datetime.now().strftime("%Y-%m-%dT%H:%M:%S%z")
 
 
-def scrape_huggingface_trending_papers() -> List[SourceSchema]:
+async def scrape_huggingface_trending_papers() -> List[SourceSchema]:
     """
     Scrapes trending papers from Hugging Face, validates them against the
     SourceSchema, and returns a list of valid SourceSchema objects.
@@ -64,11 +66,14 @@ def scrape_huggingface_trending_papers() -> List[SourceSchema]:
 
     try:
         logger.info(f"Attempting to fetch data from: {url}")
-        response = requests.get(url, headers=headers, timeout=15)
-        response.raise_for_status()
+        timeout = aiohttp.ClientTimeout(total=15)
+        async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
+            async with session.get(url) as response:
+                response.raise_for_status()
+                response_text = await response.text()
 
         logger.info("Successfully fetched the webpage. Parsing HTML for JSON data...")
-        soup = BeautifulSoup(response.text, "html.parser")
+        soup = BeautifulSoup(response_text, "html.parser")
 
         # More robustly find the data by searching for the 'dailyPapers' key
         # in the 'data-props' of relevant divs, instead of using a fixed index.
@@ -134,7 +139,7 @@ def scrape_huggingface_trending_papers() -> List[SourceSchema]:
             except ValidationError as e:
                 logger.warning(f"Skipping paper '{title}' due to validation error: {e}")
 
-    except requests.exceptions.RequestException as err:
+    except aiohttp.ClientError as err:
         logger.error(f"HTTP Request Error: {err}")
     except Exception as err:
         logger.error(
@@ -148,7 +153,7 @@ def scrape_huggingface_trending_papers() -> List[SourceSchema]:
     return validated_papers
 
 
-def scrape_rss_sources() -> List[SourceSchema]:
+async def scrape_rss_sources() -> List[SourceSchema]:
     """
     Scrapes stories from multiple RSS sources including Hacker News and Substack,
     validates them against the SourceSchema, and returns a list of valid SourceSchema objects.
@@ -163,12 +168,21 @@ def scrape_rss_sources() -> List[SourceSchema]:
     ]
     validated_stories = []
 
-    for url in urls:
+    # Process all RSS feeds concurrently
+    async def fetch_rss_feed(
+        session: aiohttp.ClientSession, url: str
+    ) -> List[SourceSchema]:
+        """Fetch and parse a single RSS feed"""
         logger.info(f"Attempting to fetch data from: {url}")
+        feed_stories = []
 
         try:
-            # feedparser handles the request and parsing
-            feed = feedparser.parse(url)
+            async with session.get(url) as response:
+                response.raise_for_status()
+                feed_content = await response.text()
+
+            # Parse the RSS content using feedparser
+            feed = feedparser.parse(feed_content)
 
             # Check for parsing errors
             if feed.bozo:
@@ -215,7 +229,7 @@ def scrape_rss_sources() -> List[SourceSchema]:
                     }
 
                     validated_story = SourceSchema(**story_data)
-                    validated_stories.append(validated_story)
+                    feed_stories.append(validated_story)
 
                 except ValidationError as e:
                     logger.warning(
@@ -228,7 +242,61 @@ def scrape_rss_sources() -> List[SourceSchema]:
                 exc_info=True,
             )
 
+        return feed_stories
+
+    # Fetch all RSS feeds concurrently
+    timeout = aiohttp.ClientTimeout(total=15)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        tasks = [fetch_rss_feed(session, url) for url in urls]
+        feed_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Collect all validated stories from all feeds
+    validated_stories = []
+    for result in feed_results:
+        if isinstance(result, list):
+            validated_stories.extend(result)
+        elif isinstance(result, Exception):
+            logger.error(f"RSS feed fetch failed: {result}")
+
     logger.info(
         f"Successfully scraped and validated {len(validated_stories)} stories from {len(urls)} RSS feeds."
     )
     return validated_stories
+
+
+# Main concurrent scraping function for the pipeline
+async def scrape_all_sources_concurrent() -> (
+    tuple[List[SourceSchema], List[SourceSchema]]
+):
+    """
+    Scrape both HuggingFace and RSS sources concurrently for maximum performance.
+    Returns a tuple of (hf_papers, rss_items).
+    """
+    logger.info("Starting concurrent scraping of all sources...")
+
+    # Run both scrapers concurrently
+    hf_task = scrape_huggingface_trending_papers()
+    rss_task = scrape_rss_sources()
+
+    try:
+        hf_papers, rss_items = await asyncio.gather(
+            hf_task, rss_task, return_exceptions=True
+        )
+
+        # Handle any exceptions from the scrapers
+        if isinstance(hf_papers, Exception):
+            logger.error(f"HuggingFace scraping failed: {hf_papers}")
+            hf_papers = []
+
+        if isinstance(rss_items, Exception):
+            logger.error(f"RSS scraping failed: {rss_items}")
+            rss_items = []
+
+        logger.info(
+            f"Concurrent scraping complete: {len(hf_papers)} HF papers, {len(rss_items)} RSS items"
+        )
+        return hf_papers, rss_items
+
+    except Exception as e:
+        logger.error(f"Concurrent scraping failed: {e}", exc_info=True)
+        return [], []
