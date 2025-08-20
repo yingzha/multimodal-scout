@@ -216,21 +216,55 @@ class DatabaseManager:
                 for s in results
             ]
 
-    def cleanup_summaries(self, days_to_keep: int = 30) -> int:
-        """Clear summaries from old sources (consolidated approach)."""
+    def cleanup_summaries_and_embeddings(self, days_to_keep: int = 30) -> Dict[str, int]:
+        """Clear summaries from old sources and their corresponding embeddings."""
         cutoff_date = datetime.now() - timedelta(days=days_to_keep)
         with self.get_session() as session:
+            # First, get summaries that will be cleaned up to find their embeddings
+            sources_to_cleanup = (
+                session.query(Source)
+                .filter(Source.created_at < cutoff_date, Source.summary.isnot(None))
+                .all()
+            )
+            
+            # Collect text hashes for embeddings to be removed
+            embedding_hashes_to_remove = set()
+            for source in sources_to_cleanup:
+                if source.summary and source.summary.strip():
+                    text_hash = self._get_text_hash(source.summary)
+                    embedding_hashes_to_remove.add(text_hash)
+            
+            # Remove corresponding embeddings first
+            embedding_deleted_count = 0
+            if embedding_hashes_to_remove:
+                embedding_deleted_count = (
+                    session.query(EmbeddingCache)
+                    .filter(EmbeddingCache.text_hash.in_(embedding_hashes_to_remove))
+                    .delete(synchronize_session=False)
+                )
+            
             # Set summary to NULL for old sources instead of deleting records
-            updated_count = (
+            summary_updated_count = (
                 session.query(Source)
                 .filter(Source.created_at < cutoff_date, Source.summary.isnot(None))
                 .update({Source.summary: None, Source.updated_at: datetime.now()})
             )
+            
             session.commit()
+            
             logger.info(
-                f"Cleaned up {updated_count} old summaries (older than {days_to_keep} days)"
+                f"Cleaned up {summary_updated_count} old summaries and {embedding_deleted_count} corresponding embeddings (older than {days_to_keep} days)"
             )
-            return updated_count
+            
+            return {
+                "summaries_cleaned": summary_updated_count,
+                "embeddings_cleaned": embedding_deleted_count
+            }
+
+    def cleanup_summaries(self, days_to_keep: int = 30) -> int:
+        """Legacy method - use cleanup_summaries_and_embeddings() for better consistency."""
+        result = self.cleanup_summaries_and_embeddings(days_to_keep)
+        return result["summaries_cleaned"]
 
     def get_summary_cache_stats(self) -> Dict[str, int]:
         """Get summary statistics from sources table (consolidated approach)."""

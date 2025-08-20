@@ -108,8 +108,55 @@ class TestDatabaseManager(unittest.TestCase):
         
         self.mock_db_manager.add_summary(new_summary_url, new_summary_content)
 
+        # Test legacy function still works
         deleted_count = self.mock_db_manager.cleanup_summaries(days_to_keep=30)
         self.assertEqual(deleted_count, 1)
+
+    def test_cleanup_summaries_and_embeddings(self):
+        # Add an old source with summary that should be cleaned up
+        old_summary_url = "http://old.com"
+        old_summary_content = "Old content for embedding test."
+        with self.mock_db_manager.get_session() as session:
+            old_source = Source(
+                title="Old Article",
+                authors=["Old Author"], 
+                link=old_summary_url,
+                source_link=old_summary_url,
+                summary=old_summary_content,
+                keywords=["old"],
+                tags=["test"],
+                date=datetime.utcnow(),
+                created_at=datetime.utcnow() - timedelta(days=60)
+            )
+            session.add(old_source)
+            session.commit()
+        
+        # Add corresponding embedding
+        self.mock_db_manager.add_embedding_for_text(old_summary_content, [0.1, 0.2, 0.3], "test-model")
+        
+        # Add a new source with summary that should not be cleaned up
+        new_summary_url = "http://new.com"
+        new_summary_content = "New content for embedding test."
+        with self.mock_db_manager.get_session() as session:
+            new_source = Source(
+                title="New Article",
+                authors=["New Author"],
+                link=new_summary_url,
+                source_link=new_summary_url,
+                summary=new_summary_content,
+                keywords=["new"],
+                tags=["test"],
+                date=datetime.utcnow(),
+                created_at=datetime.utcnow() - timedelta(days=5)  # Recent
+            )
+            session.add(new_source)
+            session.commit()
+        self.mock_db_manager.add_embedding_for_text(new_summary_content, [0.4, 0.5, 0.6], "test-model")
+
+        # Test new unified cleanup function
+        result = self.mock_db_manager.cleanup_summaries_and_embeddings(days_to_keep=30)
+        self.assertEqual(result['summaries_cleaned'], 1)
+        self.assertEqual(result['embeddings_cleaned'], 1)
         self.assertIsNone(self.mock_db_manager.get_summary(old_summary_url))
         self.assertEqual(self.mock_db_manager.get_summary(new_summary_url), new_summary_content)
 

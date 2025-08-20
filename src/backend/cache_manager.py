@@ -144,8 +144,8 @@ def cleanup_cache(cache_type: str, days: int = 30):
     """Clean up old cache entries."""
     try:
         if cache_type == "summary":
-            deleted_count = db_manager.cleanup_summaries(days)
-            print(f"Cleaned up {deleted_count} summaries older than {days} days")
+            result = db_manager.cleanup_summaries_and_embeddings(days)
+            print(f"Cleaned up {result['summaries_cleaned']} summaries and {result['embeddings_cleaned']} corresponding embeddings older than {days} days")
 
         elif cache_type == "embedding":
             deleted_count = db_manager.cleanup_embeddings(days)
@@ -157,11 +157,12 @@ def cleanup_cache(cache_type: str, days: int = 30):
             print(f"Cleaned up {deleted_count} bookmarks older than {days} days")
 
         elif cache_type == "all":
-            summary_count = db_manager.cleanup_summaries(days)
-            embedding_count = db_manager.cleanup_embeddings(days)
+            summary_result = db_manager.cleanup_summaries_and_embeddings(days)
+            remaining_embedding_count = db_manager.cleanup_embeddings(days)
             bookmark_count = db_manager.cleanup_bookmarks(min(days, 90))
+            total_embeddings = summary_result['embeddings_cleaned'] + remaining_embedding_count
             print(
-                f"Cleaned up {summary_count} summaries, {embedding_count} embeddings, {bookmark_count} bookmarks"
+                f"Cleaned up {summary_result['summaries_cleaned']} summaries, {total_embeddings} embeddings ({summary_result['embeddings_cleaned']} linked to summaries + {remaining_embedding_count} others), {bookmark_count} bookmarks"
             )
 
     except Exception as e:
