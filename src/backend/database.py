@@ -3,7 +3,16 @@ import hashlib
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 
-from sqlalchemy import create_engine, Column, String, DateTime, Text, Float, desc
+from sqlalchemy import (
+    create_engine,
+    Column,
+    String,
+    DateTime,
+    Text,
+    Float,
+    Boolean,
+    desc,
+)
 from sqlalchemy.types import JSON, TypeDecorator
 import json
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -63,6 +72,17 @@ class Source(Base):
     updated_at = Column(
         DateTime, default=datetime.now, onupdate=datetime.now, nullable=False
     )
+
+
+class SeenCard(Base):
+    __tablename__ = "seen_cards"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id = Column(String, nullable=False, index=True)  # Browser session ID
+    card_link = Column(String, nullable=False, index=True)  # Link to the card
+    seen_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
+
+    __table_args__ = {"schema": None}  # Use default schema
 
 
 class EmbeddingCache(Base):
@@ -216,7 +236,9 @@ class DatabaseManager:
                 for s in results
             ]
 
-    def cleanup_summaries_and_embeddings(self, days_to_keep: int = 30) -> Dict[str, int]:
+    def cleanup_summaries_and_embeddings(
+        self, days_to_keep: int = 30
+    ) -> Dict[str, int]:
         """Clear summaries from old sources and their corresponding embeddings."""
         cutoff_date = datetime.now() - timedelta(days=days_to_keep)
         with self.get_session() as session:
@@ -226,14 +248,14 @@ class DatabaseManager:
                 .filter(Source.created_at < cutoff_date, Source.summary.isnot(None))
                 .all()
             )
-            
+
             # Collect text hashes for embeddings to be removed
             embedding_hashes_to_remove = set()
             for source in sources_to_cleanup:
                 if source.summary and source.summary.strip():
                     text_hash = self._get_text_hash(source.summary)
                     embedding_hashes_to_remove.add(text_hash)
-            
+
             # Remove corresponding embeddings first
             embedding_deleted_count = 0
             if embedding_hashes_to_remove:
@@ -242,23 +264,23 @@ class DatabaseManager:
                     .filter(EmbeddingCache.text_hash.in_(embedding_hashes_to_remove))
                     .delete(synchronize_session=False)
                 )
-            
+
             # Set summary to NULL for old sources instead of deleting records
             summary_updated_count = (
                 session.query(Source)
                 .filter(Source.created_at < cutoff_date, Source.summary.isnot(None))
                 .update({Source.summary: None, Source.updated_at: datetime.now()})
             )
-            
+
             session.commit()
-            
+
             logger.info(
                 f"Cleaned up {summary_updated_count} old summaries and {embedding_deleted_count} corresponding embeddings (older than {days_to_keep} days)"
             )
-            
+
             return {
                 "summaries_cleaned": summary_updated_count,
-                "embeddings_cleaned": embedding_deleted_count
+                "embeddings_cleaned": embedding_deleted_count,
             }
 
     def cleanup_summaries(self, days_to_keep: int = 30) -> int:
@@ -792,6 +814,60 @@ class DatabaseManager:
                 logger.info(f"Removed cached embedding for text hash: {text_hash}")
                 return True
             return False
+
+    # --- Simple Card Tracking Methods ---
+
+    def get_new_cards(self, session_id: str, card_links: List[str]) -> List[str]:
+        """Get list of card links that are new for this session."""
+        if not card_links or not session_id:
+            return card_links
+
+        with self.get_session() as session:
+            seen_links = (
+                session.query(SeenCard.card_link)
+                .filter(
+                    SeenCard.session_id == session_id,
+                    SeenCard.card_link.in_(card_links),
+                )
+                .all()
+            )
+
+            seen_set = {link[0] for link in seen_links}
+            new_links = [link for link in card_links if link not in seen_set]
+
+            return new_links
+
+    def mark_cards_seen(self, session_id: str, card_links: List[str]) -> None:
+        """Mark cards as seen for this session."""
+        if not card_links or not session_id:
+            return
+
+        with self.get_session() as session:
+            # Check which cards are already seen
+            existing_seen = (
+                session.query(SeenCard.card_link)
+                .filter(
+                    SeenCard.session_id == session_id,
+                    SeenCard.card_link.in_(card_links),
+                )
+                .all()
+            )
+
+            existing_set = {link[0] for link in existing_seen}
+            new_cards_to_mark = [
+                link for link in card_links if link not in existing_set
+            ]
+
+            # Add new seen cards
+            for card_link in new_cards_to_mark:
+                seen_card = SeenCard(session_id=session_id, card_link=card_link)
+                session.add(seen_card)
+
+            if new_cards_to_mark:
+                session.commit()
+                logger.info(
+                    f"Marked {len(new_cards_to_mark)} new cards as seen for session {session_id}"
+                )
 
 
 # Global database manager instance

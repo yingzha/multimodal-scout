@@ -145,7 +145,9 @@ def cleanup_cache(cache_type: str, days: int = 30):
     try:
         if cache_type == "summary":
             result = db_manager.cleanup_summaries_and_embeddings(days)
-            print(f"Cleaned up {result['summaries_cleaned']} summaries and {result['embeddings_cleaned']} corresponding embeddings older than {days} days")
+            print(
+                f"Cleaned up {result['summaries_cleaned']} summaries and {result['embeddings_cleaned']} corresponding embeddings older than {days} days"
+            )
 
         elif cache_type == "embedding":
             deleted_count = db_manager.cleanup_embeddings(days)
@@ -160,7 +162,9 @@ def cleanup_cache(cache_type: str, days: int = 30):
             summary_result = db_manager.cleanup_summaries_and_embeddings(days)
             remaining_embedding_count = db_manager.cleanup_embeddings(days)
             bookmark_count = db_manager.cleanup_bookmarks(min(days, 90))
-            total_embeddings = summary_result['embeddings_cleaned'] + remaining_embedding_count
+            total_embeddings = (
+                summary_result["embeddings_cleaned"] + remaining_embedding_count
+            )
             print(
                 f"Cleaned up {summary_result['summaries_cleaned']} summaries, {total_embeddings} embeddings ({summary_result['embeddings_cleaned']} linked to summaries + {remaining_embedding_count} others), {bookmark_count} bookmarks"
             )

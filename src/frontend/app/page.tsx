@@ -40,6 +40,10 @@ export default function Home() {
   const [editingSummary, setEditingSummary] = useState<string | null>(null)
   const [editedSummaryText, setEditedSummaryText] = useState('')
   const [isUpdatingSummary, setIsUpdatingSummary] = useState(false)
+  const [sessionId] = useState(() => {
+    // Generate a unique session ID for this browser session
+    return 'session_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now()
+  })
   const advancedSettingsRef = useRef<HTMLDivElement>(null)
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -656,7 +660,7 @@ export default function Home() {
       const response = await fetch(`${apiUrl}/api/content/search/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ selectedDays, topics: allTopics, maxResults, researchRatio })
+        body: JSON.stringify({ selectedDays, topics: allTopics, maxResults, researchRatio, sessionId })
       })
       
       if (!response.ok) {
@@ -955,17 +959,24 @@ export default function Home() {
                   className="bg-white rounded-lg p-6 border border-gray-200 hover:shadow-lg transition-all duration-300"
                 >
                   <div className="flex items-start justify-between mb-4">
-                    <button
-                      onClick={() => handleTagFilter(item.source)}
-                      className={`inline-block px-3 py-1 text-xs font-medium rounded-full transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                        selectedTag === item.source
-                          ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-300'
-                          : 'bg-gray-300 text-gray-800 hover:bg-gray-400'
-                      }`}
-                      title={`Filter by ${item.source}`}
-                    >
-                      {item.source}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleTagFilter(item.source)}
+                        className={`inline-block px-3 py-1 text-xs font-medium rounded-full transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          selectedTag === item.source
+                            ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-300'
+                            : 'bg-gray-300 text-gray-800 hover:bg-gray-400'
+                        }`}
+                        title={`Filter by ${item.source}`}
+                      >
+                        {item.source}
+                      </button>
+                      {item.is_new && (
+                        <span className="px-2 py-1 text-xs font-bold italic text-red-600 bg-red-100 rounded-full">
+                          New!
+                        </span>
+                      )}
+                    </div>
                     <button
                       onClick={() => handleBookmark(item)}
                       className={`w-8 h-8 flex items-center justify-center rounded-full focus:outline-none transition-colors ${

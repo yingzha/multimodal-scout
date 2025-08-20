@@ -150,7 +150,11 @@ def _apply_balanced_filtering(
 
 
 async def process_content_pipeline(
-    topics: List[str], max_results: int, research_ratio: float, selected_days: int = 7
+    topics: List[str],
+    max_results: int,
+    research_ratio: float,
+    selected_days: int = 7,
+    session_id: str = None,
 ) -> AsyncGenerator[Dict[str, Any], None]:
     """
     The main processing pipeline.
@@ -213,8 +217,10 @@ async def process_content_pipeline(
         updated_sources = save_result["updated_sources"]
         skipped_sources = save_result["skipped_sources"]
 
+        total_operated = len(new_sources) + len(updated_sources)
+        total_input = save_result["total_processed"] + skipped_sources
         logger.info(
-            f"Saved {save_result['total_processed']} sources: {len(new_sources)} new, {len(updated_sources)} updated, {skipped_sources} skipped"
+            f"Processed {total_input} sources: {len(new_sources)} new, {len(updated_sources)} updated, {skipped_sources} skipped (recent cache), {save_result['total_processed'] - total_operated} unchanged"
         )
         yield {
             "type": "status",
@@ -435,16 +441,28 @@ async def process_content_pipeline(
             "total": 100,
         }
 
+    # Determine which cards are new for this session
+    new_links = []
+    if session_id:
+        all_links = [str(source.link) for source in filtered_sources]
+        new_links = db_manager.get_new_cards(session_id, all_links)
+
+        # Mark all cards as seen now that they're being shown
+        db_manager.mark_cards_seen(session_id, all_links)
+
     final_items = []
     for source in filtered_sources:
         source_tag = "General"
         if hasattr(source, "tags") and source.tags:
             source_tag = source.tags[0].capitalize() if source.tags[0] else "General"
 
+        link_str = str(source.link)
+        is_new = link_str in new_links if session_id else False
+
         final_items.append(
             {
                 "title": source.title,
-                "link": str(source.link),
+                "link": link_str,
                 "summary": source.summary or "No summary available",
                 "source": source_tag,
                 "created_at": (
@@ -452,6 +470,7 @@ async def process_content_pipeline(
                     if hasattr(source, "date") and source.date
                     else datetime.now().isoformat()
                 ),
+                "is_new": is_new,
             }
         )
 

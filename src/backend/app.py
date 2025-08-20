@@ -172,6 +172,7 @@ async def search_content(request: FetchRequest):
             max_results=request.maxResults,
             research_ratio=request.researchRatio,
             selected_days=request.selectedDays,
+            session_id=request.sessionId,
         )
 
         final_result = None
@@ -221,6 +222,7 @@ async def search_content_stream(request: FetchRequest):
                 max_results=request.maxResults,
                 research_ratio=request.researchRatio,
                 selected_days=request.selectedDays,
+                session_id=request.sessionId,
             )
 
             async for event in pipeline_generator:

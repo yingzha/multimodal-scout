@@ -26,6 +26,7 @@ class FetchRequest(BaseModel):
     topics: List[str]
     maxResults: int = 10  # Default to 10 results
     researchRatio: float = 0.5  # Default to 50/50 research/industry balance
+    sessionId: Optional[str] = None  # Browser session ID for tracking new cards
 
 
 class TopicResponse(BaseModel):
@@ -43,6 +44,7 @@ class ItemResponse(BaseModel):
     source: str
     created_at: str
     summary_edited: bool = False
+    is_new: bool = False  # True if this card is new for the user session
 
 
 class FetchResponse(BaseModel):
