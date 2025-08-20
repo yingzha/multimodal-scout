@@ -47,9 +47,9 @@ async def lifespan(app: FastAPI):
         logger.error(f"❌ Failed to initialize database tables: {e}", exc_info=True)
         # Don't raise here to allow the app to start even if DB init fails
         # This allows for debugging and manual intervention
-    
+
     yield
-    
+
     # Shutdown (if needed)
     logger.info("🔄 Application shutting down...")
 
@@ -92,7 +92,6 @@ def create_user_friendly_error(
             "details": technical_detail if technical_detail else None,
         },
     )
-
 
 
 # Add CORS middleware to allow frontend connections

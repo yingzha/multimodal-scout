@@ -86,11 +86,6 @@ class Config:
         return api_key
 
     @property
-    def debug(self) -> bool:
-        """Get debug flag."""
-        return os.getenv("DEBUG", "false").lower() in ("true", "1", "yes")
-
-    @property
     def port(self) -> int:
         """Get port from environment (Cloud Run sets this automatically)."""
         return int(os.getenv("PORT", "8000"))

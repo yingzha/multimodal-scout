@@ -8,7 +8,6 @@ export PATH="/root/.local/bin:/usr/local/bin:/usr/bin:/bin"
 # (These are set via docker-compose.yml environment section)
 export DATABASE_URL="${DATABASE_URL}"
 export GOOGLE_API_KEY="${GOOGLE_API_KEY}"
-export DEBUG="${DEBUG:-false}"
 
 # Verify required environment variables
 if [ -z "$GOOGLE_API_KEY" ]; then
@@ -17,7 +16,7 @@ if [ -z "$GOOGLE_API_KEY" ]; then
     exit 1
 fi
 
-echo "Environment loaded successfully. API key: ${GOOGLE_API_KEY:0:10}..."
+echo "Environment variables loaded successfully."
 
 if [ -n "$1" ]; then
     # Execute the command passed as arguments
