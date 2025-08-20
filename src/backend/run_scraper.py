@@ -8,14 +8,17 @@ import sys
 import os
 import importlib
 import time
+import asyncio
+import inspect
 from datetime import datetime
 
-# Add the src directory to Python path
-sys.path.insert(0, "/app/src")
+# Add the project root directory to Python path
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, project_root)
 
-from backend.logger import logger
-from backend.database import db_manager
-from backend.merger import enrich_sources_with_summaries
+from src.backend.logger import logger
+from src.backend.database import db_manager
+from src.backend.merger import enrich_sources_with_summaries
 
 
 def main():
@@ -58,7 +61,12 @@ def main():
 
         # Scrape items
         scrape_start = time.time()
-        results = scraper_function()
+        if inspect.iscoroutinefunction(scraper_function):
+            logger.info("🔄 Running async scraper function")
+            results = asyncio.run(scraper_function())
+        else:
+            logger.info("🔄 Running sync scraper function")
+            results = scraper_function()
         scrape_time = time.time() - scrape_start
 
         logger.info(f"📊 Scraping completed in {scrape_time:.2f}s")
