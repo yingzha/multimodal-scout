@@ -45,7 +45,7 @@ class TestApp(unittest.TestCase):
         data = response.json()
         self.assertEqual(data['total_count'], 1)
         self.assertEqual(data['items'][0]['title'], 'Test Item')
-        mock_pipeline.assert_called_once_with(topics=["ai"], max_results=1, research_ratio=0.5, selected_days=7)
+        mock_pipeline.assert_called_once_with(topics=["ai"], max_results=1, research_ratio=0.5, selected_days=7, session_id=None)
 
     @patch('src.backend.app.process_content_pipeline')
     def test_fetch_top_items_stream_endpoint(self, mock_pipeline):
