@@ -5,7 +5,7 @@ from typing import List
 from .logger import logger
 from .schema import SourceSchema
 from .database import db_manager
-from .client import genai_client, AI_ENABLED as SEMANTIC_SEARCH_ENABLED
+from .client import genai_client, is_genai_enabled
 
 
 def _normalize_text(text: str) -> str:
@@ -18,7 +18,7 @@ def _normalize_text(text: str) -> str:
 
 def _get_embedding(text: str) -> np.ndarray:
     """Get embedding for text using Google Gemini with database caching."""
-    if not SEMANTIC_SEARCH_ENABLED or not genai_client:
+    if not is_genai_enabled():
         return np.array([])
 
     if not text or text.strip() == "":
@@ -144,7 +144,7 @@ def semantic_search_with_scores(
     Returns:
         A list of tuples (source, similarity_score) sorted by descending similarity.
     """
-    if not SEMANTIC_SEARCH_ENABLED or not sources or not genai_client:
+    if not is_genai_enabled() or not sources:
         logger.warning("Semantic search is disabled or no sources provided")
         return []
 

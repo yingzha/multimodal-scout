@@ -14,11 +14,14 @@ try:
         raise ValueError("GOOGLE_API_KEY environment variable not set")
 
     genai_client = genai.Client(api_key=api_key)
-    AI_ENABLED = True
     logger.info("Google Gemini client initialized successfully")
 except (ValueError, ImportError) as e:
     logger.warning(
         f"Google Gemini client initialization failed. AI features will be disabled. Error: {e}"
     )
     genai_client = None
-    AI_ENABLED = False
+
+
+def is_genai_enabled() -> bool:
+    """Check if Google Gemini AI features are available."""
+    return genai_client is not None

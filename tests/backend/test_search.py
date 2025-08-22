@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 import numpy as np
 
-from src.backend.search import _get_embedding, SEMANTIC_SEARCH_ENABLED
+from src.backend.search import _get_embedding
 from src.backend.client import genai_client
 from src.backend.database import db_manager
 
@@ -52,8 +52,8 @@ class TestSearch(unittest.TestCase):
     @patch('src.backend.database.db_manager.add_embedding_for_text')
     @patch('src.backend.client.genai_client.models.embed_content')
     def test_get_embedding_api_disabled(self, mock_embed_content, mock_add_embedding, mock_get_embedding):
-        # Temporarily disable AI_ENABLED for this test
-        with patch('src.backend.search.SEMANTIC_SEARCH_ENABLED', False):
+        # Temporarily disable GenAI for this test
+        with patch('src.backend.search.is_genai_enabled', return_value=False):
             text = "disabled test"
             embedding = _get_embedding(text)
             self.assertTrue(np.array_equal(embedding, np.array([])))

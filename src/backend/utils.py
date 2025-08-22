@@ -8,7 +8,7 @@ from pydantic import HttpUrl
 
 from .constants import GEMINI_MODEL_NAME, USER_AGENT
 from .logger import logger
-from .client import genai_client, AI_ENABLED
+from .client import genai_client, is_genai_enabled
 
 
 def _retry_with_backoff(func, max_retries=3, base_delay=1.0):
@@ -178,7 +178,7 @@ def _is_non_english_summary(text: str) -> bool:
 
 def generate_summary_from_link(link: HttpUrl) -> Optional[str]:
     """Generates a summary for a given URL using the Gemini API."""
-    if not AI_ENABLED:
+    if not is_genai_enabled():
         return None
 
     # Skip obvious test/invalid URLs to avoid unnecessary network requests
@@ -269,7 +269,7 @@ def extract_title_from_url(url: HttpUrl) -> Optional[str]:
 
 def categorize_content(title: str, content: str, url: str) -> str:
     """Categorize content as Research, Industry, or General based on various signals."""
-    if not AI_ENABLED:
+    if not is_genai_enabled():
         return "General"
 
     try:
