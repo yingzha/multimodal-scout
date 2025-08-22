@@ -78,6 +78,28 @@ class TestApp(unittest.TestCase):
         self.assertIn('data: {"type": "complete", "message": "Finished"}', lines)
         self.assertIn('data: [DONE]', lines)
 
+    @patch('src.backend.app.process_content_pipeline')
+    def test_discovery_mode_endpoint(self, mock_pipeline):
+        """Test that discovery mode is passed correctly to the pipeline."""
+        async def mock_async_generator():
+            yield {'type': 'result', 'data': {'items': [], 'total_count': 0, 'sources': []}}
+        
+        mock_pipeline.return_value = mock_async_generator()
+        
+        # Test with discovery mode enabled
+        response = self.client.post("/api/content/search", json={
+            "selectedDays": 7,
+            "topics": ["test"],
+            "discoveryMode": True
+        })
+        
+        self.assertEqual(response.status_code, 200)
+        
+        # Verify pipeline was called with discovery_mode=True
+        mock_pipeline.assert_called_once()
+        call_args, call_kwargs = mock_pipeline.call_args
+        self.assertEqual(call_kwargs['discovery_mode'], True)
+
     def test_get_topics_endpoint(self):
         response = self.client.get("/api/topics")
         self.assertEqual(response.status_code, 200)

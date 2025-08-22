@@ -3,8 +3,9 @@ import asyncio
 from unittest.mock import patch, MagicMock, AsyncMock
 from datetime import datetime
 
-from src.backend.pipeline import process_content_pipeline
+from src.backend.pipeline import process_content_pipeline, _apply_balanced_filtering
 from src.backend.schema import SourceSchema
+from src.backend.constants import DISCOVERY_THRESHOLD
 
 # Mock SourceSchema objects
 mock_hf_paper = SourceSchema(
@@ -143,6 +144,33 @@ class TestPipeline(unittest.TestCase):
         # New pipeline returns database-based source categories
         sources = result_event['data']['sources']
         self.assertTrue(any(source in sources for source in ["Research Papers", "Industry News"]))
+
+    @patch('src.backend.pipeline.keyword_search')
+    def test_discovery_mode_uses_ai_keyword(self, mock_keyword_search):
+        """Test that discovery mode replaces topics with 'AI'."""
+        # Create a simple test source
+        test_source = SourceSchema(
+            title="Test Article",
+            authors=["Author"],
+            link="http://example.com/test",
+            source_link="http://example.com/test",
+            summary="Test summary",
+            tags=["research"],
+            date=datetime.now()
+        )
+        
+        mock_keyword_search.return_value = [test_source]
+        
+        # Call with discovery mode
+        result = _apply_balanced_filtering(
+            sources=[test_source],
+            keywords=["original", "topics"],  # Should be ignored
+            discovery_mode=True
+        )
+        
+        # Verify keyword search was called with "AI" instead of original topics
+        mock_keyword_search.assert_called_once_with([test_source], ["AI"])
+        self.assertEqual(len(result), 1)
 
 if __name__ == '__main__':
     unittest.main()
