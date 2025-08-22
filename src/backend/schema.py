@@ -27,6 +27,7 @@ class FetchRequest(BaseModel):
     maxResults: int = 10  # Default to 10 results
     researchRatio: float = 0.5  # Default to 50/50 research/industry balance
     sessionId: Optional[str] = None  # Browser session ID for tracking new cards
+    discoveryMode: bool = False  # Enable discovery mode (ignores topics, uses AI)
 
 
 class TopicResponse(BaseModel):

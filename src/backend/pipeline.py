@@ -14,6 +14,7 @@ suitable for streaming APIs.
 from typing import List, Dict, Any, AsyncGenerator
 from datetime import datetime, timedelta
 import asyncio
+import random
 
 from .scraper import scrape_all_sources_concurrent
 from .logger import logger
@@ -24,6 +25,7 @@ from .constants import (
     SEMANTIC_SIMILARITY_THRESHOLD,
     RESEARCH_THRESHOLD,
     INDUSTRY_THRESHOLD,
+    DISCOVERY_THRESHOLD,
 )
 
 
@@ -32,11 +34,19 @@ def _apply_balanced_filtering(
     keywords: List[str],
     max_results: int = 10,
     research_ratio: float = 0.5,
+    discovery_mode: bool = False,
 ) -> List[SourceSchema]:
     """
     Apply balanced filtering with relevance scoring and proper sorting.
+    When discovery_mode is True, ignores keywords and uses "AI" with discovery threshold.
     """
-    logger.info(f"Applying balanced filtering to {len(sources)} sources...")
+    # Override keywords in discovery mode
+    if discovery_mode:
+        keywords = ["AI"]
+        logger.info(f"Applying discovery mode filtering to {len(sources)} sources with 'AI' query...")
+    else:
+        logger.info(f"Applying balanced filtering to {len(sources)} sources...")
+    
     # Pass 1: Keyword Search - these get highest priority (score = 1.0)
     keyword_matches = keyword_search(sources, keywords)
     logger.info(f"Found {len(keyword_matches)} sources via keyword search.")
@@ -68,23 +78,27 @@ def _apply_balanced_filtering(
             else:
                 industry_candidates.append(source)
 
-        # Run semantic search with research threshold (more selective)
+        # Choose thresholds based on discovery mode
+        research_threshold = DISCOVERY_THRESHOLD if discovery_mode else RESEARCH_THRESHOLD
+        industry_threshold = DISCOVERY_THRESHOLD if discovery_mode else INDUSTRY_THRESHOLD
+
+        # Run semantic search with research threshold
         if research_candidates:
             logger.info(
-                f"Running semantic search on {len(research_candidates)} research sources with threshold {RESEARCH_THRESHOLD}"
+                f"Running semantic search on {len(research_candidates)} research sources with threshold {research_threshold}"
             )
             research_results = semantic_search_with_scores(
-                research_candidates, keywords, threshold=RESEARCH_THRESHOLD
+                research_candidates, keywords, threshold=research_threshold
             )
             sources_with_scores.extend(research_results)
 
-        # Run semantic search with industry threshold (more inclusive)
+        # Run semantic search with industry threshold
         if industry_candidates:
             logger.info(
-                f"Running semantic search on {len(industry_candidates)} industry sources with threshold {INDUSTRY_THRESHOLD}"
+                f"Running semantic search on {len(industry_candidates)} industry sources with threshold {industry_threshold}"
             )
             industry_results = semantic_search_with_scores(
-                industry_candidates, keywords, threshold=INDUSTRY_THRESHOLD
+                industry_candidates, keywords, threshold=industry_threshold
             )
             sources_with_scores.extend(industry_results)
 
@@ -136,12 +150,18 @@ def _apply_balanced_filtering(
             ]
             selected_research.extend(additional_research)
 
-    # Combine and re-sort by score
+    # Combine and handle sorting based on mode
     balanced_sources = selected_research + selected_industry
-    balanced_sources.sort(key=lambda x: (x[1], x[0].date), reverse=True)
-
-    # Extract just the sources
-    limited_results = [source for source, score in balanced_sources]
+    
+    if discovery_mode:
+        # In discovery mode, randomize the order for diverse results
+        random.shuffle(balanced_sources)
+        limited_results = [source for source, score in balanced_sources]
+        logger.info("Discovery mode: results randomized for diversity")
+    else:
+        # Normal mode: sort by score and date
+        balanced_sources.sort(key=lambda x: (x[1], x[0].date), reverse=True)
+        limited_results = [source for source, score in balanced_sources]
 
     logger.info(
         f"Balanced filtering complete: {len([s for s in limited_results if hasattr(s, 'tags') and s.tags and s.tags[0].lower() == 'research'])} research, {len([s for s in limited_results if not hasattr(s, 'tags') or not s.tags or s.tags[0].lower() != 'research'])} industry/other"
@@ -155,6 +175,7 @@ async def process_content_pipeline(
     research_ratio: float,
     selected_days: int = 7,
     session_id: str = None,
+    discovery_mode: bool = False,
 ) -> AsyncGenerator[Dict[str, Any], None]:
     """
     The main processing pipeline.
@@ -420,7 +441,7 @@ async def process_content_pipeline(
         }
 
         filtered_sources = _apply_balanced_filtering(
-            all_sources, topics, max_results, research_ratio
+            all_sources, topics, max_results, research_ratio, discovery_mode
         )
 
         complete_progress = current_progress + filtering_weight

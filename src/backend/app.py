@@ -163,9 +163,8 @@ async def search_content(request: FetchRequest):
     This is the non-streaming version that uses the core pipeline.
     """
     try:
-        logger.info(
-            f"Fetching items for {request.selectedDays} days with topics: {request.topics}"
-        )
+        mode_msg = "discovery mode" if request.discoveryMode else f"topics: {request.topics}"
+        logger.info(f"Fetching items for {request.selectedDays} days with {mode_msg}")
 
         pipeline_generator = process_content_pipeline(
             topics=request.topics,
@@ -173,6 +172,7 @@ async def search_content(request: FetchRequest):
             research_ratio=request.researchRatio,
             selected_days=request.selectedDays,
             session_id=request.sessionId,
+            discovery_mode=request.discoveryMode,
         )
 
         final_result = None
@@ -213,9 +213,8 @@ async def search_content_stream(request: FetchRequest):
 
     async def generate_stream():
         try:
-            logger.info(
-                f"Starting streaming fetch for {request.selectedDays} days with topics: {request.topics}"
-            )
+            mode_msg = "discovery mode" if request.discoveryMode else f"topics: {request.topics}"
+            logger.info(f"Starting streaming fetch for {request.selectedDays} days with {mode_msg}")
 
             pipeline_generator = process_content_pipeline(
                 topics=request.topics,
@@ -223,6 +222,7 @@ async def search_content_stream(request: FetchRequest):
                 research_ratio=request.researchRatio,
                 selected_days=request.selectedDays,
                 session_id=request.sessionId,
+                discovery_mode=request.discoveryMode,
             )
 
             async for event in pipeline_generator:
