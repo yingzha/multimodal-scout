@@ -90,11 +90,11 @@ export default function Home() {
           'Cache-Control': 'no-cache'
         }
       })
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
-      
+
       const data = await response.json()
       setDefaultTopics(data.topics)
     } catch (error) {
@@ -114,19 +114,19 @@ export default function Home() {
   const handleAddKeyword = () => {
     const trimmedKeyword = newKeyword.trim()
     const allTopics = [...defaultTopics, ...customTopics]
-    
+
     if (!trimmedKeyword) {
       setKeywordMessage('Please enter a keyword')
       setTimeout(() => setKeywordMessage(''), 3000)
       return
     }
-    
+
     if (allTopics.includes(trimmedKeyword)) {
       setKeywordMessage('This keyword already exists in your topics')
       setTimeout(() => setKeywordMessage(''), 3000)
       return
     }
-    
+
     setCustomTopics([...customTopics, trimmedKeyword])
     setNewKeyword('')
     setKeywordMessage('Keyword added successfully!')
@@ -141,13 +141,13 @@ export default function Home() {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       const isCurrentlyBookmarked = bookmarkedItems.has(item.link)
-      
+
       if (isCurrentlyBookmarked) {
         // Remove bookmark
         const response = await fetch(`${apiUrl}/api/bookmarks?link=${encodeURIComponent(item.link)}`, {
           method: 'DELETE'
         })
-        
+
         if (response.ok) {
           setBookmarkedItems(prev => {
             const newSet = new Set(prev)
@@ -169,7 +169,7 @@ export default function Home() {
             summary: item.summary
           })
         })
-        
+
         if (response.ok) {
           setBookmarkedItems(prev => new Set([...prev, item.link]))
         }
@@ -183,7 +183,7 @@ export default function Home() {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       const response = await fetch(`${apiUrl}/api/bookmarks`)
-      
+
       if (response.ok) {
         const data = await response.json()
         const bookmarkedLinks = new Set<string>(data.items.map((bookmark: any) => String(bookmark.link)))
@@ -241,7 +241,7 @@ export default function Home() {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       const response = await fetch(`${apiUrl}/api/bookmarks`)
-      
+
       if (response.ok) {
         const data = await response.json()
         setBookmarkedCards(data.items)
@@ -249,6 +249,36 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to fetch bookmarks:', error)
     }
+  }
+
+  const handleReturnHome = () => {
+    // Reset to default search state
+    if (showBookmarks) {
+      setShowBookmarks(false)
+      setBookmarkedCards([])
+      setExpandedSummaries(new Set())
+      setSelectedTag(null)
+      setBookmarksPage(1)
+      setUploadUrl('')
+      setUploadMessage('')
+    }
+
+    // Reset any loading states
+    setIsLoading(false)
+    setProgressMessage('')
+    setProgress(0)
+    setShowDetailedProgress(false)
+
+    // Clear any messages
+    setKeywordMessage('')
+    setUploadMessage('')
+    setUploadProgressMessage('')
+
+    // Reset to default time range
+    setSelectedDays(1)
+
+    // Close advanced settings
+    setShowAdvancedSettings(false)
   }
 
   const handleViewBookmarks = async () => {
@@ -270,7 +300,7 @@ export default function Home() {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       const response = await fetch(`${apiUrl}/api/bookmarks`)
-      
+
       if (response.ok) {
         const data = await response.json()
         setBookmarkedCards(data.items)
@@ -290,13 +320,13 @@ export default function Home() {
 
   const confirmDelete = async () => {
     if (!deleteConfirmItem) return
-    
+
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       const response = await fetch(`${apiUrl}/api/bookmarks?link=${encodeURIComponent(deleteConfirmItem.link)}`, {
         method: 'DELETE'
       })
-      
+
       if (response.ok) {
         // Remove from bookmark state
         setBookmarkedItems(prev => {
@@ -363,7 +393,7 @@ export default function Home() {
     // Parse multiple URLs separated by commas
     const urlStrings = uploadUrl.split(',').map(url => url.trim()).filter(url => url)
     const validUrls: string[] = []
-    
+
     // Validate each URL
     for (const urlString of urlStrings) {
       try {
@@ -394,11 +424,11 @@ export default function Home() {
         const url = validUrls[i]
         const baseProgress = (i / validUrls.length) * 100
         const stepProgress = 100 / validUrls.length
-        
+
         // Update progress for this URL
         setUploadProgress(baseProgress + stepProgress * 0.2)
         setUploadProgressMessage(`Processing URL ${i + 1}/${validUrls.length}: Fetching content...`)
-        
+
         try {
           const response = await fetch(`${apiUrl}/api/content`, {
             method: 'POST',
@@ -407,10 +437,10 @@ export default function Home() {
             },
             body: JSON.stringify({ url })
           })
-          
+
           setUploadProgress(baseProgress + stepProgress * 0.6)
           setUploadProgressMessage(`Processing URL ${i + 1}/${validUrls.length}: Generating summary...`)
-          
+
           if (response.ok) {
             const result = await response.json()
             results.push({
@@ -428,9 +458,9 @@ export default function Home() {
               title: null
             })
           }
-          
+
           setUploadProgress(baseProgress + stepProgress)
-          
+
         } catch (error) {
           console.error(`Failed to process URL ${url}:`, error)
           results.push({
@@ -442,12 +472,12 @@ export default function Home() {
           setUploadProgress(baseProgress + stepProgress)
         }
       }
-      
+
       // Show final results
       setUploadProgress(100)
       const successful = results.filter(r => r.success).length
       const failed = results.length - successful
-      
+
       if (successful === results.length) {
         setUploadProgressMessage('All URLs processed successfully!')
         setUploadMessage(`🎉 Successfully processed ${successful} URL${successful > 1 ? 's' : ''}!`)
@@ -458,14 +488,14 @@ export default function Home() {
         setUploadProgressMessage('Processing failed')
         setUploadMessage(`❌ Failed to process all URLs. Please check the URLs and try again.`)
       }
-      
+
       setUploadUrl('')
-      
+
       // Refresh bookmarks to show new items
       if (showBookmarks && successful > 0) {
         refreshBookmarks()
       }
-      
+
     } catch (error) {
       console.error('Failed to upload links:', error)
       setUploadMessage('Failed to process URLs. Please try again.')
@@ -509,7 +539,7 @@ export default function Home() {
         // Get the filename from the response headers
         const contentDisposition = response.headers.get('Content-Disposition')
         let filename = 'multimodal_scout_chrome_bookmarks.html'
-        
+
         if (contentDisposition) {
           const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
           if (filenameMatch && filenameMatch[1]) {
@@ -544,18 +574,18 @@ export default function Home() {
     itemsPerPage: number
   }) => {
     const totalPages = Math.ceil(totalItems / itemsPerPage)
-    
+
     if (totalPages <= 1) {
       return null
     }
-    
-    
+
+
     return (
       <div className="flex justify-center items-center gap-2 mt-6 p-4 bg-gray-100 rounded-lg">
         <span className="text-sm text-gray-700 mr-4">
           Page {currentPage} of {totalPages}
         </span>
-        
+
         <button
           onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
           disabled={currentPage === 1}
@@ -563,7 +593,7 @@ export default function Home() {
         >
           Previous
         </button>
-        
+
         {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
           <button
             key={page}
@@ -577,7 +607,7 @@ export default function Home() {
             {page}
           </button>
         ))}
-        
+
         <button
           onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
           disabled={currentPage === totalPages}
@@ -667,17 +697,17 @@ export default function Home() {
     setProgress(0)
     setProgressMessage('Starting fetch...')
     setShowDetailedProgress(false)
-    
+
     try {
       const allTopics = [...defaultTopics, ...customTopics]
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-      
+
       const response = await fetch(`${apiUrl}/api/content/search/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ selectedDays, topics: allTopics, maxResults, researchRatio, sessionId, discoveryMode })
       })
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
@@ -688,7 +718,7 @@ export default function Home() {
       }
 
       await processStreamData(reader)
-      
+
     } catch (error) {
       console.error('Failed to fetch items:', error)
       alert('Failed to fetch items. Please check if the backend server is running.')
@@ -753,7 +783,7 @@ export default function Home() {
               </div>
             )}
           </div>
-          
+
           {showBookmarks ? (
             /* Smart Processing Mode - URL Input */
             <div className="space-y-4">
@@ -774,7 +804,7 @@ export default function Home() {
                   onClick={handleUploadLink}
                   disabled={isUploading}
                   className={`w-14 h-14 rounded-full focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 font-medium flex items-center justify-center transition-colors ${
-                    isUploading 
+                    isUploading
                       ? 'text-gray-700 hover:bg-orange-200 cursor-not-allowed'
                       : 'text-gray-700 hover:bg-orange-200'
                   }`}
@@ -785,12 +815,12 @@ export default function Home() {
                   </svg>
                 </button>
               </div>
-              
+
               {/* Upload Progress Bar */}
               {isUploading && (
                 <div className="space-y-3">
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
+                    <div
                       className="h-2 bg-blue-500 rounded-full transition-all duration-500 ease-out"
                       style={{ width: `${uploadProgress}%` }}
                     ></div>
@@ -800,7 +830,7 @@ export default function Home() {
                   </div>
                 </div>
               )}
-              
+
               {uploadMessage && (
                 <div className={`text-sm font-medium p-3 rounded-lg ${
                   uploadMessage.includes('successfully')
@@ -834,7 +864,7 @@ export default function Home() {
                     <span className="ml-3 text-gray-400 text-sm">🔒</span>
                   </span>
                 ))}
-                
+
                 {/* Custom Topics (Removable) */}
                 {customTopics.map((topic, index) => (
                   <span
@@ -848,8 +878,8 @@ export default function Home() {
                       onClick={() => !discoveryMode && handleRemoveCustomTopic(topic)}
                       disabled={discoveryMode}
                       className={`ml-3 w-5 h-5 rounded-full flex items-center justify-center focus:outline-none transition-colors text-sm font-bold ${
-                        discoveryMode 
-                          ? 'cursor-not-allowed text-gray-400' 
+                        discoveryMode
+                          ? 'cursor-not-allowed text-gray-400'
                           : 'hover:bg-red-500 hover:text-white'
                       }`}
                       title={discoveryMode ? 'Disable discovery mode to remove keywords' : 'Remove keyword'}
@@ -859,7 +889,7 @@ export default function Home() {
                   </span>
                 ))}
               </div>
-              
+
               {/* Discovery Mode Info */}
               {discoveryMode && (
                 <div className="mb-6 p-4 border border-blue-200 rounded-lg">
@@ -873,7 +903,7 @@ export default function Home() {
               )}
             </>
           )}
-          
+
           {/* Add Keywords Input - Hide in bookmark mode */}
           {!showBookmarks && (
             <div className={`flex gap-4 ${discoveryMode ? 'opacity-50' : ''}`}>
@@ -893,8 +923,8 @@ export default function Home() {
                 onClick={() => !discoveryMode && handleAddKeyword()}
                 disabled={discoveryMode}
                 className={`w-14 h-14 rounded-full focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 font-medium flex items-center justify-center transition-colors ${
-                  discoveryMode 
-                    ? 'text-gray-400 cursor-not-allowed' 
+                  discoveryMode
+                    ? 'text-gray-400 cursor-not-allowed'
                     : 'text-gray-700 hover:bg-orange-200'
                 }`}
                 title={discoveryMode ? 'Disable discovery mode to add keywords' : 'Add keyword'}
@@ -910,10 +940,10 @@ export default function Home() {
           {/* Keyword feedback message - only show when not in bookmark mode */}
           {!showBookmarks && keywordMessage && (
             <div className={`mt-6 text-sm font-medium p-3 rounded-lg ${
-              keywordMessage.includes('successfully') 
-                ? 'text-green-700 bg-green-50 border border-green-200' 
+              keywordMessage.includes('successfully')
+                ? 'text-green-700 bg-green-50 border border-green-200'
                 : keywordMessage.includes('already exists') || keywordMessage.includes('Please enter')
-                ? 'text-red-700 bg-red-50 border border-red-200' 
+                ? 'text-red-700 bg-red-50 border border-red-200'
                 : 'text-gray-700 bg-gray-50 border border-gray-200'
             }`}>
               {keywordMessage}
@@ -924,9 +954,19 @@ export default function Home() {
           <div className="flex justify-between items-center mt-6">
             <div className="flex items-center gap-4">
               <button
+                onClick={handleReturnHome}
+                className="bg-gray-100 p-3 text-gray-700 hover:text-gray-900 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors flex items-center justify-center"
+                title="Return to Home / Default Search"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/>
+                  <polyline points="9,22 9,12 15,12 15,22"/>
+                </svg>
+              </button>
+              <button
                 onClick={handleGearClick}
                 disabled={isLoading}
-                className={`bg-gray-100 p-3 text-gray-700 hover:text-gray-900 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors flex items-center justify-center ${  
+                className={`bg-gray-100 p-3 text-gray-700 hover:text-gray-900 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors flex items-center justify-center ${
                   isLoading ? 'cursor-not-allowed opacity-50' : ''
                 }`}
                 title="Advanced Search Settings (double-click to close)"
@@ -996,7 +1036,7 @@ export default function Home() {
               </div>
             </div>
           </div>
-          
+
           {/* Number of Results and Content Balance - Side by Side */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-16 mb-6">
             {/* Number of Results */}
@@ -1019,7 +1059,7 @@ export default function Home() {
                 <span>50</span>
               </div>
             </div>
-            
+
             {/* Content Balance */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-3">
@@ -1041,7 +1081,7 @@ export default function Home() {
               </div>
             </div>
           </div>
-          
+
           <div className="text-xs text-blue-700 p-3 rounded">
             <div className="flex items-start gap-2">
               <span className="flex-shrink-0">🎯</span>
@@ -1075,8 +1115,8 @@ export default function Home() {
             <div className="flex justify-between items-center mb-6">
               <div className="flex items-center gap-3">
                 <div className="text-sm text-gray-600">
-                  {selectedTag 
-                    ? `${fetchedItems.filter(item => item.source === selectedTag).length} results for "${selectedTag}"` 
+                  {selectedTag
+                    ? `${fetchedItems.filter(item => item.source === selectedTag).length} results for "${selectedTag}"`
                     : `${fetchedItems.length} results`
                   }
                 </div>
@@ -1094,7 +1134,7 @@ export default function Home() {
                 )}
               </div>
             </div>
-            
+
             <div className="space-y-4">
               {paginatedItems.map((item, index) => {
                 const startIndex = (currentPage - 1) * itemsPerPage
@@ -1134,11 +1174,11 @@ export default function Home() {
                       {bookmarkedItems.has(item.link) ? '★' : '☆'}
                     </button>
                   </div>
-                  
+
                   <h3 className="text-xl font-semibold text-gray-900 mb-4 leading-tight">
                     {item.title}
                   </h3>
-                  
+
                   {/* Summary Section */}
                   {item.summary ? (
                     <div className="mb-4">
@@ -1157,7 +1197,7 @@ export default function Home() {
                         ) : (
                           // Truncated summary
                           <div>
-                            <p 
+                            <p
                               className="line-clamp-2 overflow-hidden text-ellipsis"
                               style={{
                                 display: '-webkit-box',
@@ -1188,7 +1228,7 @@ export default function Home() {
                       {item.summary ? `Summary: "${item.summary.substring(0, 50)}..."` : 'No summary available'}
                     </div>
                   )}
-                  
+
                   <div className="flex justify-end">
                     <a
                       href={item.link}
@@ -1203,7 +1243,7 @@ export default function Home() {
                 )
               })}
             </div>
-            
+
             {/* Pagination for Results */}
             <PaginationControls
               currentPage={currentPage}
@@ -1231,12 +1271,12 @@ export default function Home() {
                 </div>
               </div>
             )}
-            
+
             {/* Bookmark Count */}
             <div className="flex justify-between items-center mb-6">
               <div className="text-sm text-gray-600">
-                {selectedTag 
-                  ? `${bookmarkedCards.filter(item => item.source === selectedTag).length} bookmarks for "${selectedTag}"` 
+                {selectedTag
+                  ? `${bookmarkedCards.filter(item => item.source === selectedTag).length} bookmarks for "${selectedTag}"`
                   : `${bookmarkedCards.length} bookmarks`
                 }
               </div>
@@ -1294,11 +1334,11 @@ export default function Home() {
                         ★
                       </button>
                     </div>
-                    
+
                     <h3 className="text-xl font-semibold text-gray-900 mb-4 leading-tight">
                       {item.title}
                     </h3>
-                    
+
                     {/* Summary Section for Bookmarks */}
                     {item.summary && (
                       <div className="mb-4">
@@ -1324,7 +1364,7 @@ export default function Home() {
                             </span>
                           )}
                         </div>
-                        
+
                         {editingSummary === item.link ? (
                           // Editing mode
                           <div className="space-y-3">
@@ -1385,7 +1425,7 @@ export default function Home() {
                             ) : (
                               // Truncated summary
                               <div>
-                                <p 
+                                <p
                                   className="line-clamp-2 overflow-hidden text-ellipsis"
                                   style={{
                                     display: '-webkit-box',
@@ -1412,7 +1452,7 @@ export default function Home() {
                         )}
                       </div>
                     )}
-                    
+
                     <div className="flex justify-between items-center">
                       <a
                         href={item.link}
@@ -1430,7 +1470,7 @@ export default function Home() {
                       )
                     })}
                 </div>
-                
+
                 {/* Pagination for Bookmarks */}
                 <PaginationControls
                   currentPage={bookmarksPage}
@@ -1445,14 +1485,14 @@ export default function Home() {
 
         {/* Delete Confirmation Dialog */}
         {deleteConfirmItem && deleteConfirmPosition && (
-          <div 
+          <div
             className="fixed inset-0 z-50"
             onClick={() => {
               setDeleteConfirmItem(null)
               setDeleteConfirmPosition(null)
             }}
           >
-            <div 
+            <div
               className="absolute bg-white rounded-lg p-4 max-w-sm shadow-2xl border border-gray-300"
               style={{
                 top: `${deleteConfirmPosition.top}px`,
