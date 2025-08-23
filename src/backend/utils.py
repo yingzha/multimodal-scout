@@ -176,7 +176,7 @@ def _is_non_english_summary(text: str) -> bool:
     return False
 
 
-def generate_summary_from_link(link: HttpUrl) -> Optional[str]:
+def generate_summary_from_link(link: HttpUrl, title: str = None) -> Optional[str]:
     """Generates a summary for a given URL using the Gemini API."""
     if not is_genai_enabled():
         return None
@@ -197,9 +197,9 @@ def generate_summary_from_link(link: HttpUrl) -> Optional[str]:
         not article_text or len(article_text.strip()) < 100
     ):  # Don't summarize very short texts
         logger.info(
-            "Could not extract sufficient text to summarize. Return the original text instead"
+            f"Could not extract sufficient text to summarize. Returning title as fallback: {title}"
         )
-        return article_text
+        return title or "No summary available"
 
     def _generate_summary():
         prompt = f"""Please provide a concise, one-paragraph summary of the following article text in English only.
@@ -214,6 +214,8 @@ Article text:
             model=GEMINI_MODEL_NAME, contents=[prompt]
         )
         summary = response.text.strip()
+
+        # Return the generated summary directly - if it's problematic, title fallback happens at higher level
 
         # Validate that the summary is in English by checking for common non-English patterns
         if _is_non_english_summary(summary):
@@ -234,13 +236,15 @@ Provide a concise English summary focusing on the main points."""
             )
             summary = response.text.strip()
 
+            # Return the regenerated summary directly
+
         return summary
 
     try:
         return _retry_with_backoff(_generate_summary, max_retries=3, base_delay=2.0)
     except Exception as e:
         logger.error(f"Error generating summary with Gemini after retries: {e}")
-        return None
+        return title or "No summary available"
 
 
 def extract_title_from_url(url: HttpUrl) -> Optional[str]:

@@ -750,7 +750,7 @@ export default function Home() {
                   <div className="flex items-start gap-2">
                     <span className="flex-shrink-0 text-blue-600">✨</span>
                     <div className="text-sm text-purple-700">
-                      <strong>Discovery Mode Active:</strong> Exploring GenAI-related content without topic restrictions. Your topics are disabled while discovery mode is on.
+                      <strong>Discovery Mode Active:</strong> Randomly sampling from all available content for serendipitous discovery. Your topics are disabled while discovery mode is on.
                     </div>
                   </div>
                 </div>
@@ -1019,7 +1019,7 @@ export default function Home() {
                   </h3>
                   
                   {/* Summary Section */}
-                  {item.summary && item.summary !== "No summary available" && item.summary.trim() !== "" ? (
+                  {item.summary ? (
                     <div className="mb-4">
                       <div className="text-gray-700 text-sm leading-relaxed">
                         {expandedSummaries.has(item.link) ? (
@@ -1252,7 +1252,7 @@ export default function Home() {
                     </h3>
                     
                     {/* Summary Section for Bookmarks */}
-                    {item.summary && item.summary !== "No summary available" && item.summary.trim() !== "" && (
+                    {item.summary && (
                       <div className="mb-4">
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex items-center gap-2">

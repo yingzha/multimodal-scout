@@ -2,7 +2,7 @@
 
 A smart content discovery platform that automatically finds, curates, and helps you bookmark the latest multimodal AI research papers and industry articles. Built with FastAPI, Next.js, and PostgreSQL, and powered by Google Gemini AI.
 
-![Multimodal Scout Interface](./assets/screenshot.png)
+![Multimodal Scout Interface](./assets/screenshot.jpg)
 
 ## Key Features
 
@@ -11,7 +11,7 @@ A smart content discovery platform that automatically finds, curates, and helps 
 - 🎯 **Smart Filtering**: Balances content between research and industry, with configurable result limits.
 - 📚 **Advanced Bookmark Management**: Save articles, edit summaries, and export your collection to Chrome-compatible HTML format.
 - 📤 **Upload & Process Links**: Add your own URLs for automatic scraping, summarization, and categorization.
-- 🔍 **Discovery Mode**: Explore AI-related content without topic restrictions using higher selectivity thresholds and diverse random sampling.
+- 🔍 **Discovery Mode**: Randomly sample from all available content for serendipitous discovery without topic restrictions.
 - ⏰ **Real-time Progress**: Live progress updates during content fetching and processing via SSE.
 - 🚀 **RESTful API**: Well-designed API following REST principles with comprehensive documentation.
 - 🌙 **Modern UI**: A clean, responsive interface with dark mode support.

@@ -145,9 +145,10 @@ class TestPipeline(unittest.TestCase):
         sources = result_event['data']['sources']
         self.assertTrue(any(source in sources for source in ["Research Papers", "Industry News"]))
 
-    @patch('src.backend.pipeline.keyword_search')
-    def test_discovery_mode_uses_ai_keyword(self, mock_keyword_search):
-        """Test that discovery mode replaces topics with 'AI'."""
+    @patch('src.backend.search.keyword_search')
+    @patch('src.backend.search.semantic_search_with_scores')
+    def test_discovery_mode_uses_ai_keyword(self, mock_semantic_search_with_scores, mock_keyword_search):
+        """Test that discovery mode replaces with empty topics."""
         # Create a simple test source
         test_source = SourceSchema(
             title="Test Article",
@@ -159,7 +160,8 @@ class TestPipeline(unittest.TestCase):
             date=datetime.now()
         )
         
-        mock_keyword_search.return_value = [test_source]
+        mock_keyword_search.return_value = []
+        mock_semantic_search_with_scores.return_value = []
         
         # Call with discovery mode
         result = _apply_balanced_filtering(
@@ -168,8 +170,8 @@ class TestPipeline(unittest.TestCase):
             discovery_mode=True
         )
         
-        # Verify keyword search was called with "AI" instead of original topics
-        mock_keyword_search.assert_called_once_with([test_source], ["AI"])
+        mock_keyword_search.assert_not_called()
+        mock_semantic_search_with_scores.assert_not_called()
         self.assertEqual(len(result), 1)
 
 if __name__ == '__main__':

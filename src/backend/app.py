@@ -163,7 +163,9 @@ async def search_content(request: FetchRequest):
     This is the non-streaming version that uses the core pipeline.
     """
     try:
-        mode_msg = "discovery mode" if request.discoveryMode else f"topics: {request.topics}"
+        mode_msg = (
+            "discovery mode" if request.discoveryMode else f"topics: {request.topics}"
+        )
         logger.info(f"Fetching items for {request.selectedDays} days with {mode_msg}")
 
         pipeline_generator = process_content_pipeline(
@@ -213,8 +215,14 @@ async def search_content_stream(request: FetchRequest):
 
     async def generate_stream():
         try:
-            mode_msg = "discovery mode" if request.discoveryMode else f"topics: {request.topics}"
-            logger.info(f"Starting streaming fetch for {request.selectedDays} days with {mode_msg}")
+            mode_msg = (
+                "discovery mode"
+                if request.discoveryMode
+                else f"topics: {request.topics}"
+            )
+            logger.info(
+                f"Starting streaming fetch for {request.selectedDays} days with {mode_msg}"
+            )
 
             pipeline_generator = process_content_pipeline(
                 topics=request.topics,
@@ -446,9 +454,7 @@ async def create_content(request: UploadLinkRequest):
             article_text = ""
 
         # Generate summary
-        summary = generate_summary_from_link(request.url)
-        if not summary:
-            summary = "No summary available"
+        summary = generate_summary_from_link(request.url, title)
 
         # Categorize content
         source_tag = categorize_content(title, article_text, url)

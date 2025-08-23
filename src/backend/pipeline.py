@@ -38,29 +38,42 @@ def _apply_balanced_filtering(
 ) -> List[SourceSchema]:
     """
     Apply balanced filtering with relevance scoring and proper sorting.
-    When discovery_mode is True, ignores keywords and uses "AI" with discovery threshold.
+    When discovery_mode is True, ignores keywords and randomly samples from all sources.
     """
-    # Override keywords in discovery mode
+    # Override keywords in discovery mode - use empty keywords for random sampling
     if discovery_mode:
-        keywords = ["AI"]
-        logger.info(f"Applying discovery mode filtering to {len(sources)} sources with 'AI' query...")
+        keywords = []
+        logger.info(
+            f"Applying discovery mode filtering to {len(sources)} sources with random sampling (no keyword filtering)"
+        )
     else:
         logger.info(f"Applying balanced filtering to {len(sources)} sources...")
-    
-    # Pass 1: Keyword Search - these get highest priority (score = 1.0)
-    keyword_matches = keyword_search(sources, keywords)
-    logger.info(f"Found {len(keyword_matches)} sources via keyword search.")
-    # Create list with scores for keyword matches
-    sources_with_scores = [(source, 1.0) for source in keyword_matches]
-    matched_links = {source.link for source in keyword_matches}
-    # Pass 2: Semantic Search - for remaining sources with summaries, using content-specific thresholds
+
+    # Pass 1: Keyword Search - skip if in discovery mode (empty keywords)
+    if keywords:
+        keyword_matches = keyword_search(sources, keywords)
+        logger.info(f"Found {len(keyword_matches)} sources via keyword search.")
+        # Create list with scores for keyword matches
+        sources_with_scores = [(source, 1.0) for source in keyword_matches]
+        matched_links = {source.link for source in keyword_matches}
+    else:
+        # Discovery mode: no keyword filtering, use all sources
+        logger.info(
+            "Discovery mode: skipping keyword search, using all sources for random sampling"
+        )
+        sources_with_scores = [
+            (source, random.random()) for source in sources if source.summary
+        ]
+        matched_links = set()
+
+    # Pass 2: Semantic Search - skip if in discovery mode, otherwise use remaining sources
     semantic_candidates = [
         source
         for source in sources
         if source.link not in matched_links and source.summary
     ]
 
-    if semantic_candidates:
+    if semantic_candidates and not discovery_mode:
         logger.info(
             f"Running semantic search on {len(semantic_candidates)} remaining sources..."
         )
@@ -79,8 +92,12 @@ def _apply_balanced_filtering(
                 industry_candidates.append(source)
 
         # Choose thresholds based on discovery mode
-        research_threshold = DISCOVERY_THRESHOLD if discovery_mode else RESEARCH_THRESHOLD
-        industry_threshold = DISCOVERY_THRESHOLD if discovery_mode else INDUSTRY_THRESHOLD
+        research_threshold = (
+            DISCOVERY_THRESHOLD if discovery_mode else RESEARCH_THRESHOLD
+        )
+        industry_threshold = (
+            DISCOVERY_THRESHOLD if discovery_mode else INDUSTRY_THRESHOLD
+        )
 
         # Run semantic search with research threshold
         if research_candidates:
@@ -152,16 +169,9 @@ def _apply_balanced_filtering(
 
     # Combine and handle sorting based on mode
     balanced_sources = selected_research + selected_industry
-    
-    if discovery_mode:
-        # In discovery mode, randomize the order for diverse results
-        random.shuffle(balanced_sources)
-        limited_results = [source for source, score in balanced_sources]
-        logger.info("Discovery mode: results randomized for diversity")
-    else:
-        # Normal mode: sort by score and date
-        balanced_sources.sort(key=lambda x: (x[1], x[0].date), reverse=True)
-        limited_results = [source for source, score in balanced_sources]
+
+    balanced_sources.sort(key=lambda x: (x[1], x[0].date), reverse=True)
+    limited_results = [source for source, score in balanced_sources]
 
     logger.info(
         f"Balanced filtering complete: {len([s for s in limited_results if hasattr(s, 'tags') and s.tags and s.tags[0].lower() == 'research'])} research, {len([s for s in limited_results if not hasattr(s, 'tags') or not s.tags or s.tags[0].lower() != 'research'])} industry/other"

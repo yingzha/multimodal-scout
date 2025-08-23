@@ -37,13 +37,13 @@ def enrich_sources_with_summaries(sources: List[SourceSchema]) -> List[SourceSch
         if i > 0:
             time.sleep(0.5)  # 500ms delay between requests
 
-        new_summary = generate_summary_from_link(source.source_link)
+        new_summary = generate_summary_from_link(source.source_link, source.title)
         if new_summary is None and str(source.source_link) != str(source.link):
             logger.warning(
                 f"2nd attempt to generate summary from link for: {source.link}"
             )
             time.sleep(1.0)  # Longer delay before retry
-            new_summary = generate_summary_from_link(source.link)
+            new_summary = generate_summary_from_link(source.link, source.title)
 
         if new_summary:
             source.summary = new_summary
