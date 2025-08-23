@@ -16,7 +16,7 @@ The cron service runs in a separate Docker container and automatically:
 
 | Job | Frequency | Schedule Expression | Description |
 |-----|-----------|---------------------|-------------|
-| Full Pipeline | Every 2 hours | `0 */2 * * *` | Complete content processing: scraping + AI processing + database storage |
+| Full Pipeline | Every 30 minutes | `*/30 * * * *` | Complete content processing: scraping + AI processing + database storage |
 
 ## Architecture
 

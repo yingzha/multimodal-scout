@@ -808,7 +808,7 @@ export default function Home() {
                       ? 'text-gray-700 hover:bg-orange-200 cursor-not-allowed'
                       : 'text-gray-700 hover:bg-orange-200'
                   }`}
-                  title={isUploading ? 'Processing URL...' : 'Add URL to bookmarks'}
+                  data-tooltip={isUploading ? 'Processing URL...' : 'Add URL to bookmarks'}
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -927,7 +927,7 @@ export default function Home() {
                     ? 'text-gray-400 cursor-not-allowed'
                     : 'text-gray-700 hover:bg-orange-200'
                 }`}
-                title={discoveryMode ? 'Disable discovery mode to add keywords' : 'Add keyword'}
+                data-tooltip={discoveryMode ? 'Disable discovery mode to add keywords' : 'Add keyword'}
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -956,11 +956,20 @@ export default function Home() {
               <button
                 onClick={handleReturnHome}
                 className="bg-gray-100 p-3 text-gray-700 hover:text-gray-900 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors flex items-center justify-center"
-                title="Return to Home / Default Search"
+                data-tooltip="Homepage"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/>
                   <polyline points="9,22 9,12 15,12 15,22"/>
+                </svg>
+              </button>
+              <button
+                onClick={handleViewBookmarks}
+                className="bg-gray-100 p-3 text-gray-700 hover:text-gray-900 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors flex items-center justify-center"
+                data-tooltip="Bookmarks"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                 </svg>
               </button>
               <button
@@ -969,20 +978,11 @@ export default function Home() {
                 className={`bg-gray-100 p-3 text-gray-700 hover:text-gray-900 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors flex items-center justify-center ${
                   isLoading ? 'cursor-not-allowed opacity-50' : ''
                 }`}
-                title="Advanced Search Settings (double-click to close)"
+                data-tooltip="Settings"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </button>
-              <button
-                onClick={handleViewBookmarks}
-                className="bg-gray-100 p-3 text-gray-700 hover:text-gray-900 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors flex items-center justify-center"
-                title="My Bookmarks"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                 </svg>
               </button>
               <ThemeToggle />
@@ -1126,7 +1126,7 @@ export default function Home() {
                     <button
                       onClick={() => setSelectedTag(null)}
                       className="ml-2 w-4 h-4 bg-blue-200 hover:bg-red-200 rounded-full flex items-center justify-center text-blue-600 hover:text-red-600 focus:outline-none transition-colors text-xs font-bold"
-                      title="Clear filter"
+                      data-tooltip="Clear filter"
                     >
                       ×
                     </button>
@@ -1264,7 +1264,7 @@ export default function Home() {
                   <button
                     onClick={() => setSelectedTag(null)}
                     className="ml-2 w-4 h-4 bg-blue-200 hover:bg-red-200 rounded-full flex items-center justify-center text-blue-600 hover:text-red-600 focus:outline-none transition-colors text-xs font-bold"
-                    title="Clear filter"
+                    data-tooltip="Clear filter"
                   >
                     ×
                   </button>
@@ -1283,7 +1283,7 @@ export default function Home() {
               <button
                 onClick={handleExportChromeBookmarks}
                 className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-blue-600 rounded-full hover:bg-blue-50 focus:outline-none transition-colors"
-                title="Export bookmarks for Chrome (with Research and Industry folders)"
+                data-tooltip="Export bookmarks for Chrome"
               >
                 🌐
               </button>
@@ -1315,7 +1315,6 @@ export default function Home() {
                             ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-300'
                             : 'bg-gray-300 text-gray-800 hover:bg-gray-400'
                         }`}
-                        title={`Filter by ${item.source}`}
                       >
                         {item.source}
                       </button>
@@ -1329,7 +1328,7 @@ export default function Home() {
                           setDeleteConfirmItem(item)
                         }}
                         className="w-8 h-8 flex items-center justify-center text-yellow-600 bg-yellow-100 hover:bg-yellow-200 rounded-full focus:outline-none transition-colors"
-                        title="Remove bookmark"
+                        data-tooltip="Remove bookmark"
                       >
                         ★
                       </button>
@@ -1357,7 +1356,7 @@ export default function Home() {
                               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { handleEditSummary(item); } }}
                               role="button"
                               tabIndex={0}
-                              title="Edit summary"
+                              data-tooltip="Edit summary"
                               className="text-xs text-gray-400 hover:text-gray-600 cursor-pointer focus:outline-none hover:bg-gray-600 rounded-full p-1"
                             >
                               ✏️

@@ -282,3 +282,49 @@ input[type="text"]:focus, input[type="url"]:focus, input[type="number"]:focus, t
 [data-theme="dark"] .text-blue-600 {
   color: #60a5fa;
 }
+
+/* Custom tooltip styling using data-tooltip to avoid native conflicts */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(104, 110, 117, 0.95); /* gray-600 with opacity */
+  color: white;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 1000;
+  margin-bottom: 5px;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+[data-tooltip]:hover::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: rgba(162, 167, 178, 0.95); /* gray with opacity */
+  z-index: 1000;
+  margin-bottom: 1px;
+  pointer-events: none;
+}
+
+/* Dark mode tooltip styling */
+[data-theme="dark"] [data-tooltip]:hover::after {
+  background-color: rgba(156, 163, 175, 0.95); /* gray-400 with opacity */
+  color: rgba(17, 24, 39, 1); /* gray-900 */
+}
+
+[data-theme="dark"] [data-tooltip]:hover::before {
+  border-top-color: rgba(156, 163, 175, 0.95); /* gray-400 with opacity */
+}

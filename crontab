@@ -2,8 +2,8 @@
 # Set environment variables for cron jobs
 PATH=/root/.local/bin:/usr/local/bin:/usr/bin:/bin
 # 
-# Full content processing pipeline - runs every 1 hour at minute 0
+# Full content processing pipeline - runs every 30 minutes
 # This replaces individual scrapers and does complete processing: scraping + AI summaries + embeddings
-0 */1 * * * root cd /app && echo "$(date): Starting full pipeline cron job" >> /var/log/cron.log && /app/cron_env.sh /root/.local/bin/uv run python -m src.backend.run_pipeline >> /var/log/cron.log 2>&1 && echo "$(date): Full pipeline cron job completed" >> /var/log/cron.log
+*/30 * * * * root cd /app && echo "$(date): Starting full pipeline cron job" >> /var/log/cron.log && /app/cron_env.sh /root/.local/bin/uv run python -m src.backend.run_pipeline >> /var/log/cron.log 2>&1 && echo "$(date): Full pipeline cron job completed" >> /var/log/cron.log
 #
 # Empty line at end (required for cron)
