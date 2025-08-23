@@ -355,76 +355,127 @@ export default function Home() {
 
   const handleUploadLink = async () => {
     if (!uploadUrl.trim()) {
-      setUploadMessage('Please enter a valid URL')
+      setUploadMessage('Please enter at least one URL')
       setTimeout(() => setUploadMessage(''), 3000)
       return
     }
 
-    // Basic URL validation
-    try {
-      new URL(uploadUrl)
-    } catch {
-      setUploadMessage('Please enter a valid URL (starting with http:// or https://)')
+    // Parse multiple URLs separated by commas
+    const urlStrings = uploadUrl.split(',').map(url => url.trim()).filter(url => url)
+    const validUrls: string[] = []
+    
+    // Validate each URL
+    for (const urlString of urlStrings) {
+      try {
+        new URL(urlString)
+        validUrls.push(urlString)
+      } catch {
+        setUploadMessage(`Invalid URL: ${urlString}. Please check your URLs and try again.`)
+        setTimeout(() => setUploadMessage(''), 4000)
+        return
+      }
+    }
+
+    if (validUrls.length === 0) {
+      setUploadMessage('No valid URLs found. Please enter valid URLs starting with http:// or https://')
       setTimeout(() => setUploadMessage(''), 3000)
       return
     }
 
     setIsUploading(true)
     setUploadProgress(0)
-    setUploadProgressMessage('Starting to process your link...')
-    setUploadMessage('Processing your link...')
+    setUploadProgressMessage(`Processing ${validUrls.length} URL${validUrls.length > 1 ? 's' : ''}...`)
+
+    const results = []
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-      
-      // Simulate progress steps for user feedback
-      setUploadProgress(25)
-      setUploadProgressMessage('Fetching content from URL...')
-      
-      const response = await fetch(`${apiUrl}/api/content`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          url: uploadUrl.trim()
-        })
-      })
-      
-      if (response.ok) {
-        const result = await response.json()
+      for (let i = 0; i < validUrls.length; i++) {
+        const url = validUrls[i]
+        const baseProgress = (i / validUrls.length) * 100
+        const stepProgress = 100 / validUrls.length
         
-        if (result.success) {
-          setUploadProgress(75)
-          setUploadProgressMessage('Generating summary and categorizing...')
-          setUploadProgress(100)
-          setUploadProgressMessage('Processing complete!')
-          setUploadMessage('Link uploaded and processed successfully!')
-          setUploadUrl('')
-          // Refresh bookmarks to show the new item
-          if (showBookmarks) {
-            refreshBookmarks()
+        // Update progress for this URL
+        setUploadProgress(baseProgress + stepProgress * 0.2)
+        setUploadProgressMessage(`Processing URL ${i + 1}/${validUrls.length}: Fetching content...`)
+        
+        try {
+          const response = await fetch(`${apiUrl}/api/content`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ url })
+          })
+          
+          setUploadProgress(baseProgress + stepProgress * 0.6)
+          setUploadProgressMessage(`Processing URL ${i + 1}/${validUrls.length}: Generating summary...`)
+          
+          if (response.ok) {
+            const result = await response.json()
+            results.push({
+              url,
+              success: result.success,
+              message: result.message || (result.success ? 'Success' : 'Failed'),
+              title: result.title
+            })
+          } else {
+            const errorData = await response.json()
+            results.push({
+              url,
+              success: false,
+              message: errorData.detail || 'Failed to process',
+              title: null
+            })
           }
-        } else {
-          // Handle cases where response is OK but success=false (like duplicate links)
-          setUploadMessage(result.message || 'Failed to upload link')
-          //setUploadProgress(100)
-          setUploadProgressMessage('') // Don't show "Processing complete!"
+          
+          setUploadProgress(baseProgress + stepProgress)
+          
+        } catch (error) {
+          console.error(`Failed to process URL ${url}:`, error)
+          results.push({
+            url,
+            success: false,
+            message: 'Network error',
+            title: null
+          })
+          setUploadProgress(baseProgress + stepProgress)
         }
-      } else {
-        const errorData = await response.json()
-        setUploadMessage(errorData.detail || 'Failed to upload link')
       }
+      
+      // Show final results
+      setUploadProgress(100)
+      const successful = results.filter(r => r.success).length
+      const failed = results.length - successful
+      
+      if (successful === results.length) {
+        setUploadProgressMessage('All URLs processed successfully!')
+        setUploadMessage(`🎉 Successfully processed ${successful} URL${successful > 1 ? 's' : ''}!`)
+      } else if (successful > 0) {
+        setUploadProgressMessage('Processing complete with some issues')
+        setUploadMessage(`⚠️ Processed ${successful} URL${successful > 1 ? 's' : ''} successfully, ${failed} failed.`)
+      } else {
+        setUploadProgressMessage('Processing failed')
+        setUploadMessage(`❌ Failed to process all URLs. Please check the URLs and try again.`)
+      }
+      
+      setUploadUrl('')
+      
+      // Refresh bookmarks to show new items
+      if (showBookmarks && successful > 0) {
+        refreshBookmarks()
+      }
+      
     } catch (error) {
-      console.error('Failed to upload link:', error)
-      setUploadMessage('Failed to upload link. Please try again.')
+      console.error('Failed to upload links:', error)
+      setUploadMessage('Failed to process URLs. Please try again.')
     } finally {
       setTimeout(() => {
         setIsUploading(false)
         setUploadProgress(0)
         setUploadProgressMessage('')
         setUploadMessage('')
-      }, 2000)
+      }, 3000)
     }
   }
 
@@ -668,9 +719,12 @@ export default function Home() {
         {/* Interest Topics Section */}
         <div className="bg-orange-100 rounded-lg p-8 mb-12">
           <div className="mb-6 flex justify-between items-center">
-            <h2 className="text-2xl font-bold text-gray-800">My Interested Topics</h2>
-            <div className="flex items-center gap-4">
-              <span className="text-sm font-medium text-blue-700">Discovery Mode</span>
+            <h2 className="text-2xl font-bold text-gray-800">
+              {showBookmarks ? 'Bring Your Own URLs' : 'My Interested Topics'}
+            </h2>
+            {!showBookmarks && (
+              <div className="flex items-center gap-4">
+                <span className="text-sm font-medium text-blue-700">Discovery Mode</span>
               <button
                 onClick={() => {
                   console.log('Toggle clicked, current state:', discoveryMode)
@@ -696,10 +750,72 @@ export default function Home() {
                   }}
                 />
               </button>
-            </div>
+              </div>
+            )}
           </div>
           
-          {isLoadingTopics ? (
+          {showBookmarks ? (
+            /* Smart Processing Mode - URL Input */
+            <div className="space-y-4">
+              <div className="text-sm text-gray-700 mb-4">
+                🔗 Add one or more URLs (separated by commas) and we'll automatically extract the content, create smart summaries, and organize them for you!
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={uploadUrl}
+                  onChange={(e) => setUploadUrl(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && !isUploading && handleUploadLink()}
+                  placeholder="https://example.com/article"
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
+                  disabled={isUploading}
+                />
+                <button
+                  onClick={handleUploadLink}
+                  disabled={isUploading}
+                  className={`w-14 h-14 rounded-full focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 font-medium flex items-center justify-center transition-colors ${
+                    isUploading 
+                      ? 'text-gray-700 hover:bg-orange-200 cursor-not-allowed'
+                      : 'text-gray-700 hover:bg-orange-200'
+                  }`}
+                  title={isUploading ? 'Processing URL...' : 'Add URL to bookmarks'}
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
+              </div>
+              
+              {/* Upload Progress Bar */}
+              {isUploading && (
+                <div className="space-y-3">
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="h-2 bg-blue-500 rounded-full transition-all duration-500 ease-out"
+                      style={{ width: `${uploadProgress}%` }}
+                    ></div>
+                  </div>
+                  <div className="text-sm text-blue-700 text-center font-medium">
+                    {uploadProgressMessage}{uploadProgressMessage && ` (${uploadProgress}%)`}
+                  </div>
+                </div>
+              )}
+              
+              {uploadMessage && (
+                <div className={`text-sm font-medium p-3 rounded-lg ${
+                  uploadMessage.includes('successfully')
+                    ? 'text-green-700 bg-green-50 border border-green-200'
+                    : uploadMessage.includes('Processing')
+                    ? 'text-blue-700 bg-blue-50 border border-blue-200'
+                    : uploadMessage.includes('already been added !') || uploadMessage.includes('already bookmarked !')
+                    ? 'text-orange-700 bg-orange-50 border border-orange-200'
+                    : 'text-red-700 bg-red-50 border border-red-200'
+                }`}>
+                  {uploadMessage}
+                </div>
+              )}
+            </div>
+          ) : isLoadingTopics ? (
             <div className="flex justify-center items-center py-4">
               <div className="text-gray-700">Loading topics...</div>
             </div>
@@ -758,8 +874,9 @@ export default function Home() {
             </>
           )}
           
-          {/* Add Keywords Input */}
-          <div className={`flex gap-4 ${discoveryMode ? 'opacity-50' : ''}`}>
+          {/* Add Keywords Input - Hide in bookmark mode */}
+          {!showBookmarks && (
+            <div className={`flex gap-4 ${discoveryMode ? 'opacity-50' : ''}`}>
             <div className="flex gap-2 flex-1">
               <input
                 type="text"
@@ -787,7 +904,21 @@ export default function Home() {
                 </svg>
               </button>
             </div>
-          </div>
+            </div>
+          )}
+
+          {/* Keyword feedback message - only show when not in bookmark mode */}
+          {!showBookmarks && keywordMessage && (
+            <div className={`mt-6 text-sm font-medium p-3 rounded-lg ${
+              keywordMessage.includes('successfully') 
+                ? 'text-green-700 bg-green-50 border border-green-200' 
+                : keywordMessage.includes('already exists') || keywordMessage.includes('Please enter')
+                ? 'text-red-700 bg-red-50 border border-red-200' 
+                : 'text-gray-700 bg-gray-50 border border-gray-200'
+            }`}>
+              {keywordMessage}
+            </div>
+          )}
 
           {/* Settings and Bookmarks Icons */}
           <div className="flex justify-between items-center mt-6">
@@ -817,17 +948,19 @@ export default function Home() {
               <ThemeToggle />
             </div>
 
-            <button
-              onClick={handleFetchItems}
-              disabled={isLoading}
-              className={`px-8 py-3 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 font-medium transition-colors ${
-                isLoading
-                  ? 'bg-gray-500 hover:bg-gray-600 cursor-not-allowed'
-                  : 'bg-gray-500 hover:bg-gray-600'
-              }`}
-            >
-              {isLoading ? 'Searching...' : 'Search'}
-            </button>
+            {!showBookmarks && (
+              <button
+                onClick={handleFetchItems}
+                disabled={isLoading}
+                className={`px-8 py-3 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 font-medium transition-colors ${
+                  isLoading
+                    ? 'bg-gray-500 hover:bg-gray-600 cursor-not-allowed'
+                    : 'bg-gray-500 hover:bg-gray-600'
+                }`}
+              >
+                {isLoading ? 'Searching...' : 'Search'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -920,18 +1053,6 @@ export default function Home() {
         </div>
         )}
 
-        {/* Keyword feedback message */}
-        {keywordMessage && (
-          <div className={`mt-3 text-center text-sm font-medium ${
-            keywordMessage.includes('successfully') 
-              ? 'text-green-600' 
-              : keywordMessage.includes('already exists') || keywordMessage.includes('Please enter')
-              ? 'text-red-600' 
-              : 'text-gray-600'
-          }`}>
-            {keywordMessage}
-          </div>
-        )}
 
         {/* Progress Message - Hide when viewing bookmarks */}
         {!showBookmarks && isLoading && progressMessage && (
@@ -1111,80 +1232,7 @@ export default function Home() {
               </div>
             )}
             
-            {/* Upload Link Section */}
-            <div className="mb-4">
-              <div className="rounded-lg p-6 border border-blue-200">
-                <div className="space-y-2">
-                  <div className="flex gap-3">
-                    <input
-                      type="url"
-                      value={uploadUrl}
-                      onChange={(e) => setUploadUrl(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && !isUploading && handleUploadLink()}
-                      placeholder="https://example.com/article"
-                      className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
-                      disabled={isUploading}
-                    />
-                    <button
-                      onClick={handleUploadLink}
-                      disabled={isUploading}
-                      className={`px-4 py-2 text-white text-sm font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-all duration-200 ${
-                        isUploading
-                          ? 'bg-gray-300 cursor-not-allowed opacity-50'
-                          : 'bg-gray-500 hover:bg-gray-600 shadow-lg hover:shadow-xl hover:scale-105'
-                      }`}
-                    >
-                      {isUploading ? (
-                        <div className="flex items-center justify-center gap-2">
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          Processing...
-                        </div>
-                      ) : (
-                        'Add'
-                      )}
-                    </button>
-                  </div>
-                  {/* Upload Progress Bar */}
-                  {isUploading && (
-                    <div className="space-y-3">
-                      <div className="w-full rounded-full h-2">
-                        <div 
-                          className="h-2 rounded-full transition-all duration-500 ease-out"
-                          style={{ width: `${uploadProgress}%` }}
-                        ></div>
-                      </div>
-                      <div className="text-sm text-blue-700 text-center font-medium">
-                        {uploadProgressMessage}{uploadProgressMessage && ` (${uploadProgress}%)`}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {uploadMessage && (
-                    <div className={`text-sm font-medium p-3 rounded-lg ${
-                      uploadMessage.includes('successfully')
-                        ? 'text-green-700 border border-green-200'
-                        : uploadMessage.includes('Processing')
-                        ? 'text-blue-700 border border-blue-200'
-                        : uploadMessage.includes('already been added !') || uploadMessage.includes('already bookmarked !')
-                        ? 'text-orange-700 border border-orange-200'
-                        : 'text-red-700 border border-red-200'
-                    }`}>
-                      {uploadMessage}
-                    </div>
-                  )}
-                </div>
-                <div className="mt-6 text-xs text-gray-600 p-3 rounded">
-                  <div className="flex items-start gap-2">
-                    <span className="flex-shrink-0">💡</span>
-                    <div>
-                      <strong>Smart Processing:</strong> Upload your own link and we'll automatically scrape the content, generate a summary, and categorize it as Research, Industry, or General based on the content type.
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* Bookmark Count - moved below upload section */}
+            {/* Bookmark Count */}
             <div className="flex justify-between items-center mb-6">
               <div className="text-sm text-gray-600">
                 {selectedTag 

@@ -7,8 +7,8 @@ This is a modern, responsive web interface built with Next.js and TypeScript. It
 - **🎯 Smart Topic Management**: Displays default topics and allows users to add/remove custom keywords.
 - **⚡ Real-Time Progress**: Renders live progress updates via SSE during content processing.
 - **📊 Advanced Search Settings**: Provides UI controls for time ranges, result counts, and content balance.
-- **📚 Bookmark System**: A dedicated UI for viewing, filtering, and managing saved articles.
-- **📤 Link Upload**: A form for submitting new URLs, with real-time validation and processing feedback.
+- **📚 Contextual UI Modes**: Dynamically transforms between "My Interested Topics" (search mode) and "Bring Your Own URLs" (bookmark mode) for optimal user experience.
+- **📤 Multi-URL Processing**: A unified interface for batch URL submission (comma-separated), with smooth progress tracking and contextual feedback.
 - **🌙 Dark Mode**: System-aware theme toggle with smooth transitions and persistence via localStorage.
 
 ## Frontend Architecture
@@ -31,7 +31,7 @@ src/frontend/
 │   │   └── ThemeContext.tsx # Manages theme state (dark/light)
 │   ├── globals.css          # Global styles and theme-aware CSS variables
 │   ├── layout.tsx           # Root layout that includes the ThemeProvider
-│   └── page.tsx             # The main single-page application component
+│   └── page.tsx             # Main SPA with contextual UI modes and multi-URL processing
 ├── package.json             # Frontend dependencies and scripts
 └── next.config.js           # Next.js configuration
 ```

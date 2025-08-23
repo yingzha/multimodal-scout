@@ -10,11 +10,11 @@ A smart content discovery platform that automatically finds, curates, and helps 
 - 🧠 **AI-Powered Summaries**: Generates intelligent summaries for articles using Google Gemini with caching for improved performance.
 - 🎯 **Smart Filtering**: Balances content between research and industry, with configurable result limits.
 - 📚 **Advanced Bookmark Management**: Save articles, edit summaries, and export your collection to Chrome-compatible HTML format.
-- 📤 **Upload & Process Links**: Add your own URLs for automatic scraping, summarization, and categorization.
+- 📤 **Multi-URL Processing**: Add single or multiple URLs (comma-separated) for batch processing with automatic scraping, summarization, and smart categorization.
 - 🔍 **Discovery Mode**: Randomly sample from all available content for serendipitous discovery without topic restrictions.
 - ⏰ **Real-time Progress**: Live progress updates during content fetching and processing via SSE.
 - 🚀 **RESTful API**: Well-designed API following REST principles with comprehensive documentation.
-- 🌙 **Modern UI**: A clean, responsive interface with dark mode support.
+- 🌙 **Modern UI**: A clean, responsive interface with dark mode support and unified contextual modes (topic management vs. bookmark management).
 
 ## Quick Start
 
