@@ -46,6 +46,7 @@ class ItemResponse(BaseModel):
     created_at: str
     summary_edited: bool = False
     is_new: bool = False  # True if this card is new for the user session
+    matched_keywords: List[str] = []  # Keywords that matched during search
 
 
 class FetchResponse(BaseModel):

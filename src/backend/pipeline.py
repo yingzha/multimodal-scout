@@ -35,10 +35,11 @@ def _apply_balanced_filtering(
     max_results: int = 10,
     research_ratio: float = 0.5,
     discovery_mode: bool = False,
-) -> List[SourceSchema]:
+) -> tuple[List[SourceSchema], Dict[str, List[str]]]:
     """
     Apply balanced filtering with relevance scoring and proper sorting.
     When discovery_mode is True, ignores keywords and randomly samples from all sources.
+    Returns filtered sources and a map of matched keywords for each source.
     """
     # Override keywords in discovery mode - use empty keywords for random sampling
     if discovery_mode:
@@ -50,12 +51,17 @@ def _apply_balanced_filtering(
         logger.info(f"Applying balanced filtering to {len(sources)} sources...")
 
     # Pass 1: Keyword Search - skip if in discovery mode (empty keywords)
+    matched_keywords_map = {}  # Map source links to their matched keywords
     if keywords:
         keyword_matches = keyword_search(sources, keywords)
         logger.info(f"Found {len(keyword_matches)} sources via keyword search.")
-        # Create list with scores for keyword matches
-        sources_with_scores = [(source, 1.0) for source in keyword_matches]
-        matched_links = {source.link for source in keyword_matches}
+        # Create list with scores for keyword matches and store matched keywords
+        sources_with_scores = []
+        matched_links = set()
+        for source, matched_kws in keyword_matches:
+            sources_with_scores.append((source, 1.0))
+            matched_links.add(source.link)
+            matched_keywords_map[str(source.link)] = matched_kws
     else:
         # Discovery mode: no keyword filtering, use all sources
         logger.info(
@@ -107,7 +113,9 @@ def _apply_balanced_filtering(
             research_results = semantic_search_with_scores(
                 research_candidates, keywords, threshold=research_threshold
             )
-            sources_with_scores.extend(research_results)
+            for source, score, matched_kws in research_results:
+                sources_with_scores.append((source, score))
+                matched_keywords_map[str(source.link)] = matched_kws
 
         # Run semantic search with industry threshold
         if industry_candidates:
@@ -117,7 +125,9 @@ def _apply_balanced_filtering(
             industry_results = semantic_search_with_scores(
                 industry_candidates, keywords, threshold=industry_threshold
             )
-            sources_with_scores.extend(industry_results)
+            for source, score, matched_kws in industry_results:
+                sources_with_scores.append((source, score))
+                matched_keywords_map[str(source.link)] = matched_kws
 
     # Sort by relevance score (descending), then by date (most recent first)
     sorted_sources = sorted(
@@ -176,7 +186,7 @@ def _apply_balanced_filtering(
     logger.info(
         f"Balanced filtering complete: {len([s for s in limited_results if hasattr(s, 'tags') and s.tags and s.tags[0].lower() == 'research'])} research, {len([s for s in limited_results if not hasattr(s, 'tags') or not s.tags or s.tags[0].lower() != 'research'])} industry/other"
     )
-    return limited_results
+    return limited_results, matched_keywords_map
 
 
 async def process_content_pipeline(
@@ -265,7 +275,7 @@ async def process_content_pipeline(
             sources_needing_summaries = [
                 source
                 for source in fresh_sources
-                if source.link in all_processed_sources
+                if str(source.link) in all_processed_sources
             ]
 
             if sources_needing_summaries:
@@ -450,7 +460,7 @@ async def process_content_pipeline(
             "total": 100,
         }
 
-        filtered_sources = _apply_balanced_filtering(
+        filtered_sources, source_keywords_map = _apply_balanced_filtering(
             all_sources, topics, max_results, research_ratio, discovery_mode
         )
 
@@ -464,6 +474,7 @@ async def process_content_pipeline(
 
     else:
         filtered_sources = all_sources[:max_results]
+        source_keywords_map = {}  # No keywords matched if no filtering
         complete_progress = current_progress + filtering_weight
         yield {
             "type": "progress",
@@ -491,6 +502,7 @@ async def process_content_pipeline(
         link_str = str(source.link)
         is_new = link_str in new_links if session_id else False
 
+        matched_keywords = source_keywords_map.get(link_str, [])
         all_items.append(
             {
                 "title": source.title,
@@ -503,6 +515,7 @@ async def process_content_pipeline(
                     else datetime.now().isoformat()
                 ),
                 "is_new": is_new,
+                "matched_keywords": matched_keywords,
             }
         )
 

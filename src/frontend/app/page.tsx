@@ -20,7 +20,7 @@ export default function Home() {
   const [bookmarkedCards, setBookmarkedCards] = useState<any[]>([])
   const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set())
   const [keywordMessage, setKeywordMessage] = useState('')
-  const [selectedTag, setSelectedTag] = useState<string | null>(null)
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
   const [currentPage, setCurrentPage] = useState(1)
   const [bookmarksPage, setBookmarksPage] = useState(1)
   const [paginatedItems, setPaginatedItems] = useState<any[]>([])
@@ -196,7 +196,17 @@ export default function Home() {
 
   // Pagination helper function
   const paginateItems = (items: any[], page: number) => {
-    const filtered = items.filter(item => selectedTag ? item.source === selectedTag : true)
+    const filtered = items.filter(item => {
+      if (selectedTags.size === 0) return true
+      // Check if item matches any selected tag
+      for (const tag of selectedTags) {
+        // Filter by source tag
+        if (item.source === tag) return true
+        // Filter by matched keywords
+        if (item.matched_keywords && item.matched_keywords.includes(tag)) return true
+      }
+      return false
+    })
     const startIndex = (page - 1) * itemsPerPage
     return filtered.slice(startIndex, startIndex + itemsPerPage)
   }
@@ -204,11 +214,11 @@ export default function Home() {
   // Check bookmark status when results are loaded
   useEffect(() => {
     setPaginatedItems(paginateItems(fetchedItems, currentPage))
-  }, [fetchedItems, selectedTag, currentPage, itemsPerPage, bookmarkedItems])
+  }, [fetchedItems, selectedTags, currentPage, itemsPerPage, bookmarkedItems])
 
   useEffect(() => {
     setPaginatedBookmarks(paginateItems(bookmarkedCards, bookmarksPage))
-  }, [bookmarkedCards, selectedTag, bookmarksPage, itemsPerPage])
+  }, [bookmarkedCards, selectedTags, bookmarksPage, itemsPerPage])
 
   // Helper function to check if summary needs "Read More"
   const checkSummaryOverflow = (element: HTMLElement) => {
@@ -257,7 +267,7 @@ export default function Home() {
       setShowBookmarks(false)
       setBookmarkedCards([])
       setExpandedSummaries(new Set())
-      setSelectedTag(null)
+      setSelectedTags(new Set())
       setBookmarksPage(1)
       setUploadUrl('')
       setUploadMessage('')
@@ -290,7 +300,7 @@ export default function Home() {
       setShowBookmarks(false)
       setBookmarkedCards([])
       setExpandedSummaries(new Set()) // Clear expanded state when hiding bookmarks
-      setSelectedTag(null) // Clear tag filter when hiding bookmarks
+      setSelectedTags(new Set()) // Clear tag filter when hiding bookmarks
       setBookmarksPage(1) // Reset bookmarks page when hiding
       setUploadUrl('') // Clear URL
       setUploadMessage('') // Clear message
@@ -307,7 +317,7 @@ export default function Home() {
         setShowBookmarks(true)
         // Keep search results available - don't hide them
         setExpandedSummaries(new Set()) // Clear expanded state when switching views
-        setSelectedTag(null) // Clear tag filter when switching to bookmarks
+        setSelectedTags(new Set()) // Clear tag filter when switching to bookmarks
         setBookmarksPage(1) // Reset to first page when showing bookmarks
         setUploadUrl('') // Clear any previous URL
         setUploadMessage('') // Clear any previous message
@@ -522,7 +532,15 @@ export default function Home() {
   }
 
   const handleTagFilter = (tag: string) => {
-    setSelectedTag(selectedTag === tag ? null : tag) // Toggle tag selection
+    setSelectedTags(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(tag)) {
+        newSet.delete(tag)
+      } else {
+        newSet.add(tag)
+      }
+      return newSet
+    })
     setCurrentPage(1) // Reset to first page when filtering
     setBookmarksPage(1) // Reset bookmarks page too
   }
@@ -652,7 +670,7 @@ export default function Home() {
         setShowResults(true)
         setShowBookmarks(false)
         setExpandedSummaries(new Set())
-        setSelectedTag(null)
+        setSelectedTags(new Set())
         setCurrentPage(1)
         setProgress(100)
         setProgressMessage('Complete!')
@@ -1115,21 +1133,31 @@ export default function Home() {
             <div className="flex justify-between items-center mb-6">
               <div className="flex items-center gap-3">
                 <div className="text-sm text-gray-600">
-                  {selectedTag
-                    ? `${fetchedItems.filter(item => item.source === selectedTag).length} results for "${selectedTag}"`
+                  {selectedTags.size > 0
+                    ? `${fetchedItems.filter(item => {
+                        for (const tag of selectedTags) {
+                          if (item.source === tag) return true
+                          if (item.matched_keywords && item.matched_keywords.includes(tag)) return true
+                        }
+                        return false
+                      }).length} results for ${Array.from(selectedTags).map(tag => `"${tag}"`).join(', ')}`
                     : `${fetchedItems.length} results`
                   }
                 </div>
-                {selectedTag && (
-                  <div className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                    <span>{selectedTag}</span>
-                    <button
-                      onClick={() => setSelectedTag(null)}
-                      className="ml-2 w-4 h-4 bg-blue-200 hover:bg-red-200 rounded-full flex items-center justify-center text-blue-600 hover:text-red-600 focus:outline-none transition-colors text-xs font-bold"
-                      data-tooltip="Clear filter"
-                    >
-                      ×
-                    </button>
+                {selectedTags.size > 0 && (
+                  <div className="flex items-center gap-2">
+                    {Array.from(selectedTags).map(tag => (
+                      <div key={tag} className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                        <span>{tag}</span>
+                        <button
+                          onClick={() => handleTagFilter(tag)}
+                          className="ml-2 w-4 h-4 bg-blue-200 hover:bg-gray-200 rounded-full flex items-center justify-center text-blue-600 hover:text-red-600 focus:outline-none transition-colors text-xs"
+                          data-tooltip="Remove filter"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -1148,7 +1176,7 @@ export default function Home() {
                       <button
                         onClick={() => handleTagFilter(item.source)}
                         className={`inline-block px-3 py-1 text-xs font-medium rounded-full transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                          selectedTag === item.source
+                          selectedTags.has(item.source)
                             ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-300'
                             : 'bg-gray-300 text-gray-800 hover:bg-gray-400'
                         }`}
@@ -1156,6 +1184,24 @@ export default function Home() {
                       >
                         {item.source}
                       </button>
+                      {item.matched_keywords && item.matched_keywords.length > 0 && (
+                        <div className="flex items-center gap-2">
+                          {item.matched_keywords.map((keyword: string, keywordIndex: number) => (
+                            <button
+                              key={keywordIndex}
+                              onClick={() => handleTagFilter(keyword)}
+                              className={`px-3 py-1 text-xs font-medium rounded-full transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                selectedTags.has(keyword)
+                                  ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-300'
+                                  : 'bg-gray-300 text-gray-800 hover:bg-gray-400'
+                              }`}
+                              title={`Filter by keyword: ${keyword}`}
+                            >
+                              {keyword}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       {item.is_new && (
                         <span className="px-2 py-1 text-xs font-bold italic text-red-600 bg-red-100 rounded-full">
                           New!
@@ -1248,7 +1294,14 @@ export default function Home() {
             <PaginationControls
               currentPage={currentPage}
               setCurrentPage={setCurrentPage}
-              totalItems={fetchedItems.filter(item => selectedTag ? item.source === selectedTag : true).length}
+              totalItems={fetchedItems.filter(item => {
+                if (selectedTags.size === 0) return true
+                for (const tag of selectedTags) {
+                  if (item.source === tag) return true
+                  if (item.matched_keywords && item.matched_keywords.includes(tag)) return true
+                }
+                return false
+              }).length}
               itemsPerPage={itemsPerPage}
             />
           </div>
@@ -1257,16 +1310,27 @@ export default function Home() {
         {/* Bookmarks Section */}
         {showBookmarks && !showAdvancedSettings && (
           <div className="mt-12">
-            {selectedTag && (
+            {selectedTags.size > 0 && (
               <div className="mb-6">
-                <div className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                  <span>{selectedTag}</span>
+                <div className="flex items-center gap-2">
+                  {Array.from(selectedTags).map(tag => (
+                    <div key={tag} className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                      <span>{tag}</span>
+                      <button
+                        onClick={() => handleTagFilter(tag)}
+                        className="ml-2 w-4 h-4 bg-blue-200 hover:bg-red-200 rounded-full flex items-center justify-center text-blue-600 hover:text-red-600 focus:outline-none transition-colors text-xs"
+                        data-tooltip="Remove filter"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
                   <button
-                    onClick={() => setSelectedTag(null)}
-                    className="ml-2 w-4 h-4 bg-blue-200 hover:bg-red-200 rounded-full flex items-center justify-center text-blue-600 hover:text-red-600 focus:outline-none transition-colors text-xs font-bold"
-                    data-tooltip="Clear filter"
+                    onClick={() => setSelectedTags(new Set())}
+                    className="text-xs text-gray-500 hover:text-red-600 focus:outline-none"
+                    data-tooltip="Clear all filters"
                   >
-                    ×
+                    Clear all
                   </button>
                 </div>
               </div>
@@ -1275,8 +1339,14 @@ export default function Home() {
             {/* Bookmark Count */}
             <div className="flex justify-between items-center mb-6">
               <div className="text-sm text-gray-600">
-                {selectedTag
-                  ? `${bookmarkedCards.filter(item => item.source === selectedTag).length} bookmarks for "${selectedTag}"`
+                {selectedTags.size > 0
+                  ? `${bookmarkedCards.filter(item => {
+                      for (const tag of selectedTags) {
+                        if (item.source === tag) return true
+                        if (item.matched_keywords && item.matched_keywords.includes(tag)) return true
+                      }
+                      return false
+                    }).length} bookmarks for ${Array.from(selectedTags).map(tag => `"${tag}"`).join(', ')}`
                   : `${bookmarkedCards.length} bookmarks`
                 }
               </div>
@@ -1308,16 +1378,36 @@ export default function Home() {
                     className="bg-white rounded-lg p-6 border border-gray-200 hover:shadow-lg transition-all duration-300"
                   >
                     <div className="flex items-start justify-between mb-4">
-                      <button
-                        onClick={() => handleTagFilter(item.source)}
-                        className={`inline-block px-3 py-1 text-xs font-medium rounded-full transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                          selectedTag === item.source
-                            ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-300'
-                            : 'bg-gray-300 text-gray-800 hover:bg-gray-400'
-                        }`}
-                      >
-                        {item.source}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleTagFilter(item.source)}
+                          className={`inline-block px-3 py-1 text-xs font-medium rounded-full transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                            selectedTags.has(item.source)
+                              ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-300'
+                              : 'bg-gray-300 text-gray-800 hover:bg-gray-400'
+                          }`}
+                        >
+                          {item.source}
+                        </button>
+                        {item.matched_keywords && item.matched_keywords.length > 0 && (
+                          <div className="flex items-center gap-2">
+                            {item.matched_keywords.map((keyword: string, keywordIndex: number) => (
+                              <button
+                                key={keywordIndex}
+                                onClick={() => handleTagFilter(keyword)}
+                                className={`px-3 py-1 text-xs font-medium rounded-full transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                  selectedTags.has(keyword)
+                                    ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-300'
+                                    : 'bg-gray-300 text-gray-800 hover:bg-gray-400'
+                                }`}
+                                title={`Filter by keyword: ${keyword}`}
+                              >
+                                {keyword}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       <button
                         onClick={(e) => {
                           const rect = e.currentTarget.getBoundingClientRect()
@@ -1474,7 +1564,14 @@ export default function Home() {
                 <PaginationControls
                   currentPage={bookmarksPage}
                   setCurrentPage={setBookmarksPage}
-                  totalItems={bookmarkedCards.filter(item => selectedTag ? item.source === selectedTag : true).length}
+                  totalItems={bookmarkedCards.filter(item => {
+                    if (selectedTags.size === 0) return true
+                    for (const tag of selectedTags) {
+                      if (item.source === tag) return true
+                      if (item.matched_keywords && item.matched_keywords.includes(tag)) return true
+                    }
+                    return false
+                  }).length}
                   itemsPerPage={itemsPerPage}
                 />
               </>

@@ -104,7 +104,7 @@ def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
 
 def keyword_search(
     sources: List[SourceSchema], keywords: List[str]
-) -> List[SourceSchema]:
+) -> List[tuple[SourceSchema, List[str]]]:
     """
     Performs a keyword search on a list of sources using normalized text.
 
@@ -113,7 +113,7 @@ def keyword_search(
         keywords: A list of keywords to search for.
 
     Returns:
-        A list of sources that match the keywords.
+        A list of tuples (source, matched_keywords) for sources that match the keywords.
     """
     matches = []
     normalized_keywords = [_normalize_text(k) for k in keywords]
@@ -127,18 +127,28 @@ def keyword_search(
                 _normalize_text(k) for k in source.keywords
             )
 
-        if any(keyword in searchable_text for keyword in normalized_keywords):
-            matches.append(source)
+        # Track which keywords matched
+        matching_keywords = []
+        for i, normalized_keyword in enumerate(normalized_keywords):
+            if normalized_keyword in searchable_text:
+                matching_keywords.append(keywords[i])
+
+        if matching_keywords:
+            matches.append((source, matching_keywords))
+            matching_keywords_str = ", ".join([f"'{kw}'" for kw in matching_keywords])
+            logger.info(
+                f"Keyword match found for: '{source.title}' with keywords: {matching_keywords_str}"
+            )
 
     return matches
 
 
 def semantic_search_with_scores(
     sources: List[SourceSchema], keywords: List[str], threshold: float = None
-) -> List[tuple[SourceSchema, float]]:
+) -> List[tuple[SourceSchema, float, List[str]]]:
     """
     Performs a semantic search on sources with summaries using Google Gemini embeddings.
-    Returns sources with their similarity scores.
+    Returns sources with their similarity scores and matched keywords.
 
     Args:
         sources: A list of SourceSchema objects to search through.
@@ -146,7 +156,7 @@ def semantic_search_with_scores(
         threshold: The minimum similarity score (0.0 to 1.0) to consider a match. If None, returns all with scores.
 
     Returns:
-        A list of tuples (source, similarity_score) sorted by descending similarity.
+        A list of tuples (source, similarity_score, matched_keywords) sorted by descending similarity.
     """
     if not is_genai_enabled() or not sources:
         logger.warning("Semantic search is disabled or no sources provided")
@@ -202,7 +212,8 @@ def semantic_search_with_scores(
 
             # Add to matches if no threshold or meets threshold
             if threshold is None or max_similarity > threshold:
-                matches.append((source, max_similarity))
+                matched_keyword_names = [kw for kw, score in matching_keywords]
+                matches.append((source, max_similarity, matched_keyword_names))
                 if threshold is not None and max_similarity > threshold:
                     matching_keywords_str = ", ".join(
                         [f"'{kw}' ({score:.3f})" for kw, score in matching_keywords]
