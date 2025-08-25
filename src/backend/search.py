@@ -8,6 +8,10 @@ from .database import db_manager
 from .client import genai_client, is_genai_enabled
 
 
+# Module-level cache for keyword embeddings
+_keyword_embedding_cache = {}
+
+
 def _normalize_text(text: str) -> str:
     """Converts text to lowercase and removes punctuation for keyword matching."""
     if not text:
@@ -151,16 +155,29 @@ def semantic_search_with_scores(
     matches = []
 
     try:
-        # Combine keywords into a single query
-        query_text = " ".join(keywords)
-        query_embedding = _get_embedding(query_text)
+        # Get embeddings for each keyword, using module-level cache
+        keyword_embeddings = []
+        for keyword in keywords:
+            if keyword in _keyword_embedding_cache:
+                logger.info(f"Using cached keyword embedding for: {keyword}")
+                embedding = _keyword_embedding_cache[keyword]
+            else:
+                embedding = _get_embedding(keyword)
+                if len(embedding) > 0:
+                    _keyword_embedding_cache[keyword] = embedding
+                    logger.info(f"Cached new keyword embedding for: {keyword}")
 
-        if len(query_embedding) == 0:
-            logger.warning("Failed to get query embedding, skipping semantic search")
+            if len(embedding) > 0:
+                keyword_embeddings.append(embedding)
+
+        if not keyword_embeddings:
+            logger.warning(
+                "Failed to get embeddings for any keywords, skipping semantic search"
+            )
             return []
 
         logger.info(
-            f"Running Gemini semantic search on {len(sources)} sources with query: '{query_text}'"
+            f"Running Gemini semantic search on {len(sources)} sources with {len(keyword_embeddings)} keyword embeddings"
         )
 
         for source in sources:
@@ -173,15 +190,25 @@ def semantic_search_with_scores(
             if len(source_embedding) == 0:
                 continue
 
-            # Calculate similarity
-            similarity = _cosine_similarity(query_embedding, source_embedding)
+            # Calculate similarity with each keyword embedding and find the maximum
+            max_similarity = 0.0
+            matching_keywords = []
+            for i, keyword_embedding in enumerate(keyword_embeddings):
+                similarity = _cosine_similarity(keyword_embedding, source_embedding)
+                if similarity > max_similarity:
+                    max_similarity = similarity
+                if threshold is None or similarity > threshold:
+                    matching_keywords.append((keywords[i], similarity))
 
             # Add to matches if no threshold or meets threshold
-            if threshold is None or similarity > threshold:
-                matches.append((source, similarity))
-                if threshold is not None and similarity > threshold:
+            if threshold is None or max_similarity > threshold:
+                matches.append((source, max_similarity))
+                if threshold is not None and max_similarity > threshold:
+                    matching_keywords_str = ", ".join(
+                        [f"'{kw}' ({score:.3f})" for kw, score in matching_keywords]
+                    )
                     logger.info(
-                        f"Gemini semantic match found for: '{source.title}' (Score: {similarity:.3f})"
+                        f"Gemini semantic match found for: '{source.title}' with keywords: {matching_keywords_str}"
                     )
 
     except Exception as e:
