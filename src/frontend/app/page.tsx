@@ -869,44 +869,38 @@ export default function Home() {
             </div>
           ) : (
             <>
-              <div className={`flex flex-wrap gap-3 mb-6 transition-opacity ${discoveryMode ? 'opacity-50' : ''}`}>
-                {/* Default Topics (Read-only) */}
-                {defaultTopics.map((topic, index) => (
-                  <span
-                    key={`default-${index}`}
-                    className={`inline-flex items-center px-4 py-2 bg-white rounded-full border border-gray-200 ${
-                      discoveryMode ? 'text-gray-500' : 'text-gray-800'
-                    }`}
-                  >
-                    {topic}
-                    <span className="ml-3 text-gray-400 text-sm">🔒</span>
-                  </span>
-                ))}
-
-                {/* Custom Topics (Removable) */}
-                {customTopics.map((topic, index) => (
-                  <span
-                    key={`custom-${index}`}
-                    className={`inline-flex items-center px-4 py-2 bg-white rounded-full border border-gray-200 ${
-                      discoveryMode ? 'text-blue-500' : 'text-gray-800'
-                    }`}
-                  >
-                    {topic}
-                    <button
-                      onClick={() => !discoveryMode && handleRemoveCustomTopic(topic)}
-                      disabled={discoveryMode}
-                      className={`ml-3 w-5 h-5 rounded-full flex items-center justify-center focus:outline-none transition-colors text-sm font-bold ${
-                        discoveryMode
-                          ? 'cursor-not-allowed text-gray-400'
-                          : 'hover:bg-red-500 hover:text-white'
-                      }`}
-                      title={discoveryMode ? 'Disable discovery mode to remove keywords' : 'Remove keyword'}
+              {/* Hide topics when discovery mode is enabled */}
+              {!discoveryMode && (
+                <div className="flex flex-wrap gap-3 mb-6">
+                  {/* Default Topics (Read-only) */}
+                  {defaultTopics.map((topic, index) => (
+                    <span
+                      key={`default-${index}`}
+                      className="inline-flex items-center px-4 py-2 bg-white rounded-full border border-gray-200 text-gray-800"
                     >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
+                      {topic}
+                      <span className="ml-3 text-gray-400 text-sm">🔒</span>
+                    </span>
+                  ))}
+
+                  {/* Custom Topics (Removable) */}
+                  {customTopics.map((topic, index) => (
+                    <span
+                      key={`custom-${index}`}
+                      className="inline-flex items-center px-4 py-2 bg-white rounded-full border border-gray-200 text-gray-800"
+                    >
+                      {topic}
+                      <button
+                        onClick={() => handleRemoveCustomTopic(topic)}
+                        className="ml-3 w-5 h-5 rounded-full flex items-center justify-center focus:outline-none transition-colors text-sm font-bold hover:bg-red-500 hover:text-white"
+                        title="Remove keyword"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
 
               {/* Discovery Mode Info */}
               {discoveryMode && (
@@ -922,30 +916,22 @@ export default function Home() {
             </>
           )}
 
-          {/* Add Keywords Input - Hide in bookmark mode */}
-          {!showBookmarks && (
-            <div className={`flex gap-4 ${discoveryMode ? 'opacity-50' : ''}`}>
+          {/* Add Keywords Input - Hide in bookmark mode and discovery mode */}
+          {!showBookmarks && !discoveryMode && (
+            <div className="flex gap-4">
             <div className="flex gap-2 flex-1">
               <input
                 type="text"
                 value={newKeyword}
-                onChange={(e) => !discoveryMode && setNewKeyword(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && !discoveryMode && handleAddKeyword()}
-                placeholder={discoveryMode ? "Discovery mode active - keyword adding disabled" : "Add keywords (e.g., computer vision, robotics)"}
-                disabled={discoveryMode}
-                className={`flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent ${
-                  discoveryMode ? 'bg-gray-100 cursor-not-allowed text-gray-500' : 'text-gray-700'
-                }`}
+                onChange={(e) => setNewKeyword(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAddKeyword()}
+                placeholder="Add keywords (e.g., computer vision, robotics)"
+                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-700"
               />
               <button
-                onClick={() => !discoveryMode && handleAddKeyword()}
-                disabled={discoveryMode}
-                className={`w-14 h-14 rounded-full focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 font-medium flex items-center justify-center transition-colors ${
-                  discoveryMode
-                    ? 'text-gray-400 cursor-not-allowed'
-                    : 'text-gray-700 hover:bg-orange-200'
-                }`}
-                data-tooltip={discoveryMode ? 'Disable discovery mode to add keywords' : 'Add keyword'}
+                onClick={handleAddKeyword}
+                className="w-14 h-14 rounded-full focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 font-medium flex items-center justify-center transition-colors text-gray-700 hover:bg-orange-200"
+                data-tooltip="Add keyword"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -955,8 +941,8 @@ export default function Home() {
             </div>
           )}
 
-          {/* Keyword feedback message - only show when not in bookmark mode */}
-          {!showBookmarks && keywordMessage && (
+          {/* Keyword feedback message - only show when not in bookmark mode and not in discovery mode */}
+          {!showBookmarks && !discoveryMode && keywordMessage && (
             <div className={`mt-6 text-sm font-medium p-3 rounded-lg ${
               keywordMessage.includes('successfully')
                 ? 'text-green-700 bg-green-50 border border-green-200'
