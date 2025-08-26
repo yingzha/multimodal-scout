@@ -6,7 +6,7 @@ Provides REST API endpoints for fetching topics and scraping content.
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, Response
-from typing import List, Dict, Any, AsyncGenerator
+from typing import List, Dict, Any, AsyncGenerator, Optional
 from contextlib import asynccontextmanager
 import asyncio
 import json
@@ -341,10 +341,10 @@ async def get_bookmark(bookmark_id: str):
 
 
 @app.get("/api/bookmarks")
-async def get_bookmarks():
-    """Get all bookmarks"""
+async def get_bookmarks(limit: int = 100, days: Optional[int] = None):
+    """Get bookmarks with optional filtering by days back and result limit"""
     try:
-        bookmarks = db_manager.get_bookmarks()
+        bookmarks = db_manager.get_bookmarks(limit=limit, days_back=days)
         bookmark_items = []
         for bookmark in bookmarks:
             # Handle both old and new schema gracefully

@@ -275,7 +275,7 @@ async def process_content_pipeline(
             sources_needing_summaries = [
                 source
                 for source in fresh_sources
-                if str(source.link) in all_processed_sources
+                if source.link in all_processed_sources
             ]
 
             if sources_needing_summaries:

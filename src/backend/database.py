@@ -534,10 +534,17 @@ class DatabaseManager:
                 is not None
             )
 
-    def get_bookmarks(self, limit: int = 100) -> List[Bookmark]:
+    def get_bookmarks(self, limit: int = 100, days_back: Optional[int] = None) -> List[Bookmark]:
         with self.get_session() as session:
+            query = session.query(Bookmark)
+            
+            # Filter by date if days_back is specified
+            if days_back is not None:
+                cutoff_date = datetime.now() - timedelta(days=days_back)
+                query = query.filter(Bookmark.bookmarked_at >= cutoff_date)
+            
             return (
-                session.query(Bookmark)
+                query
                 .order_by(Bookmark.bookmarked_at.desc())
                 .limit(limit)
                 .all()

@@ -45,6 +45,8 @@ export default function Home() {
     return 'session_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now()
   })
   const [discoveryMode, setDiscoveryMode] = useState(false)
+  const [bookmarkSearchDays, setBookmarkSearchDays] = useState<number | null>(null)
+  const [bookmarkSearchLimit, setBookmarkSearchLimit] = useState(50)
   const advancedSettingsRef = useRef<HTMLDivElement>(null)
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -247,14 +249,30 @@ export default function Home() {
     return () => clearTimeout(timeoutId)
   }, [paginatedItems, paginatedBookmarks, expandedSummaries])
 
-  const refreshBookmarks = async () => {
+  const refreshBookmarks = async (searchDays?: number | null, searchLimit?: number) => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-      const response = await fetch(`${apiUrl}/api/bookmarks`)
+      const params = new URLSearchParams()
+      
+      const days = searchDays !== undefined ? searchDays : bookmarkSearchDays
+      const limit = searchLimit !== undefined ? searchLimit : bookmarkSearchLimit
+      
+      if (days !== null && days !== undefined) {
+        params.append('days', days.toString())
+      }
+      params.append('limit', limit.toString())
+      
+      const url = `${apiUrl}/api/bookmarks?${params.toString()}`
+      console.log('Fetching bookmarks from:', url) // Debug log
+      
+      const response = await fetch(url)
 
       if (response.ok) {
         const data = await response.json()
         setBookmarkedCards(data.items)
+        console.log('Bookmarks fetched successfully:', data.items.length) // Debug log
+      } else {
+        console.error('Failed to fetch bookmarks, status:', response.status)
       }
     } catch (error) {
       console.error('Failed to fetch bookmarks:', error)
@@ -308,20 +326,15 @@ export default function Home() {
     }
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-      const response = await fetch(`${apiUrl}/api/bookmarks`)
-
-      if (response.ok) {
-        const data = await response.json()
-        setBookmarkedCards(data.items)
-        setShowBookmarks(true)
-        // Keep search results available - don't hide them
-        setExpandedSummaries(new Set()) // Clear expanded state when switching views
-        setSelectedTags(new Set()) // Clear tag filter when switching to bookmarks
-        setBookmarksPage(1) // Reset to first page when showing bookmarks
-        setUploadUrl('') // Clear any previous URL
-        setUploadMessage('') // Clear any previous message
-      }
+      // Use the new refreshBookmarks function which supports search parameters
+      await refreshBookmarks()
+      setShowBookmarks(true)
+      // Keep search results available - don't hide them
+      setExpandedSummaries(new Set()) // Clear expanded state when switching views
+      setSelectedTags(new Set()) // Clear tag filter when switching to bookmarks
+      setBookmarksPage(1) // Reset to first page when showing bookmarks
+      setUploadUrl('') // Clear any previous URL
+      setUploadMessage('') // Clear any previous message
     } catch (error) {
       console.error('Failed to fetch bookmarks:', error)
     }
@@ -770,7 +783,45 @@ export default function Home() {
             <h2 className="text-2xl font-bold text-gray-800">
               {showBookmarks ? 'Bring Your Own URLs' : 'My Interested Topics'}
             </h2>
-            {!showBookmarks && (
+            {showBookmarks ? (
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700">Last</span>
+                  <select
+                    value={bookmarkSearchDays || 'all'}
+                    onChange={(e) => {
+                      const days = e.target.value === 'all' ? null : parseInt(e.target.value)
+                      setBookmarkSearchDays(days)
+                      refreshBookmarks(days, bookmarkSearchLimit)
+                    }}
+                    className="px-2 py-1 text-sm border  border-gray-300 text-gray-700 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">All time</option>
+                    <option value="1">1 day</option>
+                    <option value="3">3 days</option>
+                    <option value="7">7 days</option>
+                    <option value="30">30 days</option>
+                  </select>
+                  <span className="text-sm font-medium text-gray-700">|</span>
+                  <span className="text-sm font-medium text-gray-700">Show</span>
+                  <select
+                    value={bookmarkSearchLimit}
+                    onChange={(e) => {
+                      const limit = parseInt(e.target.value)
+                      setBookmarkSearchLimit(limit)
+                      refreshBookmarks(bookmarkSearchDays, limit)
+                    }}
+                    className="px-2 py-1 text-sm border border-gray-300 text-gray-700 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="10">10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                  </select>
+                  <span className="text-sm font-medium text-gray-700">items</span>
+                </div>
+              </div>
+            ) : (
               <div className="flex items-center gap-4">
                 <span className="text-sm font-medium text-blue-700">Discovery Mode</span>
               <button
@@ -978,11 +1029,11 @@ export default function Home() {
               </button>
               <button
                 onClick={handleGearClick}
-                disabled={isLoading}
+                disabled={isLoading || showBookmarks}
                 className={`bg-gray-100 p-3 text-gray-700 hover:text-gray-900 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors flex items-center justify-center ${
-                  isLoading ? 'cursor-not-allowed opacity-50' : ''
+                  isLoading || showBookmarks ? 'cursor-not-allowed opacity-50' : ''
                 }`}
-                data-tooltip="Settings"
+                data-tooltip='Advanced Settings'
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
