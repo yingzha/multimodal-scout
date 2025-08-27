@@ -11,7 +11,8 @@ A smart content discovery platform that automatically finds, curates, and helps 
 - 🎯 **Smart Filtering**: Balances content between research and industry, with configurable result limits.
 - 🏷️ **Multi-Tag Filtering**: Filter results by multiple criteria simultaneously - combine source types (Research/Industry) with specific keywords (machine learning, computer vision, etc.) for precise content discovery.
 - 🔍 **Matched Keywords Display**: See exactly which search terms matched each result with clickable keyword tags that enable instant filtering.
-- 📚 **Advanced Bookmark Management**: Save articles, edit summaries, and export your collection to Chrome-compatible HTML format.
+- 🔎 **Real-time Text Search**: Search and filter both homepage results and bookmarks by keywords in titles and summaries with instant results.
+- 📚 **Advanced Bookmark Management**: Save articles, edit summaries, search through your collection, filter by date ranges, and export to Chrome-compatible HTML format.
 - 📤 **Multi-URL Processing**: Add single or multiple URLs (comma-separated) for batch processing with automatic scraping, summarization, and smart categorization.
 - 🔍 **Discovery Mode**: Randomly sample from all available content for serendipitous discovery without topic restrictions.
 - ⏰ **Real-time Progress**: Live progress updates during content fetching and processing via SSE.

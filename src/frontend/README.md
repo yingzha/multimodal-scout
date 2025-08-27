@@ -8,7 +8,11 @@ This is a modern, responsive web interface built with Next.js and TypeScript. It
 - **⚡ Real-Time Progress**: Renders live progress updates via SSE during content processing.
 - **📊 Advanced Search Settings**: Provides UI controls for time ranges, result counts, and content balance.
 - **📚 Contextual UI Modes**: Dynamically transforms between "My Interested Topics" (search mode) and "Bring Your Own URLs" (bookmark mode) for optimal user experience.
+- **🔎 Integrated Text Search**: Real-time search functionality for both homepage results and bookmarks with instant filtering by keywords in titles and summaries.
+- **🏷️ Multi-Tag Filtering**: Interactive tag-based filtering with clickable keyword tags and combined search capabilities.
 - **📤 Multi-URL Processing**: A unified interface for batch URL submission (comma-separated), with smooth progress tracking and contextual feedback.
+- **🔍 Discovery Mode**: Toggle between targeted search and serendipitous content discovery with hidden topic controls for clean UX.
+- **📋 Smart Bookmark Management**: Date-based filtering, result limits, and search through saved bookmarks with export functionality.
 - **🌙 Dark Mode**: System-aware theme toggle with smooth transitions and persistence via localStorage.
 
 ## Frontend Architecture

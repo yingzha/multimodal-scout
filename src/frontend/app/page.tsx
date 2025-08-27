@@ -47,6 +47,8 @@ export default function Home() {
   const [discoveryMode, setDiscoveryMode] = useState(false)
   const [bookmarkSearchDays, setBookmarkSearchDays] = useState<number | null>(null)
   const [bookmarkSearchLimit, setBookmarkSearchLimit] = useState(50)
+  const [bookmarkSearchQuery, setBookmarkSearchQuery] = useState('')
+  const [homepageSearchQuery, setHomepageSearchQuery] = useState('')
   const advancedSettingsRef = useRef<HTMLDivElement>(null)
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -197,8 +199,17 @@ export default function Home() {
   }
 
   // Pagination helper function
-  const paginateItems = (items: any[], page: number) => {
+  const paginateItems = (items: any[], page: number, searchQuery: string = '') => {
     const filtered = items.filter(item => {
+      // Text search filter
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase()
+        const titleMatch = item.title?.toLowerCase().includes(query)
+        const summaryMatch = item.summary?.toLowerCase().includes(query)
+        if (!titleMatch && !summaryMatch) return false
+      }
+      
+      // Tag filter
       if (selectedTags.size === 0) return true
       // Check if item matches any selected tag
       for (const tag of selectedTags) {
@@ -215,12 +226,12 @@ export default function Home() {
 
   // Check bookmark status when results are loaded
   useEffect(() => {
-    setPaginatedItems(paginateItems(fetchedItems, currentPage))
-  }, [fetchedItems, selectedTags, currentPage, itemsPerPage, bookmarkedItems])
+    setPaginatedItems(paginateItems(fetchedItems, currentPage, homepageSearchQuery))
+  }, [fetchedItems, selectedTags, currentPage, itemsPerPage, bookmarkedItems, homepageSearchQuery])
 
   useEffect(() => {
-    setPaginatedBookmarks(paginateItems(bookmarkedCards, bookmarksPage))
-  }, [bookmarkedCards, selectedTags, bookmarksPage, itemsPerPage])
+    setPaginatedBookmarks(paginateItems(bookmarkedCards, bookmarksPage, bookmarkSearchQuery))
+  }, [bookmarkedCards, selectedTags, bookmarksPage, itemsPerPage, bookmarkSearchQuery])
 
   // Helper function to check if summary needs "Read More"
   const checkSummaryOverflow = (element: HTMLElement) => {
@@ -606,7 +617,7 @@ export default function Home() {
   }) => {
     const totalPages = Math.ceil(totalItems / itemsPerPage)
 
-    if (totalPages <= 1) {
+    if (totalPages <= 1 || totalItems === 0) {
       return null
     }
 
@@ -1053,7 +1064,7 @@ export default function Home() {
                     : 'bg-gray-500 hover:bg-gray-600'
                 }`}
               >
-                {isLoading ? 'Searching...' : 'Search'}
+                {isLoading ? 'Search Content...' : 'Search'}
               </button>
             )}
           </div>
@@ -1170,16 +1181,38 @@ export default function Home() {
             <div className="flex justify-between items-center mb-6">
               <div className="flex items-center gap-3">
                 <div className="text-sm text-gray-600">
-                  {selectedTags.size > 0
-                    ? `${fetchedItems.filter(item => {
-                        for (const tag of selectedTags) {
-                          if (item.source === tag) return true
-                          if (item.matched_keywords && item.matched_keywords.includes(tag)) return true
-                        }
-                        return false
-                      }).length} results for ${Array.from(selectedTags).map(tag => `"${tag}"`).join(', ')}`
-                    : `${fetchedItems.length} results`
-                  }
+                  {(() => {
+                    const filteredItems = fetchedItems.filter(item => {
+                      // Text search filter
+                      if (homepageSearchQuery.trim()) {
+                        const query = homepageSearchQuery.toLowerCase()
+                        const titleMatch = item.title?.toLowerCase().includes(query)
+                        const summaryMatch = item.summary?.toLowerCase().includes(query)
+                        if (!titleMatch && !summaryMatch) return false
+                      }
+                      
+                      // Tag filter
+                      if (selectedTags.size === 0) return true
+                      for (const tag of selectedTags) {
+                        if (item.source === tag) return true
+                        if (item.matched_keywords && item.matched_keywords.includes(tag)) return true
+                      }
+                      return false
+                    })
+                    
+                    const hasFilters = selectedTags.size > 0 || homepageSearchQuery.trim()
+                    if (hasFilters) {
+                      const filterParts = []
+                      if (selectedTags.size > 0) {
+                        filterParts.push(`tags: ${Array.from(selectedTags).map(tag => `"${tag}"`).join(', ')}`)
+                      }
+                      if (homepageSearchQuery.trim()) {
+                        filterParts.push(`search: "${homepageSearchQuery}"`)
+                      }
+                      return `${filteredItems.length} results for ${filterParts.join(' + ')}`
+                    }
+                    return `${fetchedItems.length} results`
+                  })()}
                 </div>
                 {selectedTags.size > 0 && (
                   <div className="flex items-center gap-2">
@@ -1197,6 +1230,32 @@ export default function Home() {
                     ))}
                   </div>
                 )}
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Filter by keyword"
+                    value={homepageSearchQuery}
+                    onChange={(e) => setHomepageSearchQuery(e.target.value)}
+                    className="w-48 px-3 py-1 pr-8 text-sm border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  {homepageSearchQuery ? (
+                    <button
+                      onClick={() => setHomepageSearchQuery('')}
+                      className="w-4 h-4 absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                      title="Clear filter"
+                    >
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  ) : (
+                    <svg className="w-4 h-4 absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1332,6 +1391,15 @@ export default function Home() {
               currentPage={currentPage}
               setCurrentPage={setCurrentPage}
               totalItems={fetchedItems.filter(item => {
+                // Text search filter
+                if (homepageSearchQuery.trim()) {
+                  const query = homepageSearchQuery.toLowerCase()
+                  const titleMatch = item.title?.toLowerCase().includes(query)
+                  const summaryMatch = item.summary?.toLowerCase().includes(query)
+                  if (!titleMatch && !summaryMatch) return false
+                }
+                
+                // Tag filter
                 if (selectedTags.size === 0) return true
                 for (const tag of selectedTags) {
                   if (item.source === tag) return true
@@ -1373,27 +1441,75 @@ export default function Home() {
               </div>
             )}
 
-            {/* Bookmark Count */}
+            {/* Bookmark Count and Search */}
             <div className="flex justify-between items-center mb-6">
               <div className="text-sm text-gray-600">
-                {selectedTags.size > 0
-                  ? `${bookmarkedCards.filter(item => {
-                      for (const tag of selectedTags) {
-                        if (item.source === tag) return true
-                        if (item.matched_keywords && item.matched_keywords.includes(tag)) return true
-                      }
-                      return false
-                    }).length} bookmarks for ${Array.from(selectedTags).map(tag => `"${tag}"`).join(', ')}`
-                  : `${bookmarkedCards.length} bookmarks`
-                }
+                {(() => {
+                  const filteredItems = bookmarkedCards.filter(item => {
+                    // Text search filter
+                    if (bookmarkSearchQuery.trim()) {
+                      const query = bookmarkSearchQuery.toLowerCase()
+                      const titleMatch = item.title?.toLowerCase().includes(query)
+                      const summaryMatch = item.summary?.toLowerCase().includes(query)
+                      if (!titleMatch && !summaryMatch) return false
+                    }
+                    
+                    // Tag filter
+                    if (selectedTags.size === 0) return true
+                    for (const tag of selectedTags) {
+                      if (item.source === tag) return true
+                      if (item.matched_keywords && item.matched_keywords.includes(tag)) return true
+                    }
+                    return false
+                  })
+                  
+                  const hasFilters = selectedTags.size > 0 || bookmarkSearchQuery.trim()
+                  if (hasFilters) {
+                    const filterParts = []
+                    if (selectedTags.size > 0) {
+                      filterParts.push(`tags: ${Array.from(selectedTags).map(tag => `"${tag}"`).join(', ')}`)
+                    }
+                    if (bookmarkSearchQuery.trim()) {
+                      filterParts.push(`search: "${bookmarkSearchQuery}"`)
+                    }
+                    return `${filteredItems.length} bookmarks for ${filterParts.join(' + ')}`
+                  }
+                  return `${bookmarkedCards.length} bookmarks`
+                })()}
               </div>
-              <button
-                onClick={handleExportChromeBookmarks}
-                className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-blue-600 rounded-full hover:bg-blue-50 focus:outline-none transition-colors"
-                data-tooltip="Export bookmarks for Chrome"
-              >
-                🌐
-              </button>
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Filter by keyword"
+                    value={bookmarkSearchQuery}
+                    onChange={(e) => setBookmarkSearchQuery(e.target.value)}
+                    className="w-48 px-3 py-1 pr-8 text-sm border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  {bookmarkSearchQuery ? (
+                    <button
+                      onClick={() => setBookmarkSearchQuery('')}
+                      className="w-4 h-4 absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                      title="Clear search"
+                    >
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  ) : (
+                    <svg className="w-4 h-4 absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  )}
+                </div>
+                <button
+                  onClick={handleExportChromeBookmarks}
+                  className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-blue-600 rounded-full hover:bg-blue-50 focus:outline-none transition-colors"
+                  data-tooltip="Export bookmarks for Chrome"
+                >
+                  🌐
+                </button>
+              </div>
             </div>
 
             {bookmarkedCards.length === 0 ? (
@@ -1602,6 +1718,15 @@ export default function Home() {
                   currentPage={bookmarksPage}
                   setCurrentPage={setBookmarksPage}
                   totalItems={bookmarkedCards.filter(item => {
+                    // Text search filter
+                    if (bookmarkSearchQuery.trim()) {
+                      const query = bookmarkSearchQuery.toLowerCase()
+                      const titleMatch = item.title?.toLowerCase().includes(query)
+                      const summaryMatch = item.summary?.toLowerCase().includes(query)
+                      if (!titleMatch && !summaryMatch) return false
+                    }
+                    
+                    // Tag filter
                     if (selectedTags.size === 0) return true
                     for (const tag of selectedTags) {
                       if (item.source === tag) return true
