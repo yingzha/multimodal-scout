@@ -9,7 +9,6 @@ export default function Home() {
   const [customTopics, setCustomTopics] = useState<string[]>([])
   const [newKeyword, setNewKeyword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [progress, setProgress] = useState(0)
   const [progressMessage, setProgressMessage] = useState('')
   const [showDetailedProgress, setShowDetailedProgress] = useState(false)
   const [isLoadingTopics, setIsLoadingTopics] = useState(true)
@@ -198,9 +197,9 @@ export default function Home() {
     }
   }
 
-  // Pagination helper function
-  const paginateItems = (items: any[], page: number, searchQuery: string = '') => {
-    const filtered = items.filter(item => {
+  // Reusable filtering logic
+  const filterItems = (items: any[], searchQuery: string = '') => {
+    return items.filter(item => {
       // Text search filter
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase()
@@ -220,6 +219,11 @@ export default function Home() {
       }
       return false
     })
+  }
+
+  // Pagination helper function
+  const paginateItems = (items: any[], page: number, searchQuery: string = '') => {
+    const filtered = filterItems(items, searchQuery)
     const startIndex = (page - 1) * itemsPerPage
     return filtered.slice(startIndex, startIndex + itemsPerPage)
   }
@@ -305,7 +309,6 @@ export default function Home() {
     // Reset any loading states
     setIsLoading(false)
     setProgressMessage('')
-    setProgress(0)
     setShowDetailedProgress(false)
 
     // Clear any messages
@@ -670,15 +673,13 @@ export default function Home() {
       case 'start':
         setShowDetailedProgress(true)
         setProgressMessage(eventData.message)
-        setProgress(0)
         break
       case 'progress':
-        const progressPercent = Math.round((eventData.processed / eventData.total) * 100)
-        setProgress(progressPercent)
+        // Progress percentage calculation for potential future use
+        Math.round((eventData.processed / eventData.total) * 100)
         setProgressMessage(eventData.message)
         break
       case 'complete':
-        setProgress(100)
         setProgressMessage(eventData.message)
         break
       case 'info':
@@ -696,7 +697,6 @@ export default function Home() {
         setExpandedSummaries(new Set())
         setSelectedTags(new Set())
         setCurrentPage(1)
-        setProgress(100)
         setProgressMessage('Complete!')
         // Load bookmark status for the new search results
         loadBookmarkStatus()
@@ -736,7 +736,6 @@ export default function Home() {
     setIsLoading(true)
     setShowBookmarks(false)
     setShowAdvancedSettings(false) // Close settings panel when search starts
-    setProgress(0)
     setProgressMessage('Starting fetch...')
     setShowDetailedProgress(false)
 
@@ -768,7 +767,6 @@ export default function Home() {
     } finally {
       setTimeout(() => {
         setIsLoading(false)
-        setProgress(0)
         setProgressMessage('')
         setShowDetailedProgress(false)
       }, 2000)
@@ -1182,23 +1180,7 @@ export default function Home() {
               <div className="flex items-center gap-3">
                 <div className="text-sm text-gray-600">
                   {(() => {
-                    const filteredItems = fetchedItems.filter(item => {
-                      // Text search filter
-                      if (homepageSearchQuery.trim()) {
-                        const query = homepageSearchQuery.toLowerCase()
-                        const titleMatch = item.title?.toLowerCase().includes(query)
-                        const summaryMatch = item.summary?.toLowerCase().includes(query)
-                        if (!titleMatch && !summaryMatch) return false
-                      }
-                      
-                      // Tag filter
-                      if (selectedTags.size === 0) return true
-                      for (const tag of selectedTags) {
-                        if (item.source === tag) return true
-                        if (item.matched_keywords && item.matched_keywords.includes(tag)) return true
-                      }
-                      return false
-                    })
+                    const filteredItems = filterItems(fetchedItems, homepageSearchQuery)
                     
                     const hasFilters = selectedTags.size > 0 || homepageSearchQuery.trim()
                     if (hasFilters) {
@@ -1390,23 +1372,7 @@ export default function Home() {
             <PaginationControls
               currentPage={currentPage}
               setCurrentPage={setCurrentPage}
-              totalItems={fetchedItems.filter(item => {
-                // Text search filter
-                if (homepageSearchQuery.trim()) {
-                  const query = homepageSearchQuery.toLowerCase()
-                  const titleMatch = item.title?.toLowerCase().includes(query)
-                  const summaryMatch = item.summary?.toLowerCase().includes(query)
-                  if (!titleMatch && !summaryMatch) return false
-                }
-                
-                // Tag filter
-                if (selectedTags.size === 0) return true
-                for (const tag of selectedTags) {
-                  if (item.source === tag) return true
-                  if (item.matched_keywords && item.matched_keywords.includes(tag)) return true
-                }
-                return false
-              }).length}
+              totalItems={filterItems(fetchedItems, homepageSearchQuery).length}
               itemsPerPage={itemsPerPage}
             />
           </div>
@@ -1415,67 +1381,43 @@ export default function Home() {
         {/* Bookmarks Section */}
         {showBookmarks && !showAdvancedSettings && (
           <div className="mt-12">
-            {selectedTags.size > 0 && (
-              <div className="mb-6">
-                <div className="flex items-center gap-2">
-                  {Array.from(selectedTags).map(tag => (
-                    <div key={tag} className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                      <span>{tag}</span>
-                      <button
-                        onClick={() => handleTagFilter(tag)}
-                        className="ml-2 w-4 h-4 bg-blue-200 hover:bg-red-200 rounded-full flex items-center justify-center text-blue-600 hover:text-red-600 focus:outline-none transition-colors text-xs"
-                        data-tooltip="Remove filter"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    onClick={() => setSelectedTags(new Set())}
-                    className="text-xs text-gray-500 hover:text-red-600 focus:outline-none"
-                    data-tooltip="Clear all filters"
-                  >
-                    Clear all
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* Bookmark Count and Search */}
             <div className="flex justify-between items-center mb-6">
-              <div className="text-sm text-gray-600">
-                {(() => {
-                  const filteredItems = bookmarkedCards.filter(item => {
-                    // Text search filter
-                    if (bookmarkSearchQuery.trim()) {
-                      const query = bookmarkSearchQuery.toLowerCase()
-                      const titleMatch = item.title?.toLowerCase().includes(query)
-                      const summaryMatch = item.summary?.toLowerCase().includes(query)
-                      if (!titleMatch && !summaryMatch) return false
-                    }
+              <div className="flex items-center gap-3">
+                <div className="text-sm text-gray-600">
+                  {(() => {
+                    const filteredItems = filterItems(bookmarkedCards, bookmarkSearchQuery)
                     
-                    // Tag filter
-                    if (selectedTags.size === 0) return true
-                    for (const tag of selectedTags) {
-                      if (item.source === tag) return true
-                      if (item.matched_keywords && item.matched_keywords.includes(tag)) return true
+                    const hasFilters = selectedTags.size > 0 || bookmarkSearchQuery.trim()
+                    if (hasFilters) {
+                      const filterParts = []
+                      if (selectedTags.size > 0) {
+                        filterParts.push(`tags: ${Array.from(selectedTags).map(tag => `"${tag}"`).join(', ')}`)
+                      }
+                      if (bookmarkSearchQuery.trim()) {
+                        filterParts.push(`search: "${bookmarkSearchQuery}"`)
+                      }
+                      return `${filteredItems.length} bookmarks for ${filterParts.join(' + ')}`
                     }
-                    return false
-                  })
-                  
-                  const hasFilters = selectedTags.size > 0 || bookmarkSearchQuery.trim()
-                  if (hasFilters) {
-                    const filterParts = []
-                    if (selectedTags.size > 0) {
-                      filterParts.push(`tags: ${Array.from(selectedTags).map(tag => `"${tag}"`).join(', ')}`)
-                    }
-                    if (bookmarkSearchQuery.trim()) {
-                      filterParts.push(`search: "${bookmarkSearchQuery}"`)
-                    }
-                    return `${filteredItems.length} bookmarks for ${filterParts.join(' + ')}`
-                  }
-                  return `${bookmarkedCards.length} bookmarks`
-                })()}
+                    return `${bookmarkedCards.length} bookmarks`
+                  })()}
+                </div>
+                {selectedTags.size > 0 && (
+                  <div className="flex items-center gap-2">
+                    {Array.from(selectedTags).map(tag => (
+                      <div key={tag} className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                        <span>{tag}</span>
+                        <button
+                          onClick={() => handleTagFilter(tag)}
+                          className="ml-2 w-4 h-4 bg-blue-200 hover:bg-gray-200 rounded-full flex items-center justify-center text-blue-600 hover:text-red-600 focus:outline-none transition-colors text-xs"
+                          data-tooltip="Remove filter"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-3">
                 <div className="relative">
@@ -1717,23 +1659,7 @@ export default function Home() {
                 <PaginationControls
                   currentPage={bookmarksPage}
                   setCurrentPage={setBookmarksPage}
-                  totalItems={bookmarkedCards.filter(item => {
-                    // Text search filter
-                    if (bookmarkSearchQuery.trim()) {
-                      const query = bookmarkSearchQuery.toLowerCase()
-                      const titleMatch = item.title?.toLowerCase().includes(query)
-                      const summaryMatch = item.summary?.toLowerCase().includes(query)
-                      if (!titleMatch && !summaryMatch) return false
-                    }
-                    
-                    // Tag filter
-                    if (selectedTags.size === 0) return true
-                    for (const tag of selectedTags) {
-                      if (item.source === tag) return true
-                      if (item.matched_keywords && item.matched_keywords.includes(tag)) return true
-                    }
-                    return false
-                  }).length}
+                  totalItems={filterItems(bookmarkedCards, bookmarkSearchQuery).length}
                   itemsPerPage={itemsPerPage}
                 />
               </>
