@@ -61,21 +61,46 @@ curl -s -X POST "http://localhost:8000/api/content" \
   -H "Content-Type: application/json" \
   -d '{"url": "https://example.com/article"}'
 
+# --- Auth Endpoints ---
+# Register a new user
+curl -s -X POST "http://localhost:8000/api/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "test@example.com", "password": "password123", "username": "testuser"}'
+
+# Login and get a session token (requires jq to be installed)
+TOKEN=$(curl -s -X POST "http://localhost:8000/api/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "test@example.com", "password": "password123"}' | jq -r .session_token)
+
+echo "Got token: $TOKEN"
+
+# Get current user info
+curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/auth/me
+
+# --- Authenticated Bookmark Endpoints ---
 # Add a bookmark
 curl -s -X POST "http://localhost:8000/api/bookmarks" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"title": "Test", "link": "http://example.com", "source": "Test", "summary": "Test summary"}'
 
-# Get specific bookmark (RESTful)
-curl -s http://localhost:8000/api/bookmarks/BOOKMARK_ID
+# Get all bookmarks for the user
+curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/bookmarks
 
-# Update bookmark summary (RESTful)
+# Get specific bookmark (replace BOOKMARK_ID with a real ID)
+curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/bookmarks/BOOKMARK_ID
+
+# Update bookmark summary (replace BOOKMARK_ID with a real ID)
 curl -s -X PATCH "http://localhost:8000/api/bookmarks/BOOKMARK_ID" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"summary": "Updated summary"}'
 
-# Delete bookmark (RESTful)
-curl -s -X DELETE "http://localhost:8000/api/bookmarks/BOOKMARK_ID"
+# Delete bookmark (replace BOOKMARK_ID with a real ID)
+curl -s -X DELETE -H "Authorization: Bearer $TOKEN" "http://localhost:8000/api/bookmarks/BOOKMARK_ID"
+
+# Logout
+curl -s -X POST -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/auth/logout
 ```
 
 ## Common Docker Commands

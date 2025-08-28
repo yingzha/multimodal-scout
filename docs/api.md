@@ -10,7 +10,72 @@ http://localhost:8000
 
 ## Authentication
 
-Currently, no authentication is required for API access.
+Endpoints related to user-specific data (like bookmarks) are protected and require a bearer token in the `Authorization` header.
+
+`Authorization: Bearer <your_session_token>`
+
+You can obtain a session token by using the `/api/auth/login` or `/api/auth/register` endpoints.
+
+### Authentication Endpoints
+
+**POST /api/auth/register**
+- **Description**: Register a new user.
+- **Request Body**:
+  ```json
+  {
+    "email": "user@example.com",
+    "password": "your_password",
+    "username": "your_username"
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "user_id": "user-uuid-here",
+    "session_token": "session-token-here"
+  }
+  ```
+
+**POST /api/auth/login**
+- **Description**: Log in a user.
+- **Request Body**:
+  ```json
+  {
+    "email": "user@example.com",
+    "password": "your_password"
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "session_token": "session-token-here"
+  }
+  ```
+
+**POST /api/auth/logout**
+- **Description**: Log out a user by invalidating the session token.
+- **Authentication**: Required.
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "message": "Logged out successfully"
+  }
+  ```
+
+**GET /api/auth/me**
+- **Description**: Get information about the currently authenticated user.
+- **Authentication**: Required.
+- **Response**:
+  ```json
+  {
+    "user_id": "user-uuid-here",
+    "email": "user@example.com",
+    "username": "your_username"
+  }
+  ```
 
 ## Endpoints
 
@@ -127,6 +192,7 @@ Currently, no authentication is required for API access.
 
 **GET /api/bookmarks**
 - **Description**: Get all user bookmarks
+- **Authentication**: Required.
 - **Response**: Same format as content search but only bookmarked items
   ```json
   {
@@ -138,6 +204,7 @@ Currently, no authentication is required for API access.
 
 **POST /api/bookmarks**
 - **Description**: Add a new bookmark
+- **Authentication**: Required.
 - **Request Body**:
   ```json
   {
@@ -160,6 +227,7 @@ Currently, no authentication is required for API access.
 
 **GET /api/bookmarks/{bookmark_id}**
 - **Description**: Get a specific bookmark by ID
+- **Authentication**: Required.
 - **Path Parameters**:
   - `bookmark_id` (required): UUID of the bookmark
 - **Response**:
@@ -178,6 +246,7 @@ Currently, no authentication is required for API access.
 
 **DELETE /api/bookmarks/{bookmark_id}**
 - **Description**: Delete a specific bookmark by ID
+- **Authentication**: Required.
 - **Path Parameters**:
   - `bookmark_id` (required): UUID of the bookmark
 - **Response**:
@@ -190,6 +259,7 @@ Currently, no authentication is required for API access.
 
 **PATCH /api/bookmarks/{bookmark_id}**
 - **Description**: Update a bookmark's summary by ID
+- **Authentication**: Required.
 - **Path Parameters**:
   - `bookmark_id` (required): UUID of the bookmark
 - **Request Body**:
@@ -210,16 +280,19 @@ Currently, no authentication is required for API access.
 
 **DELETE /api/bookmarks**
 - **Description**: Remove a bookmark by URL (deprecated - use DELETE /api/bookmarks/{id})
+- **Authentication**: Required.
 - **Query Parameters**: 
   - `link` (required): URL of the bookmark to remove
 
 **GET /api/bookmarks/check**
 - **Description**: Check if a URL is bookmarked (deprecated)
+- **Authentication**: Required.
 - **Query Parameters**:
   - `link` (required): URL to check
 
 **PUT /api/bookmarks/summary**
 - **Description**: Update bookmark summary by URL (deprecated - use PATCH /api/bookmarks/{id})
+- **Authentication**: Required.
 - **Query Parameters**:
   - `link` (required): URL of the bookmark
   - `summary` (required): New summary text
@@ -228,12 +301,14 @@ Currently, no authentication is required for API access.
 
 **GET /api/bookmarks/export**
 - **Description**: Export all bookmarks to Excel (.xlsx) file
+- **Authentication**: Required.
 - **Response**: Excel file download with columns: Title, Summary, Link, Source, Date Added
 - **Content-Type**: `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
 - **Headers**: `Content-Disposition: attachment; filename="multimodal_scout_bookmarks_{timestamp}.xlsx"`
 
 **GET /api/bookmarks/export/chrome**
 - **Description**: Export bookmarks in Chrome-compatible HTML format
+- **Authentication**: Required.
 - **Response**: HTML file that can be imported into Chrome browser
 - **Content-Type**: `text/html`
 - **Headers**: `Content-Disposition: attachment; filename="multimodal_scout_chrome_bookmarks_{timestamp}.html"`

@@ -4,7 +4,9 @@ This backend service, built with Python and FastAPI, is the core of the Multimod
 
 ## Backend-Specific Features
 
-### Content Management
+### User & Content Management
+- **Secure User Authentication**: Endpoints for user registration, login, and session management.
+- **Personalized Bookmarks**: Bookmarks are tied to users, ensuring data privacy.
 - **Multi-source scraping**: Fetches content from multiple RSS sources (Hacker News, Substack) and Hugging Face
 - **AI-powered summarization**: Generates summaries using the Google Gemini API with intelligent caching
 - **Smart content categorization**: Automatically categorizes content as Research, Industry, or General
@@ -19,7 +21,7 @@ This backend service, built with Python and FastAPI, is the core of the Multimod
 
 ### Data Management
 - **PostgreSQL database**: Robust data storage with UUID-based resource identification
-- **Cache management**: CLI tools for database cleanup, search, and analytics
+- **Cache management**: CLI tools for database cleanup, search, and analytics, including user data removal.
 - **Automatic migrations**: Database schema management with Alembic
 - **Bookmark management**: Full CRUD operations with both legacy and RESTful endpoints
 
@@ -51,11 +53,17 @@ The `cache_manager.py` script provides tools for inspecting and managing the dat
 # View cache statistics (total items, age, etc.)
 docker-compose exec backend python -m src.backend.cache_manager stats
 
+# View bookmark stats for a specific user
+docker-compose exec backend python -m src.backend.cache_manager stats --cache-type bookmark --email user@example.com
+
 # Search cached summaries by content
 docker-compose exec backend python -m src.backend.cache_manager search --cache-type summary --query "AI" --limit 5
 
 # Clean up old summaries (e.g., older than 30 days)
 docker-compose exec backend python -m src.backend.cache_manager cleanup --cache-type summary --days 30
+
+# Clean up a user and all their data (bookmarks, sessions)
+docker-compose exec backend python -m src.backend.cache_manager cleanup --cache-type user --email user@example.com
 ```
 
 ### General Development
