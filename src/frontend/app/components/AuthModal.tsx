@@ -173,7 +173,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, asPage = false }
         </form>
 
         <div className="mt-6 text-center">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-gray-700">
             {isLogin ? "Don't have an account?" : 'Already have an account?'}
             <button
               type="button"
@@ -181,14 +181,14 @@ export default function AuthModal({ isOpen, onClose, onSuccess, asPage = false }
                 setIsLogin(!isLogin)
                 setError('')
               }}
-              className="ml-2 text-purple-500 bg-gray-400 hover:text-gray-800 font-medium"
+              className="ml-2 py-1 px-3 rounded-full text-gray-700 font-bold hover:text-gray-800"
             >
               {isLogin ? 'Sign up' : 'Login'}
             </button>
           </p>
         </div>
 
-        <div className="mt-4 text-xs text-gray-500 text-center">
+        <div className="mt-4 text-xs text-gray-700 text-center">
           <p>Your data is private and secure. Each user has their own bookmark collection.</p>
         </div>
       </div>

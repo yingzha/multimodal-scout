@@ -128,6 +128,12 @@ export default function Home() {
     }
   }, [isAuthenticated, authLoading])
 
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setBookmarkedItems(new Set())
+    }
+  }, [isAuthenticated])
+
   const handleAddKeyword = () => {
     const trimmedKeyword = newKeyword.trim()
     const allTopics = [...defaultTopics, ...customTopics]

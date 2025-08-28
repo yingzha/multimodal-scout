@@ -153,7 +153,7 @@ def search_cache(cache_type: str, query: str, limit: int = 5, email: str | None 
         print(f"Error searching {cache_type} cache: {e}")
 
 
-def cleanup_cache(cache_type: str, days: int = 30):
+def cleanup_cache(cache_type: str, days: int = 30, email: str | None = None):
     """Clean up old cache entries."""
     try:
         if cache_type == "summary":
@@ -170,6 +170,18 @@ def cleanup_cache(cache_type: str, days: int = 30):
             days = max(days, 90)  # Default minimum 90 days for bookmarks
             deleted_count = db_manager.cleanup_bookmarks(days)
             print(f"Cleaned up {deleted_count} bookmarks older than {days} days")
+
+        elif cache_type == "user":
+            if not email:
+                print("Error: --email is required for user cleanup.")
+                sys.exit(1)
+            result = db_manager.cleanup_user(email=email)
+            if result["user_deleted"]:
+                print(f"Successfully deleted user with email: {email}")
+                print(f"  - Deleted {result['sessions_deleted']} sessions.")
+                print(f"  - Deleted {result['bookmarks_deleted']} bookmarks.")
+            else:
+                print(f"User with email {email} not found.")
 
         elif cache_type == "all":
             summary_result = db_manager.cleanup_summaries_and_embeddings(days)
@@ -196,7 +208,7 @@ def main():
 
     parser.add_argument(
         "--cache-type",
-        choices=["summary", "embedding", "bookmark", "all"],
+        choices=["summary", "embedding", "bookmark", "all", "user"],
         default="all",
         help="Cache type to operate on",
     )
@@ -251,7 +263,7 @@ def main():
         search_cache(args.cache_type, args.query, args.limit, email=args.email)
 
     elif args.command == "cleanup":
-        cleanup_cache(args.cache_type, args.days)
+        cleanup_cache(args.cache_type, args.days, email=args.email)
 
 
 if __name__ == "__main__":

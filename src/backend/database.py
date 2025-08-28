@@ -605,6 +605,47 @@ class DatabaseManager:
         pwdhash = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 100000)
         return pwdhash.hex() == stored_hash
 
+    def cleanup_user(self, email: str) -> Dict[str, Any]:
+        with self.get_session() as session:
+            user = session.query(User).filter(User.email == email).first()
+            if not user:
+                return {
+                    "user_deleted": False,
+                    "sessions_deleted": 0,
+                    "bookmarks_deleted": 0,
+                }
+
+            user_id = user.id
+
+            # Delete user sessions
+            sessions_deleted = (
+                session.query(UserSession)
+                .filter(UserSession.user_id == user_id)
+                .delete(synchronize_session=False)
+            )
+
+            # Delete bookmarks
+            bookmarks_deleted = (
+                session.query(Bookmark)
+                .filter(Bookmark.user_id == user_id)
+                .delete(synchronize_session=False)
+            )
+
+            # Delete user
+            session.delete(user)
+
+            session.commit()
+
+            logger.info(
+                f"Deleted user {email} and their data. Sessions: {sessions_deleted}, Bookmarks: {bookmarks_deleted}"
+            )
+
+            return {
+                "user_deleted": True,
+                "sessions_deleted": sessions_deleted,
+                "bookmarks_deleted": bookmarks_deleted,
+            }
+
     # --- Bookmark Methods ---
 
     def add_bookmark(

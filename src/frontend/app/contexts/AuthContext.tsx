@@ -15,7 +15,6 @@ interface AuthContextType {
   isLoading: boolean
   login: (sessionToken: string, user: User) => void
   logout: () => void
-  checkAuth: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -117,7 +116,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isLoading,
     login,
     logout,
-    checkAuth,
   }
 
   return (
