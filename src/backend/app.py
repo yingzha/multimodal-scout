@@ -25,7 +25,6 @@ from .schema import (
     BookmarkResponse,
     UploadLinkRequest,
     UploadLinkResponse,
-    ErrorResponse,
     UserRegistrationRequest,
     UserLoginRequest,
     AuthResponse,
@@ -703,8 +702,12 @@ async def export_bookmarks(current_user: str = Depends(get_current_user)):
 
 
 @app.get("/api/bookmarks/export/chrome")
-async def export_chrome_bookmarks(current_user: str = Depends(get_current_user)):
-    """Export bookmarks in Chrome-compatible HTML format"""
+async def export_chrome_bookmarks(
+    selected_tags: str = None,
+    search_query: str = None,
+    current_user: str = Depends(get_current_user),
+):
+    """Export bookmarks in Chrome-compatible HTML format with optional filtering"""
     try:
         from datetime import datetime
         from html import escape
@@ -715,8 +718,43 @@ async def export_chrome_bookmarks(current_user: str = Depends(get_current_user))
         # Get all bookmarks
         bookmarks = db_manager.get_bookmarks(current_user)
 
-        if not bookmarks:
-            raise HTTPException(status_code=404, detail="No bookmarks found to export")
+        # Apply filters if provided
+        if selected_tags or search_query:
+            filtered_bookmarks = []
+            selected_tag_set = set()
+
+            if selected_tags:
+                # Parse comma-separated tags
+                selected_tag_set = set(
+                    tag.strip() for tag in selected_tags.split(",") if tag.strip()
+                )
+
+            for bookmark in bookmarks:
+                # Text search filter
+                if search_query and search_query.strip():
+                    query = search_query.lower()
+                    title_match = bookmark.title and query in bookmark.title.lower()
+                    summary_match = (
+                        bookmark.summary and query in bookmark.summary.lower()
+                    )
+                    if not (title_match or summary_match):
+                        continue
+
+                # Tag filter
+                if selected_tag_set:
+                    tag_matches = False
+                    # Check source tag
+                    if bookmark.source_tag in selected_tag_set:
+                        tag_matches = True
+                    # TODO: Check matched keywords if available in bookmark model
+
+                    if not tag_matches:
+                        continue
+
+                filtered_bookmarks.append(bookmark)
+
+            bookmarks = filtered_bookmarks
+            logger.info(f"Filtered bookmarks: {len(bookmarks)} items")
 
         # Group bookmarks by source for subfolder organization
         research_bookmarks = []

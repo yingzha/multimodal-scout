@@ -648,7 +648,23 @@ export default function Home() {
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-      const response = await fetch(`${apiUrl}/api/bookmarks/export/chrome`, {
+      
+      // Build URL with filter parameters based on current state
+      const params = new URLSearchParams()
+      
+      // Add selected tags if any
+      if (selectedTags.size > 0) {
+        params.append('selected_tags', Array.from(selectedTags).join(','))
+      }
+      
+      // Add search query if any (use bookmark search query when in bookmark mode)
+      const searchQuery = showBookmarks ? bookmarkSearchQuery : homepageSearchQuery
+      if (searchQuery.trim()) {
+        params.append('search_query', searchQuery)
+      }
+      
+      const url = `${apiUrl}/api/bookmarks/export/chrome${params.toString() ? '?' + params.toString() : ''}`
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${sessionToken}`,

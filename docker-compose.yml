@@ -27,6 +27,7 @@ services:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
     volumes:
       - ./src:/app/src
+      - ./tests:/app/tests
       - ./alembic:/app/alembic
       - ./alembic.ini:/app/alembic.ini
     ports:
@@ -49,6 +50,7 @@ services:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
     volumes:
       - ./src:/app/src
+      - ./tests:/app/tests
 
   frontend:
     build:

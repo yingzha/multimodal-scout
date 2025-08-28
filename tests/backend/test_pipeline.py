@@ -105,8 +105,8 @@ class TestPipeline(unittest.TestCase):
         # Mock bookmarks (no edited summaries)
         mock_get_bookmarks.return_value = []
         
-        # Mock the advanced filter to return one of each
-        mock_filter.return_value = [mock_hf_paper, mock_hn_story]
+        # Mock the advanced filter to return one of each (returns tuple of list and dict)
+        mock_filter.return_value = ([mock_hf_paper, mock_hn_story], {})
 
         # --- Run Pipeline ---
         pipeline_generator = process_content_pipeline(
@@ -172,7 +172,10 @@ class TestPipeline(unittest.TestCase):
         
         mock_keyword_search.assert_not_called()
         mock_semantic_search_with_scores.assert_not_called()
-        self.assertEqual(len(result), 1)
+        
+        # Result is a tuple (filtered_sources, matched_keywords_map)
+        filtered_sources, matched_keywords_map = result
+        self.assertEqual(len(filtered_sources), 1)
 
 if __name__ == '__main__':
     unittest.main()
