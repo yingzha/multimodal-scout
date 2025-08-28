@@ -34,6 +34,27 @@ export default function Home() {
     setKeywordMessage(message)
     setTimeout(() => setKeywordMessage(''), duration)
   }
+
+  // Reset to fresh homepage view
+  const resetToHomepage = () => {
+    setShowResults(false)
+    setShowBookmarks(false)
+    setShowAdvancedSettings(false)
+    setShowAuthModal(false)
+    setShowUserMenu(false)
+    setKeywordMessage('')
+    setFetchedItems([])
+    setBookmarkedCards([])
+    setPaginatedItems([])
+    setPaginatedBookmarks([])
+    setCurrentPage(1)
+    setBookmarksPage(1)
+    setExpandedSummaries(new Set())
+    setShowReadMore(new Set())
+    setBookmarkSearchQuery('')
+    setHomepageSearchQuery('')
+    setSelectedTags(new Set())
+  }
   const [currentPage, setCurrentPage] = useState(1)
   const [bookmarksPage, setBookmarksPage] = useState(1)
   const [paginatedItems, setPaginatedItems] = useState<any[]>([])
@@ -1169,7 +1190,7 @@ export default function Home() {
                       <button
                         onClick={() => {
                           logout()
-                          setShowUserMenu(false)
+                          resetToHomepage()
                         }}
                         className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-md transition-colors"
                       >
