@@ -1,0 +1,35 @@
+apiVersion: run.googleapis.com/v1
+kind: Job
+metadata:
+  name: multimodal-scout-cron
+  annotations:
+    run.googleapis.com/execution-environment: gen2
+spec:
+  template:
+    spec:
+      template:
+        spec:
+          serviceAccountName: multimodal-scout-cron@PROJECT_ID.iam.gserviceaccount.com
+          containers:
+          - image: gcr.io/PROJECT_ID/multimodal-scout-cron:latest
+            env:
+            - name: GOOGLE_CLOUD_PROJECT
+              value: PROJECT_ID
+            - name: DB_USER
+              value: scout_user
+            - name: DB_NAME
+              value: multimodal_scout
+            - name: INSTANCE_CONNECTION_NAME
+              value: PROJECT_ID:REGION:multimodal-scout-db
+            resources:
+              limits:
+                # Minimal resources for cost optimization
+                cpu: 1000m
+                memory: 512Mi
+              requests:
+                cpu: 200m
+                memory: 256Mi
+          restartPolicy: OnFailure
+          timeoutSeconds: 3600  # 1 hour max execution time
+      parallelism: 1
+      completions: 1

@@ -5,13 +5,14 @@ Centralized LLM client initialization for Google Gemini.
 
 import os
 from google import genai
+from .config import config
 from .logger import logger
 
 # --- AI Client Initialization ---
 try:
-    api_key = os.getenv("GOOGLE_API_KEY")
+    api_key = config.google_api_key
     if not api_key:
-        raise ValueError("GOOGLE_API_KEY environment variable not set")
+        raise ValueError("Google API key not configured")
 
     genai_client = genai.Client(api_key=api_key)
     logger.info("Google Gemini client initialized successfully")

@@ -1,0 +1,46 @@
+# Cloud Scheduler Jobs Configuration
+# These jobs will trigger Cloud Run jobs for scraping and pipeline processing
+
+# Scraping job - runs multiple times per day
+apiVersion: cloudscheduler.googleapis.com/v1
+kind: Job
+metadata:
+  name: scraper-job
+spec:
+  schedule: "0 */6 * * *"  # Every 6 hours for cost optimization
+  timeZone: "UTC"
+  httpTarget:
+    uri: https://multimodal-scout-cron-HASH-uc.a.run.app/scraper
+    httpMethod: POST
+    headers:
+      Content-Type: application/json
+    body: |
+      {
+        "scraper": "src.backend.scraper.scrape_all_sources_concurrent"
+      }
+    oidcToken:
+      serviceAccountEmail: multimodal-scout-scheduler@PROJECT_ID.iam.gserviceaccount.com
+
+---
+# Pipeline job - runs once per day
+apiVersion: cloudscheduler.googleapis.com/v1
+kind: Job
+metadata:
+  name: pipeline-job
+spec:
+  schedule: "0 8 * * *"  # Once daily at 8 AM UTC
+  timeZone: "UTC"
+  httpTarget:
+    uri: https://multimodal-scout-cron-HASH-uc.a.run.app/pipeline
+    httpMethod: POST
+    headers:
+      Content-Type: application/json
+    body: |
+      {
+        "topics": [],
+        "max_results": 50,
+        "research_ratio": 0.5,
+        "selected_days": 1
+      }
+    oidcToken:
+      serviceAccountEmail: multimodal-scout-scheduler@PROJECT_ID.iam.gserviceaccount.com

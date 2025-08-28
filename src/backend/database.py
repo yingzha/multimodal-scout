@@ -23,6 +23,7 @@ from sqlalchemy.dialects.postgresql import UUID
 import uuid
 import secrets
 
+from .config import config
 from .logger import logger
 from .schema import SourceSchema
 
@@ -143,9 +144,7 @@ class Bookmark(Base):
 class DatabaseManager:
     def __init__(self, database_url: Optional[str] = None):
         if database_url is None:
-            database_url = os.getenv(
-                "DATABASE_URL", "postgresql://localhost/multimodal_scout"
-            )
+            database_url = config.database_url
 
         self.engine = create_engine(database_url)
         self.SessionLocal = sessionmaker(

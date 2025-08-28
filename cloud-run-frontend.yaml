@@ -1,0 +1,47 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: multimodal-scout-frontend
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/execution-environment: gen2
+spec:
+  template:
+    metadata:
+      annotations:
+        # Auto-scaling configuration for cost optimization
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "5"
+        # CPU allocation optimized for low traffic
+        run.googleapis.com/cpu-throttling: "true"
+    spec:
+      containers:
+      - image: gcr.io/PROJECT_ID/multimodal-scout-frontend:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NEXT_PUBLIC_API_URL
+          value: https://multimodal-scout-backend-HASH-uc.a.run.app
+        - name: NODE_ENV
+          value: production
+        resources:
+          limits:
+            # Minimal resources for cost optimization
+            cpu: 1000m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 64Mi
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      timeout: 300s

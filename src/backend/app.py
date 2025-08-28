@@ -13,6 +13,7 @@ import json
 from functools import lru_cache
 
 from .constants import INTERESTED_KEYWORDS
+from .config import config
 from .logger import logger
 from .database import db_manager
 from .pipeline import process_content_pipeline
