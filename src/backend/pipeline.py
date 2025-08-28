@@ -13,15 +13,14 @@ suitable for streaming APIs.
 
 from typing import List, Dict, Any, AsyncGenerator
 from datetime import datetime, timedelta
-import asyncio
 import random
 
 from .scraper import scrape_all_sources_concurrent
 from .logger import logger
 from .schema import SourceSchema
-from .database import db_manager
+from .database import db_manager, Source
 from .search import keyword_search, semantic_search_with_scores
-from .constants import RESEARCH_THRESHOLD, INDUSTRY_THRESHOLD, DISCOVERY_THRESHOLD
+from .constants import RESEARCH_THRESHOLD, INDUSTRY_THRESHOLD
 
 
 def _apply_balanced_filtering(
@@ -359,8 +358,6 @@ async def process_content_pipeline(
     }
 
     with db_manager.get_session() as session:
-        from .database import Source
-
         db_sources = (
             session.query(Source)
             .filter(Source.created_at >= cutoff_date)

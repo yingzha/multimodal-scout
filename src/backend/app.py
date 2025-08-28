@@ -619,7 +619,6 @@ async def create_content(
 async def export_bookmarks(current_user: str = Depends(get_current_user)):
     """Export all bookmarks to Excel file"""
     try:
-        import openpyxl
         from openpyxl import Workbook
         from openpyxl.styles import Font, PatternFill
         from io import BytesIO

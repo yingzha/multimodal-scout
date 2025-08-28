@@ -24,6 +24,7 @@ import uuid
 import secrets
 
 from .logger import logger
+from .schema import SourceSchema
 
 
 class EmbeddingArrayType(TypeDecorator):
@@ -376,8 +377,6 @@ class DatabaseManager:
                 "total_processed": 0,
             }
 
-        from .schema import SourceSchema
-
         # Step 1: Filter out recently processed sources using in-memory cache
         fresh_sources = []
         cache_hits = 0
@@ -595,17 +594,12 @@ class DatabaseManager:
 
     def _hash_password(self, password: str) -> str:
         """Hash password using hashlib (simple implementation for now)"""
-        import hashlib
-        import os
-
         salt = os.urandom(32)
         pwdhash = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 100000)
         return salt.hex() + pwdhash.hex()
 
     def _verify_password(self, password: str, password_hash: str) -> bool:
         """Verify password against hash"""
-        import hashlib
-
         salt = bytes.fromhex(password_hash[:64])
         stored_hash = password_hash[64:]
         pwdhash = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 100000)
@@ -738,10 +732,16 @@ class DatabaseManager:
             return False
 
     def get_bookmarks_by_date(
-        self, start_date: datetime, end_date: Optional[datetime] = None
+        self, start_date: datetime, email: str, end_date: Optional[datetime] = None
     ) -> List[Dict[str, str]]:
         with self.get_session() as session:
-            query = session.query(Bookmark).filter(Bookmark.bookmarked_at >= start_date)
+            user = session.query(User).filter(User.email == email).first()
+            if not user:
+                return []
+
+            query = session.query(Bookmark).filter(
+                Bookmark.user_id == user.id, Bookmark.bookmarked_at >= start_date
+            )
             if end_date:
                 query = query.filter(Bookmark.bookmarked_at <= end_date)
             results = query.order_by(desc(Bookmark.bookmarked_at)).all()
@@ -772,13 +772,19 @@ class DatabaseManager:
             )
             return deleted_count
 
-    def get_bookmark_cache_stats(self) -> Dict[str, int]:
+    def get_bookmark_cache_stats(self, email: str) -> Dict[str, int]:
         with self.get_session() as session:
-            total_count = session.query(Bookmark).count()
+            user = session.query(User).filter(User.email == email).first()
+            if not user:
+                return {"total_bookmarks": 0, "recent_bookmarks_7_days": 0}
+
+            total_count = (
+                session.query(Bookmark).filter(Bookmark.user_id == user.id).count()
+            )
             week_ago = datetime.now() - timedelta(days=7)
             recent_count = (
                 session.query(Bookmark)
-                .filter(Bookmark.bookmarked_at >= week_ago)
+                .filter(Bookmark.user_id == user.id, Bookmark.bookmarked_at >= week_ago)
                 .count()
             )
             return {
@@ -786,13 +792,22 @@ class DatabaseManager:
                 "recent_bookmarks_7_days": recent_count,
             }
 
-    def search_bookmarks(self, query: str, limit: int = 10) -> List[Dict[str, str]]:
+    def search_bookmarks(
+        self, query: str, limit: int = 10, email: str = None
+    ) -> List[Dict[str, str]]:
         with self.get_session() as session:
+            user = session.query(User).filter(User.email == email).first()
+            if not user:
+                return []
+
             results = (
                 session.query(Bookmark)
                 .filter(
-                    Bookmark.title.ilike(f"%{query}%")
-                    | Bookmark.summary.ilike(f"%{query}%")
+                    Bookmark.user_id == user.id,
+                    (
+                        Bookmark.title.ilike(f"%{query}%")
+                        | Bookmark.summary.ilike(f"%{query}%")
+                    ),
                 )
                 .order_by(desc(Bookmark.bookmarked_at))
                 .limit(limit)

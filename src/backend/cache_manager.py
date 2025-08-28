@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from .database import db_manager
 
 
-def print_cache_stats(cache_type: str = "all"):
+def print_cache_stats(cache_type: str = "all", email: str | None = None):
     """Print cache statistics."""
     try:
         if cache_type in ["all", "summary"]:
@@ -39,22 +39,27 @@ def print_cache_stats(cache_type: str = "all"):
                 print(f"Average per day: {avg_per_day:.1f}")
 
         if cache_type in ["all", "bookmark"]:
-            bookmark_stats = db_manager.get_bookmark_cache_stats()
-            print("\n=== Bookmark Cache Statistics ===")
-            print(f"Total bookmarks: {bookmark_stats['total_bookmarks']}")
-            print(
-                f"Recent bookmarks (7 days): {bookmark_stats['recent_bookmarks_7_days']}"
-            )
+            if not email:
+                print(
+                    "\nNOTE: Bookmark statistics require an email address. Use the --email option."
+                )
+            else:
+                bookmark_stats = db_manager.get_bookmark_cache_stats(email=email)
+                print("\n=== Bookmark Cache Statistics ===")
+                print(f"Total bookmarks: {bookmark_stats['total_bookmarks']}")
+                print(
+                    f"Recent bookmarks (7 days): {bookmark_stats['recent_bookmarks_7_days']}"
+                )
 
-            if bookmark_stats["total_bookmarks"] > 0:
-                avg_per_day = bookmark_stats["recent_bookmarks_7_days"] / 7
-                print(f"Average per day: {avg_per_day:.1f}")
+                if bookmark_stats["total_bookmarks"] > 0:
+                    avg_per_day = bookmark_stats["recent_bookmarks_7_days"] / 7
+                    print(f"Average per day: {avg_per_day:.1f}")
 
     except Exception as e:
         print(f"Error getting stats: {e}")
 
 
-def print_recent_entries(cache_type: str, days: int = 7):
+def print_recent_entries(cache_type: str, days: int = 7, email: str | None = None):
     """Print recent cache entries."""
     try:
         start_date = datetime.now() - timedelta(days=days)
@@ -77,7 +82,12 @@ def print_recent_entries(cache_type: str, days: int = 7):
                 print(f"Hash: {entry['text_hash'][:16]}...")
 
         elif cache_type == "bookmark":
-            entries = db_manager.get_bookmarks_by_date(start_date)
+            if not email:
+                print(
+                    "\nNOTE: Bookmark entries require an email address. Use the --email option."
+                )
+                return
+            entries = db_manager.get_bookmarks_by_date(start_date, email=email)
             print(f"=== Recent Bookmarks (Last {days} days) ===")
             for entry in entries:
                 print(f"\nDate: {entry['bookmarked_at']}")
@@ -91,7 +101,7 @@ def print_recent_entries(cache_type: str, days: int = 7):
         print(f"Error getting recent {cache_type} entries: {e}")
 
 
-def search_cache(cache_type: str, query: str, limit: int = 5):
+def search_cache(cache_type: str, query: str, limit: int = 5, email: str | None = None):
     """Search cache entries containing query."""
     try:
         if cache_type == "summary":
@@ -120,7 +130,12 @@ def search_cache(cache_type: str, query: str, limit: int = 5):
                 print("-" * 80)
 
         elif cache_type == "bookmark":
-            results = db_manager.search_bookmarks(query, limit)
+            if not email:
+                print(
+                    "\nNOTE: Bookmark search requires an email address. Use the --email option."
+                )
+                return
+            results = db_manager.search_bookmarks(query, limit, email=email)
             print(f"=== Bookmark Search Results for '{query}' ===")
             if not results:
                 print("No results found.")
@@ -196,6 +211,7 @@ def main():
     parser.add_argument(
         "--limit", type=int, default=5, help="Limit results (for search command)"
     )
+    parser.add_argument("--email", type=str, help="User email for bookmark operations")
 
     args = parser.parse_args()
 
@@ -213,7 +229,7 @@ def main():
         pass
 
     if args.command == "stats":
-        print_cache_stats(args.cache_type)
+        print_cache_stats(args.cache_type, email=args.email)
 
     elif args.command == "recent":
         if args.cache_type == "all":
@@ -221,7 +237,7 @@ def main():
                 "Error: --cache-type must be specific (summary, embedding, or bookmark) for recent command"
             )
             sys.exit(1)
-        print_recent_entries(args.cache_type, args.days)
+        print_recent_entries(args.cache_type, args.days, email=args.email)
 
     elif args.command == "search":
         if not args.query:
@@ -232,7 +248,7 @@ def main():
                 "Error: --cache-type must be specific (summary, embedding, or bookmark) for search command"
             )
             sys.exit(1)
-        search_cache(args.cache_type, args.query, args.limit)
+        search_cache(args.cache_type, args.query, args.limit, email=args.email)
 
     elif args.command == "cleanup":
         cleanup_cache(args.cache_type, args.days)
