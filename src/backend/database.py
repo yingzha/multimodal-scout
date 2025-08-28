@@ -114,7 +114,9 @@ class UserSession(Base):
     __tablename__ = "user_sessions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
+    )
     session_token = Column(String, unique=True, nullable=False, index=True)
     expires_at = Column(DateTime, nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.now, nullable=False)
@@ -126,7 +128,9 @@ class Bookmark(Base):
     __tablename__ = "bookmarks"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
+    )
     title = Column(String, nullable=False)
     link = Column(String, nullable=False, index=True)
     source_tag = Column(String, nullable=False)
@@ -506,18 +510,16 @@ class DatabaseManager:
             existing_user = session.query(User).filter(User.email == email).first()
             if existing_user:
                 raise ValueError("User with this email already exists")
-            
+
             # Check if username already exists
-            existing_username = session.query(User).filter(User.username == username).first()
+            existing_username = (
+                session.query(User).filter(User.username == username).first()
+            )
             if existing_username:
                 raise ValueError("User with this username already exists")
-            
+
             password_hash = self._hash_password(password)
-            new_user = User(
-                email=email,
-                username=username,
-                password_hash=password_hash
-            )
+            new_user = User(email=email, username=username, password_hash=password_hash)
             session.add(new_user)
             session.commit()
             logger.info(f"Created new user: {email} ({username})")
@@ -526,11 +528,12 @@ class DatabaseManager:
     def authenticate_user(self, email: str, password: str) -> Optional[str]:
         """Authenticate user and return user_id if successful"""
         with self.get_session() as session:
-            user = session.query(User).filter(
-                User.email == email,
-                User.is_active == True
-            ).first()
-            
+            user = (
+                session.query(User)
+                .filter(User.email == email, User.is_active == True)
+                .first()
+            )
+
             if user and self._verify_password(password, user.password_hash):
                 user.last_login = datetime.now()
                 session.commit()
@@ -543,11 +546,9 @@ class DatabaseManager:
         with self.get_session() as session:
             session_token = secrets.token_urlsafe(32)
             expires_at = datetime.now() + timedelta(days=30)  # 30 day sessions
-            
+
             new_session = UserSession(
-                user_id=user_id,
-                session_token=session_token,
-                expires_at=expires_at
+                user_id=user_id, session_token=session_token, expires_at=expires_at
             )
             session.add(new_session)
             session.commit()
@@ -556,12 +557,16 @@ class DatabaseManager:
     def validate_session(self, session_token: str) -> Optional[str]:
         """Validate session token and return user_id if valid"""
         with self.get_session() as session:
-            user_session = session.query(UserSession).filter(
-                UserSession.session_token == session_token,
-                UserSession.is_active == True,
-                UserSession.expires_at > datetime.now()
-            ).first()
-            
+            user_session = (
+                session.query(UserSession)
+                .filter(
+                    UserSession.session_token == session_token,
+                    UserSession.is_active == True,
+                    UserSession.expires_at > datetime.now(),
+                )
+                .first()
+            )
+
             if user_session:
                 user_session.last_accessed = datetime.now()
                 session.commit()
@@ -571,10 +576,12 @@ class DatabaseManager:
     def logout_user(self, session_token: str) -> bool:
         """Logout user by invalidating session"""
         with self.get_session() as session:
-            user_session = session.query(UserSession).filter(
-                UserSession.session_token == session_token
-            ).first()
-            
+            user_session = (
+                session.query(UserSession)
+                .filter(UserSession.session_token == session_token)
+                .first()
+            )
+
             if user_session:
                 user_session.is_active = False
                 session.commit()
@@ -590,16 +597,18 @@ class DatabaseManager:
         """Hash password using hashlib (simple implementation for now)"""
         import hashlib
         import os
+
         salt = os.urandom(32)
-        pwdhash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100000)
+        pwdhash = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 100000)
         return salt.hex() + pwdhash.hex()
 
     def _verify_password(self, password: str, password_hash: str) -> bool:
         """Verify password against hash"""
         import hashlib
+
         salt = bytes.fromhex(password_hash[:64])
         stored_hash = password_hash[64:]
-        pwdhash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100000)
+        pwdhash = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 100000)
         return pwdhash.hex() == stored_hash
 
     # --- Bookmark Methods ---
@@ -608,10 +617,11 @@ class DatabaseManager:
         self, user_id: str, title: str, link: str, source_tag: str, summary: str = None
     ) -> str:
         with self.get_session() as session:
-            existing = session.query(Bookmark).filter(
-                Bookmark.user_id == user_id,
-                Bookmark.link == link
-            ).first()
+            existing = (
+                session.query(Bookmark)
+                .filter(Bookmark.user_id == user_id, Bookmark.link == link)
+                .first()
+            )
             if existing:
                 return str(existing.id)
 
@@ -629,10 +639,11 @@ class DatabaseManager:
 
     def remove_bookmark(self, user_id: str, link: str) -> bool:
         with self.get_session() as session:
-            bookmark = session.query(Bookmark).filter(
-                Bookmark.user_id == user_id,
-                Bookmark.link == link
-            ).first()
+            bookmark = (
+                session.query(Bookmark)
+                .filter(Bookmark.user_id == user_id, Bookmark.link == link)
+                .first()
+            )
             if bookmark:
                 session.delete(bookmark)
                 session.commit()
@@ -641,10 +652,11 @@ class DatabaseManager:
 
     def update_bookmark_summary(self, user_id: str, link: str, summary: str) -> bool:
         with self.get_session() as session:
-            bookmark = session.query(Bookmark).filter(
-                Bookmark.user_id == user_id,
-                Bookmark.link == link
-            ).first()
+            bookmark = (
+                session.query(Bookmark)
+                .filter(Bookmark.user_id == user_id, Bookmark.link == link)
+                .first()
+            )
             if bookmark:
                 bookmark.summary_edited = summary
                 session.commit()
@@ -654,37 +666,33 @@ class DatabaseManager:
     def is_bookmarked(self, user_id: str, link: str) -> bool:
         with self.get_session() as session:
             return (
-                session.query(Bookmark).filter(
-                    Bookmark.user_id == user_id,
-                    Bookmark.link == link
-                ).first() is not None
+                session.query(Bookmark)
+                .filter(Bookmark.user_id == user_id, Bookmark.link == link)
+                .first()
+                is not None
             )
 
-    def get_bookmarks(self, user_id: str, limit: int = 100, days_back: Optional[int] = None) -> List[Bookmark]:
+    def get_bookmarks(
+        self, user_id: str, limit: int = 100, days_back: Optional[int] = None
+    ) -> List[Bookmark]:
         with self.get_session() as session:
             query = session.query(Bookmark).filter(Bookmark.user_id == user_id)
-            
+
             # Filter by date if days_back is specified
             if days_back is not None:
                 cutoff_date = datetime.now() - timedelta(days=days_back)
                 query = query.filter(Bookmark.bookmarked_at >= cutoff_date)
-            
-            return (
-                query
-                .order_by(Bookmark.bookmarked_at.desc())
-                .limit(limit)
-                .all()
-            )
+
+            return query.order_by(Bookmark.bookmarked_at.desc()).limit(limit).all()
 
     def get_bookmark_by_id(self, user_id: str, bookmark_id: str) -> Optional[Bookmark]:
         """Get a bookmark by its ID."""
         try:
             with self.get_session() as session:
                 return (
-                    session.query(Bookmark).filter(
-                        Bookmark.user_id == user_id,
-                        Bookmark.id == bookmark_id
-                    ).first()
+                    session.query(Bookmark)
+                    .filter(Bookmark.user_id == user_id, Bookmark.id == bookmark_id)
+                    .first()
                 )
         except Exception as e:
             logger.error(f"Failed to get bookmark by ID: {e}")
@@ -695,10 +703,9 @@ class DatabaseManager:
         try:
             with self.get_session() as session:
                 bookmark = (
-                    session.query(Bookmark).filter(
-                        Bookmark.user_id == user_id,
-                        Bookmark.id == bookmark_id
-                    ).first()
+                    session.query(Bookmark)
+                    .filter(Bookmark.user_id == user_id, Bookmark.id == bookmark_id)
+                    .first()
                 )
                 if bookmark:
                     session.delete(bookmark)
@@ -709,21 +716,20 @@ class DatabaseManager:
             logger.error(f"Failed to remove bookmark by ID: {e}")
             return False
 
-    def update_bookmark_summary_by_id(self, user_id: str, bookmark_id: str, summary: str) -> bool:
+    def update_bookmark_summary_by_id(
+        self, user_id: str, bookmark_id: str, summary: str
+    ) -> bool:
         """Update a bookmark's summary by its ID."""
         try:
             with self.get_session() as session:
                 bookmark = (
-                    session.query(Bookmark).filter(
-                        Bookmark.user_id == user_id,
-                        Bookmark.id == bookmark_id
-                    ).first()
+                    session.query(Bookmark)
+                    .filter(Bookmark.user_id == user_id, Bookmark.id == bookmark_id)
+                    .first()
                 )
                 if bookmark:
                     bookmark.summary_edited = summary
-                    logger.info(
-                        f"Updated edited summary for bookmark {bookmark_id}"
-                    )
+                    logger.info(f"Updated edited summary for bookmark {bookmark_id}")
                     session.commit()
                     return True
                 return False

@@ -21,11 +21,7 @@ from .logger import logger
 from .schema import SourceSchema
 from .database import db_manager
 from .search import keyword_search, semantic_search_with_scores
-from .constants import (
-    RESEARCH_THRESHOLD,
-    INDUSTRY_THRESHOLD,
-    DISCOVERY_THRESHOLD
-)
+from .constants import RESEARCH_THRESHOLD, INDUSTRY_THRESHOLD, DISCOVERY_THRESHOLD
 
 
 def _apply_balanced_filtering(
@@ -437,7 +433,9 @@ async def process_content_pipeline(
                 edited_summary = getattr(bookmark, "summary_edited", None)
                 if edited_summary:
                     edited_summaries_map[bookmark.link] = edited_summary
-            logger.info(f"Found {len(edited_summaries_map)} edited summaries in bookmarks")
+            logger.info(
+                f"Found {len(edited_summaries_map)} edited summaries in bookmarks"
+            )
         else:
             logger.info("No user_id provided, skipping bookmark summary lookup")
 

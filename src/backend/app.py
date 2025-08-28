@@ -113,13 +113,13 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> str:
     """Extract and validate user from session token"""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Authentication required")
-    
+
     token = authorization.split(" ")[1]
     user_id = db_manager.validate_session(token)
-    
+
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid or expired session")
-    
+
     return user_id
 
 
@@ -285,14 +285,16 @@ async def register_user(request: UserRegistrationRequest):
     """Register a new user"""
     try:
         logger.info(f"Registering new user: {request.email} ({request.username})")
-        user_id = db_manager.create_user(request.email, request.password, request.username)
+        user_id = db_manager.create_user(
+            request.email, request.password, request.username
+        )
         session_token = db_manager.create_user_session(user_id)
-        
+
         return AuthResponse(
             success=True,
             message="User registered successfully",
             session_token=session_token,
-            user_id=user_id
+            user_id=user_id,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -308,17 +310,17 @@ async def login_user(request: UserLoginRequest):
     try:
         logger.info(f"User login attempt: {request.email}")
         user_id = db_manager.authenticate_user(request.email, request.password)
-        
+
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid email or password")
-        
+
         session_token = db_manager.create_user_session(user_id)
-        
+
         return AuthResponse(
             success=True,
             message="Login successful",
             session_token=session_token,
-            user_id=user_id
+            user_id=user_id,
         )
     except HTTPException:
         raise
@@ -329,7 +331,9 @@ async def login_user(request: UserLoginRequest):
 
 
 @app.post("/api/auth/logout")
-async def logout_user(current_user: str = Depends(get_current_user), authorization: str = Header(None)):
+async def logout_user(
+    current_user: str = Depends(get_current_user), authorization: str = Header(None)
+):
     """Logout user"""
     try:
         token = authorization.split(" ")[1] if authorization else None
@@ -348,13 +352,13 @@ async def get_current_user_info(current_user: str = Depends(get_current_user)):
         user = db_manager.get_user_by_id(current_user)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
-        
+
         return UserResponse(
             user_id=str(user.id),
             email=user.email,
             username=user.username,
             created_at=user.created_at.isoformat(),
-            last_login=user.last_login.isoformat() if user.last_login else None
+            last_login=user.last_login.isoformat() if user.last_login else None,
         )
     except HTTPException:
         raise
@@ -365,7 +369,9 @@ async def get_current_user_info(current_user: str = Depends(get_current_user)):
 
 
 @app.post("/api/bookmarks", response_model=BookmarkResponse)
-async def add_bookmark(request: BookmarkRequest, current_user: str = Depends(get_current_user)):
+async def add_bookmark(
+    request: BookmarkRequest, current_user: str = Depends(get_current_user)
+):
     """Add a bookmark"""
     try:
         logger.info(f"Adding bookmark for user {current_user}: {request.title}")
@@ -447,7 +453,11 @@ async def get_bookmark(bookmark_id: str, current_user: str = Depends(get_current
 
 
 @app.get("/api/bookmarks")
-async def get_bookmarks(limit: int = 100, days: Optional[int] = None, current_user: str = Depends(get_current_user)):
+async def get_bookmarks(
+    limit: int = 100,
+    days: Optional[int] = None,
+    current_user: str = Depends(get_current_user),
+):
     """Get bookmarks with optional filtering by days back and result limit"""
     try:
         bookmarks = db_manager.get_bookmarks(current_user, limit=limit, days_back=days)
@@ -481,7 +491,9 @@ async def get_bookmarks(limit: int = 100, days: Optional[int] = None, current_us
 
 
 @app.put("/api/bookmarks/summary")
-async def update_bookmark_summary(link: str, summary: str, current_user: str = Depends(get_current_user)):
+async def update_bookmark_summary(
+    link: str, summary: str, current_user: str = Depends(get_current_user)
+):
     """Update a bookmark's summary"""
     try:
         logger.info(f"Updating summary for bookmark: {link}")
@@ -500,7 +512,9 @@ async def update_bookmark_summary(link: str, summary: str, current_user: str = D
 
 
 @app.delete("/api/bookmarks/{bookmark_id}")
-async def delete_bookmark(bookmark_id: str, current_user: str = Depends(get_current_user)):
+async def delete_bookmark(
+    bookmark_id: str, current_user: str = Depends(get_current_user)
+):
     """Delete a specific bookmark by ID"""
     try:
         logger.info(f"Removing bookmark with ID: {bookmark_id}")
@@ -518,12 +532,16 @@ async def delete_bookmark(bookmark_id: str, current_user: str = Depends(get_curr
 
 
 @app.patch("/api/bookmarks/{bookmark_id}")
-async def update_bookmark(bookmark_id: str, request: dict, current_user: str = Depends(get_current_user)):
+async def update_bookmark(
+    bookmark_id: str, request: dict, current_user: str = Depends(get_current_user)
+):
     """Update a bookmark's summary by ID"""
     try:
         summary = request.get("summary", "")
         logger.info(f"Updating summary for bookmark: {bookmark_id}")
-        success = db_manager.update_bookmark_summary_by_id(current_user, bookmark_id, summary)
+        success = db_manager.update_bookmark_summary_by_id(
+            current_user, bookmark_id, summary
+        )
         if success:
             return {"message": "Bookmark updated successfully"}
         else:
@@ -537,7 +555,9 @@ async def update_bookmark(bookmark_id: str, request: dict, current_user: str = D
 
 
 @app.post("/api/content", response_model=UploadLinkResponse)
-async def create_content(request: UploadLinkRequest, current_user: str = Depends(get_current_user)):
+async def create_content(
+    request: UploadLinkRequest, current_user: str = Depends(get_current_user)
+):
     """Create content item from user-provided link"""
     try:
         url = str(request.url)
@@ -567,7 +587,11 @@ async def create_content(request: UploadLinkRequest, current_user: str = Depends
 
         # Add to bookmarks
         bookmark_id = db_manager.add_bookmark(
-            user_id=current_user, title=title, link=url, source_tag=source_tag, summary=summary
+            user_id=current_user,
+            title=title,
+            link=url,
+            source_tag=source_tag,
+            summary=summary,
         )
 
         # Also cache the summary for future reference
