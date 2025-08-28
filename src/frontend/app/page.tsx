@@ -7,6 +7,10 @@ import { useAuth } from './contexts/AuthContext'
 
 export default function Home() {
   const { user, sessionToken, isAuthenticated, isLoading: authLoading, login, logout } = useAuth()
+  
+  // API configuration
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+  
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [selectedDays, setSelectedDays] = useState(1)
   const [defaultTopics, setDefaultTopics] = useState<string[]>([])
@@ -24,6 +28,12 @@ export default function Home() {
   const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set())
   const [keywordMessage, setKeywordMessage] = useState('')
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
+
+  // Utility function to show temporary messages
+  const showTemporaryMessage = (message: string, duration: number = 3000) => {
+    setKeywordMessage(message)
+    setTimeout(() => setKeywordMessage(''), duration)
+  }
   const [currentPage, setCurrentPage] = useState(1)
   const [bookmarksPage, setBookmarksPage] = useState(1)
   const [paginatedItems, setPaginatedItems] = useState<any[]>([])
@@ -94,7 +104,6 @@ export default function Home() {
   const fetchDefaultTopics = async () => {
     try {
       setIsLoadingTopics(true)
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       const response = await fetch(`${apiUrl}/api/topics`, {
         // Disable cache to always get fresh data
         cache: 'no-cache',
@@ -139,21 +148,18 @@ export default function Home() {
     const allTopics = [...defaultTopics, ...customTopics]
 
     if (!trimmedKeyword) {
-      setKeywordMessage('Please enter a keyword')
-      setTimeout(() => setKeywordMessage(''), 3000)
+      showTemporaryMessage('Please enter a keyword')
       return
     }
 
     if (allTopics.includes(trimmedKeyword)) {
-      setKeywordMessage('This keyword already exists in your topics')
-      setTimeout(() => setKeywordMessage(''), 3000)
+      showTemporaryMessage('This keyword already exists in your topics')
       return
     }
 
     setCustomTopics([...customTopics, trimmedKeyword])
     setNewKeyword('')
-    setKeywordMessage('Keyword added successfully!')
-    setTimeout(() => setKeywordMessage(''), 2000)
+    showTemporaryMessage('Keyword added successfully!', 2000)
   }
 
   const handleRemoveCustomTopic = (topicToRemove: string) => {
@@ -162,8 +168,7 @@ export default function Home() {
 
   const handleBookmark = async (item: any) => {
     if (!isAuthenticated) {
-      setKeywordMessage('⚠️ Login required: Please click the login icon to bookmark items')
-      setTimeout(() => setKeywordMessage(''), 4000)
+      showTemporaryMessage('⚠️ Login required: Please click the login icon to bookmark items', 4000)
       return
     }
 
@@ -379,8 +384,7 @@ export default function Home() {
 
   const handleViewBookmarks = async () => {
     if (!isAuthenticated) {
-      setKeywordMessage('⚠️ Login required: Please click the login icon to access bookmarks')
-      setTimeout(() => setKeywordMessage(''), 4000)
+      showTemporaryMessage('⚠️ Login required: Please click the login icon to access bookmarks', 4000)
       return
     }
 
@@ -641,8 +645,7 @@ export default function Home() {
 
   const handleExportChromeBookmarks = async () => {
     if (!isAuthenticated || !sessionToken) {
-      setKeywordMessage('⚠️ Login required: Please click the login icon to export bookmarks')
-      setTimeout(() => setKeywordMessage(''), 4000)
+      showTemporaryMessage('⚠️ Login required: Please click the login icon to export bookmarks', 4000)
       return
     }
 
