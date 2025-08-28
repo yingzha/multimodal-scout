@@ -67,8 +67,11 @@ class TestDatabaseManager(unittest.TestCase):
         
         # Now add the summary
         self.mock_db_manager.add_summary(url, summary)
-        retrieved_summary = self.mock_db_manager.get_summary(url)
-        self.assertEqual(retrieved_summary, summary)
+        
+        # Verify summary was added by querying the source directly
+        with self.mock_db_manager.get_session() as session:
+            updated_source = session.query(Source).filter(Source.link == url).first()
+            self.assertEqual(updated_source.summary, summary)
 
     def test_cleanup_summaries(self):
         # Add an old source with summary that should be cleaned up
@@ -108,9 +111,9 @@ class TestDatabaseManager(unittest.TestCase):
         
         self.mock_db_manager.add_summary(new_summary_url, new_summary_content)
 
-        # Test legacy function still works
-        deleted_count = self.mock_db_manager.cleanup_summaries(days_to_keep=30)
-        self.assertEqual(deleted_count, 1)
+        # Test cleanup using the current method
+        result = self.mock_db_manager.cleanup_summaries_and_embeddings(days_to_keep=30)
+        self.assertEqual(result["summaries_cleaned"], 1)
 
     def test_cleanup_summaries_and_embeddings(self):
         # Add an old source with summary that should be cleaned up
@@ -157,8 +160,13 @@ class TestDatabaseManager(unittest.TestCase):
         result = self.mock_db_manager.cleanup_summaries_and_embeddings(days_to_keep=30)
         self.assertEqual(result['summaries_cleaned'], 1)
         self.assertEqual(result['embeddings_cleaned'], 1)
-        self.assertIsNone(self.mock_db_manager.get_summary(old_summary_url))
-        self.assertEqual(self.mock_db_manager.get_summary(new_summary_url), new_summary_content)
+        
+        # Verify cleanup by checking sources directly
+        with self.mock_db_manager.get_session() as session:
+            old_source = session.query(Source).filter(Source.link == old_summary_url).first()
+            new_source = session.query(Source).filter(Source.link == new_summary_url).first()
+            self.assertIsNone(old_source.summary)  # Should be cleaned up
+            self.assertEqual(new_source.summary, new_summary_content)  # Should remain
 
     def test_get_summary_cache_stats(self):
         # Create sources first, then add summaries
@@ -263,32 +271,6 @@ class TestDatabaseManager(unittest.TestCase):
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]['url'], "http://data.com")
 
-    def test_remove_summary(self):
-        url = "http://remove.com"
-        
-        # Create source first
-        with self.mock_db_manager.get_session() as session:
-            source = Source(
-                title="Remove Article",
-                authors=["Remove Author"],
-                link=url,
-                source_link=url,
-                summary=None,
-                keywords=["remove"],
-                tags=["test"],
-                date=datetime.utcnow()
-            )
-            session.add(source)
-            session.commit()
-        
-        self.mock_db_manager.add_summary(url, "To be removed.")
-        self.assertEqual(self.mock_db_manager.get_summary(url), "To be removed.")
-        removed = self.mock_db_manager.invalidate_summary_cache(url)
-        self.assertTrue(removed)
-        self.assertIsNone(self.mock_db_manager.get_summary(url))
-
-        removed = self.mock_db_manager.invalidate_summary_cache("http://nonexistent.com")
-        self.assertFalse(removed)
 
 if __name__ == '__main__':
     unittest.main()

@@ -91,15 +91,6 @@ class UploadLinkResponse(BaseModel):
     source_tag: str = None
 
 
-class ErrorResponse(BaseModel):
-    """Standardized error response model"""
-
-    error: str
-    message: str
-    details: str = None
-    code: str = None
-
-
 class UserRegistrationRequest(BaseModel):
     """Request model for user registration"""
 

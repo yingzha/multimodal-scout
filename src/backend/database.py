@@ -184,21 +184,6 @@ class DatabaseManager:
         if len(self._processed_sources_cache) % 1000 == 0:  # Check periodically
             self._manage_cache_size()
 
-    def get_summary(self, url: str) -> Optional[str]:
-        """Get summary from sources table (consolidated approach)."""
-        with self.get_session() as session:
-            source = session.query(Source).filter(Source.link == url).first()
-            return source.summary if source else None
-
-    def get_summaries_batch(self, urls: List[str]) -> Dict[str, str]:
-        """Get summaries for multiple URLs in a single query (batch operation)."""
-        if not urls:
-            return {}
-
-        with self.get_session() as session:
-            sources = session.query(Source).filter(Source.link.in_(urls)).all()
-            return {source.link: source.summary for source in sources if source.summary}
-
     def add_summary(self, url: str, summary: str) -> None:
         """Add summary to sources table (consolidated approach)."""
         with self.get_session() as session:
@@ -315,10 +300,6 @@ class DatabaseManager:
                 "embeddings_cleaned": embedding_deleted_count,
             }
 
-    def cleanup_summaries(self, days_to_keep: int = 30) -> int:
-        """Legacy method - use cleanup_summaries_and_embeddings() for better consistency."""
-        result = self.cleanup_summaries_and_embeddings(days_to_keep)
-        return result["summaries_cleaned"]
 
     def get_summary_cache_stats(self) -> Dict[str, int]:
         """Get summary statistics from sources table (consolidated approach)."""
@@ -984,34 +965,6 @@ class DatabaseManager:
         """Adds a new text-embedding pair to the cache."""
         text_hash = self._get_text_hash(text)
         self.add_embedding_to_cache(text, text_hash, embedding, model_name)
-
-    # --- Invalidation Methods ---
-
-    def invalidate_summary_cache(self, url: str) -> bool:
-        """Clear summary from sources table (consolidated approach)."""
-        with self.get_session() as session:
-            source = session.query(Source).filter(Source.link == url).first()
-            if source and source.summary:
-                source.summary = None
-                source.updated_at = datetime.now()
-                session.commit()
-                logger.info(f"Cleared summary for URL: {url}")
-                return True
-            return False
-
-    def invalidate_embedding_cache(self, text_hash: str) -> bool:
-        with self.get_session() as session:
-            embedding = (
-                session.query(EmbeddingCache)
-                .filter(EmbeddingCache.text_hash == text_hash)
-                .first()
-            )
-            if embedding:
-                session.delete(embedding)
-                session.commit()
-                logger.info(f"Removed cached embedding for text hash: {text_hash}")
-                return True
-            return False
 
     # --- Simple Card Tracking Methods ---
 
