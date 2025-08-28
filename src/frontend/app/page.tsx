@@ -40,30 +40,15 @@ export default function Home() {
   const [editedSummaryText, setEditedSummaryText] = useState('')
   const [isUpdatingSummary, setIsUpdatingSummary] = useState(false)
   const [sessionId] = useState(() => {
-    // Generate a unique session ID for this browser session
-    return 'session_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now()
+    return 'session_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now()
   })
   const [discoveryMode, setDiscoveryMode] = useState(false)
   const [bookmarkSearchDays, setBookmarkSearchDays] = useState<number | null>(null)
   const [bookmarkSearchLimit, setBookmarkSearchLimit] = useState(50)
   const [bookmarkSearchQuery, setBookmarkSearchQuery] = useState('')
   const [homepageSearchQuery, setHomepageSearchQuery] = useState('')
-  const advancedSettingsRef = useRef<HTMLDivElement>(null)
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Close advanced settings when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (advancedSettingsRef.current && !advancedSettingsRef.current.contains(event.target as Node)) {
-        setShowAdvancedSettings(false)
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside)
-    }
-  }, [advancedSettingsRef])
 
   // Handle gear button clicks (single and double click)
   const handleGearClick = () => {
@@ -675,8 +660,6 @@ export default function Home() {
         setProgressMessage(eventData.message)
         break
       case 'progress':
-        // Progress percentage calculation for potential future use
-        Math.round((eventData.processed / eventData.total) * 100)
         setProgressMessage(eventData.message)
         break
       case 'complete':
@@ -1347,9 +1330,8 @@ export default function Home() {
                       </div>
                     </div>
                   ) : (
-                    // Debug: Show when no summary is available
                     <div className="mb-4 text-xs text-gray-400 italic">
-                      {item.summary ? `Summary: "${item.summary.substring(0, 50)}..."` : 'No summary available'}
+                      No summary available
                     </div>
                   )}
 
