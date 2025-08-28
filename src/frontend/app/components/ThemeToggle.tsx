@@ -9,8 +9,10 @@ export default function ThemeToggle() {
     <button
       onClick={toggleTheme}
       className="bg-gray-100 p-3 text-gray-700 hover:text-gray-900 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors flex items-center justify-center"
-      data-tooltip="Dark mode"
+      data-tooltip={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
       aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+      role="switch"
+      aria-checked={theme === 'dark'}
     >
       {theme === 'light' ? (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
