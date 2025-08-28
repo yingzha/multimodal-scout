@@ -1,13 +1,13 @@
 # Cloud Scheduler Jobs Configuration
 # These jobs will trigger Cloud Run jobs for scraping and pipeline processing
 
-# Scraping job - runs multiple times per day
+# Scraping job - runs every 30 minutes for fresh content
 apiVersion: cloudscheduler.googleapis.com/v1
 kind: Job
 metadata:
   name: scraper-job
 spec:
-  schedule: "0 */6 * * *"  # Every 6 hours for cost optimization
+  schedule: "*/30 * * * *"  # Every 30 minutes
   timeZone: "UTC"
   httpTarget:
     uri: https://multimodal-scout-cron-HASH-uc.a.run.app/scraper
