@@ -4,7 +4,6 @@ import asyncio
 
 import aiohttp
 import feedparser
-import requests
 from bs4 import BeautifulSoup
 from pydantic import ValidationError
 
@@ -13,7 +12,6 @@ from .constants import USER_AGENT, RSS_FEED_LIMIT
 from .schema import SourceSchema
 from datetime import datetime
 from dateutil import parser as date_parser
-import re
 
 
 def parse_rss_date(date_string: str) -> str:

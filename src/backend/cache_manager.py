@@ -8,10 +8,8 @@ This script provides management functionality for the summary cache database.
 import argparse
 import sys
 from datetime import datetime, timedelta
-from typing import Dict, Any
 
 from .database import db_manager
-from .logger import logger
 
 
 def print_cache_stats(cache_type: str = "all"):

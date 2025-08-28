@@ -3,7 +3,7 @@ FastAPI backend server for Multimodal Scout application.
 Provides REST API endpoints for fetching topics and scraping content.
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, Response
 from typing import List, Dict, Any, AsyncGenerator, Optional
@@ -26,6 +26,10 @@ from .schema import (
     UploadLinkRequest,
     UploadLinkResponse,
     ErrorResponse,
+    UserRegistrationRequest,
+    UserLoginRequest,
+    AuthResponse,
+    UserResponse,
 )
 from .utils import (
     generate_summary_from_link,
@@ -104,6 +108,21 @@ app.add_middleware(
 )
 
 
+# Authentication dependency
+async def get_current_user(authorization: Optional[str] = Header(None)) -> str:
+    """Extract and validate user from session token"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    token = authorization.split(" ")[1]
+    user_id = db_manager.validate_session(token)
+    
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+    
+    return user_id
+
+
 @app.get("/")
 async def root():
     """Basic welcome endpoint"""
@@ -175,6 +194,7 @@ async def search_content(request: FetchRequest):
             selected_days=request.selectedDays,
             session_id=request.sessionId,
             discovery_mode=request.discoveryMode,
+            user_id=None,
         )
 
         final_result = None
@@ -231,6 +251,7 @@ async def search_content_stream(request: FetchRequest):
                 selected_days=request.selectedDays,
                 session_id=request.sessionId,
                 discovery_mode=request.discoveryMode,
+                user_id=None,
             )
 
             async for event in pipeline_generator:
@@ -259,12 +280,97 @@ async def search_content_stream(request: FetchRequest):
     )
 
 
+@app.post("/api/auth/register", response_model=AuthResponse)
+async def register_user(request: UserRegistrationRequest):
+    """Register a new user"""
+    try:
+        logger.info(f"Registering new user: {request.email} ({request.username})")
+        user_id = db_manager.create_user(request.email, request.password, request.username)
+        session_token = db_manager.create_user_session(user_id)
+        
+        return AuthResponse(
+            success=True,
+            message="User registered successfully",
+            session_token=session_token,
+            user_id=user_id
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        create_user_friendly_error(
+            "database_error", "Unable to register user. Please try again.", str(e), 500
+        )
+
+
+@app.post("/api/auth/login", response_model=AuthResponse)
+async def login_user(request: UserLoginRequest):
+    """Login user"""
+    try:
+        logger.info(f"User login attempt: {request.email}")
+        user_id = db_manager.authenticate_user(request.email, request.password)
+        
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        
+        session_token = db_manager.create_user_session(user_id)
+        
+        return AuthResponse(
+            success=True,
+            message="Login successful",
+            session_token=session_token,
+            user_id=user_id
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        create_user_friendly_error(
+            "database_error", "Unable to login. Please try again.", str(e), 500
+        )
+
+
+@app.post("/api/auth/logout")
+async def logout_user(current_user: str = Depends(get_current_user), authorization: str = Header(None)):
+    """Logout user"""
+    try:
+        token = authorization.split(" ")[1] if authorization else None
+        if token:
+            db_manager.logout_user(token)
+        return {"success": True, "message": "Logged out successfully"}
+    except Exception as e:
+        logger.error(f"Failed to logout: {e}")
+        return {"success": False, "message": "Logout failed"}
+
+
+@app.get("/api/auth/me", response_model=UserResponse)
+async def get_current_user_info(current_user: str = Depends(get_current_user)):
+    """Get current user information"""
+    try:
+        user = db_manager.get_user_by_id(current_user)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return UserResponse(
+            user_id=str(user.id),
+            email=user.email,
+            username=user.username,
+            created_at=user.created_at.isoformat(),
+            last_login=user.last_login.isoformat() if user.last_login else None
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        create_user_friendly_error(
+            "database_error", "Unable to get user information.", str(e), 500
+        )
+
+
 @app.post("/api/bookmarks", response_model=BookmarkResponse)
-async def add_bookmark(request: BookmarkRequest):
+async def add_bookmark(request: BookmarkRequest, current_user: str = Depends(get_current_user)):
     """Add a bookmark"""
     try:
-        logger.info(f"Adding bookmark for: {request.title}")
+        logger.info(f"Adding bookmark for user {current_user}: {request.title}")
         bookmark_id = db_manager.add_bookmark(
+            user_id=current_user,
             title=request.title,
             link=request.link,
             source_tag=request.source,
@@ -280,11 +386,11 @@ async def add_bookmark(request: BookmarkRequest):
 
 
 @app.delete("/api/bookmarks")
-async def remove_bookmark(link: str):
+async def remove_bookmark(link: str, current_user: str = Depends(get_current_user)):
     """Remove a bookmark by link"""
     try:
-        logger.info(f"Removing bookmark for link: {link}")
-        success = db_manager.remove_bookmark(link)
+        logger.info(f"Removing bookmark for user {current_user}, link: {link}")
+        success = db_manager.remove_bookmark(current_user, link)
         if success:
             return BookmarkResponse(
                 success=True, message="Bookmark removed successfully"
@@ -299,10 +405,10 @@ async def remove_bookmark(link: str):
 
 
 @app.get("/api/bookmarks/check")
-async def check_bookmark(link: str):
+async def check_bookmark(link: str, current_user: str = Depends(get_current_user)):
     """Check if a link is bookmarked"""
     try:
-        is_bookmarked = db_manager.is_bookmarked(link)
+        is_bookmarked = db_manager.is_bookmarked(current_user, link)
         return {"is_bookmarked": is_bookmarked}
     except Exception as e:
         logger.error(f"Failed to check bookmark: {e}")
@@ -312,10 +418,10 @@ async def check_bookmark(link: str):
 
 
 @app.get("/api/bookmarks/{bookmark_id}")
-async def get_bookmark(bookmark_id: str):
+async def get_bookmark(bookmark_id: str, current_user: str = Depends(get_current_user)):
     """Get a specific bookmark by ID"""
     try:
-        bookmark = db_manager.get_bookmark_by_id(bookmark_id)
+        bookmark = db_manager.get_bookmark_by_id(current_user, bookmark_id)
         if not bookmark:
             raise HTTPException(status_code=404, detail="Bookmark not found")
 
@@ -341,10 +447,10 @@ async def get_bookmark(bookmark_id: str):
 
 
 @app.get("/api/bookmarks")
-async def get_bookmarks(limit: int = 100, days: Optional[int] = None):
+async def get_bookmarks(limit: int = 100, days: Optional[int] = None, current_user: str = Depends(get_current_user)):
     """Get bookmarks with optional filtering by days back and result limit"""
     try:
-        bookmarks = db_manager.get_bookmarks(limit=limit, days_back=days)
+        bookmarks = db_manager.get_bookmarks(current_user, limit=limit, days_back=days)
         bookmark_items = []
         for bookmark in bookmarks:
             # Handle both old and new schema gracefully
@@ -375,11 +481,11 @@ async def get_bookmarks(limit: int = 100, days: Optional[int] = None):
 
 
 @app.put("/api/bookmarks/summary")
-async def update_bookmark_summary(link: str, summary: str):
+async def update_bookmark_summary(link: str, summary: str, current_user: str = Depends(get_current_user)):
     """Update a bookmark's summary"""
     try:
         logger.info(f"Updating summary for bookmark: {link}")
-        success = db_manager.update_bookmark_summary(link, summary)
+        success = db_manager.update_bookmark_summary(current_user, link, summary)
         if success:
             return BookmarkResponse(
                 success=True, message="Bookmark summary updated successfully"
@@ -394,11 +500,11 @@ async def update_bookmark_summary(link: str, summary: str):
 
 
 @app.delete("/api/bookmarks/{bookmark_id}")
-async def delete_bookmark(bookmark_id: str):
+async def delete_bookmark(bookmark_id: str, current_user: str = Depends(get_current_user)):
     """Delete a specific bookmark by ID"""
     try:
         logger.info(f"Removing bookmark with ID: {bookmark_id}")
-        success = db_manager.remove_bookmark_by_id(bookmark_id)
+        success = db_manager.remove_bookmark_by_id(current_user, bookmark_id)
         if success:
             return {"message": "Bookmark deleted successfully"}
         else:
@@ -412,12 +518,12 @@ async def delete_bookmark(bookmark_id: str):
 
 
 @app.patch("/api/bookmarks/{bookmark_id}")
-async def update_bookmark(bookmark_id: str, request: dict):
+async def update_bookmark(bookmark_id: str, request: dict, current_user: str = Depends(get_current_user)):
     """Update a bookmark's summary by ID"""
     try:
         summary = request.get("summary", "")
         logger.info(f"Updating summary for bookmark: {bookmark_id}")
-        success = db_manager.update_bookmark_summary_by_id(bookmark_id, summary)
+        success = db_manager.update_bookmark_summary_by_id(current_user, bookmark_id, summary)
         if success:
             return {"message": "Bookmark updated successfully"}
         else:
@@ -431,14 +537,14 @@ async def update_bookmark(bookmark_id: str, request: dict):
 
 
 @app.post("/api/content", response_model=UploadLinkResponse)
-async def create_content(request: UploadLinkRequest):
+async def create_content(request: UploadLinkRequest, current_user: str = Depends(get_current_user)):
     """Create content item from user-provided link"""
     try:
         url = str(request.url)
         logger.info(f"Processing uploaded link: {url}")
 
         # Check if already bookmarked
-        if db_manager.is_bookmarked(url):
+        if db_manager.is_bookmarked(current_user, url):
             return UploadLinkResponse(
                 success=False, message="This link is already bookmarked"
             )
@@ -461,7 +567,7 @@ async def create_content(request: UploadLinkRequest):
 
         # Add to bookmarks
         bookmark_id = db_manager.add_bookmark(
-            title=title, link=url, source_tag=source_tag, summary=summary
+            user_id=current_user, title=title, link=url, source_tag=source_tag, summary=summary
         )
 
         # Also cache the summary for future reference
@@ -486,7 +592,7 @@ async def create_content(request: UploadLinkRequest):
 
 
 @app.get("/api/bookmarks/export")
-async def export_bookmarks():
+async def export_bookmarks(current_user: str = Depends(get_current_user)):
     """Export all bookmarks to Excel file"""
     try:
         import openpyxl
@@ -498,7 +604,7 @@ async def export_bookmarks():
         logger.info("Starting bookmark export to Excel")
 
         # Get all bookmarks
-        bookmarks = db_manager.get_bookmarks()
+        bookmarks = db_manager.get_bookmarks(current_user)
 
         # Create workbook and worksheet
         wb = Workbook()
@@ -574,7 +680,7 @@ async def export_bookmarks():
 
 
 @app.get("/api/bookmarks/export/chrome")
-async def export_chrome_bookmarks():
+async def export_chrome_bookmarks(current_user: str = Depends(get_current_user)):
     """Export bookmarks in Chrome-compatible HTML format"""
     try:
         from datetime import datetime
@@ -584,7 +690,7 @@ async def export_chrome_bookmarks():
         logger.info("Starting Chrome bookmark export")
 
         # Get all bookmarks
-        bookmarks = db_manager.get_bookmarks()
+        bookmarks = db_manager.get_bookmarks(current_user)
 
         if not bookmarks:
             raise HTTPException(status_code=404, detail="No bookmarks found to export")

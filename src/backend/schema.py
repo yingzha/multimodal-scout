@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, EmailStr
 
 
 class SourceSchema(BaseModel):
@@ -98,3 +98,37 @@ class ErrorResponse(BaseModel):
     message: str
     details: str = None
     code: str = None
+
+
+class UserRegistrationRequest(BaseModel):
+    """Request model for user registration"""
+
+    email: EmailStr
+    password: str
+    username: str
+
+
+class UserLoginRequest(BaseModel):
+    """Request model for user login"""
+
+    email: EmailStr
+    password: str
+
+
+class AuthResponse(BaseModel):
+    """Response model for authentication operations"""
+
+    success: bool
+    message: str
+    session_token: str = None
+    user_id: str = None
+
+
+class UserResponse(BaseModel):
+    """Response model for user information"""
+
+    user_id: str
+    email: str
+    username: str
+    created_at: str
+    last_login: str = None
