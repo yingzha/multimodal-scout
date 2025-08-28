@@ -13,20 +13,14 @@ suitable for streaming APIs.
 
 from typing import List, Dict, Any, AsyncGenerator
 from datetime import datetime, timedelta
-import asyncio
 import random
 
 from .scraper import scrape_all_sources_concurrent
 from .logger import logger
 from .schema import SourceSchema
-from .database import db_manager
+from .database import db_manager, Source
 from .search import keyword_search, semantic_search_with_scores
-from .constants import (
-    SEMANTIC_SIMILARITY_THRESHOLD,
-    RESEARCH_THRESHOLD,
-    INDUSTRY_THRESHOLD,
-    DISCOVERY_THRESHOLD,
-)
+from .constants import RESEARCH_THRESHOLD, INDUSTRY_THRESHOLD
 
 
 def _apply_balanced_filtering(
@@ -196,6 +190,7 @@ async def process_content_pipeline(
     selected_days: int = 7,
     session_id: str = None,
     discovery_mode: bool = False,
+    user_id: str = None,
 ) -> AsyncGenerator[Dict[str, Any], None]:
     """
     The main processing pipeline.
@@ -363,8 +358,6 @@ async def process_content_pipeline(
     }
 
     with db_manager.get_session() as session:
-        from .database import Source
-
         db_sources = (
             session.query(Source)
             .filter(Source.created_at >= cutoff_date)
@@ -430,13 +423,18 @@ async def process_content_pipeline(
 
     if all_sources:
         # Get all edited summaries once at the beginning for efficiency
-        bookmarks = db_manager.get_bookmarks()
         edited_summaries_map = {}
-        for bookmark in bookmarks:
-            edited_summary = getattr(bookmark, "summary_edited", None)
-            if edited_summary:
-                edited_summaries_map[bookmark.link] = edited_summary
-        logger.info(f"Found {len(edited_summaries_map)} edited summaries in bookmarks")
+        if user_id:
+            bookmarks = db_manager.get_bookmarks(user_id)
+            for bookmark in bookmarks:
+                edited_summary = getattr(bookmark, "summary_edited", None)
+                if edited_summary:
+                    edited_summaries_map[bookmark.link] = edited_summary
+            logger.info(
+                f"Found {len(edited_summaries_map)} edited summaries in bookmarks"
+            )
+        else:
+            logger.info("No user_id provided, skipping bookmark summary lookup")
 
         # Apply edited summaries to ALL sources first
         for source in all_sources:

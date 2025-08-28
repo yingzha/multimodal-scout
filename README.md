@@ -2,19 +2,20 @@
 
 A smart content discovery platform that automatically finds, curates, and helps you bookmark the latest multimodal AI research papers and industry articles. Built with FastAPI, Next.js, and PostgreSQL, and powered by Google Gemini AI.
 
-![Multimodal Scout Interface](./assets/screenshot.png)
+![Multimodal Scout Interface](./assets/homepage.png)
 
 ## Key Features
 
+- 🔐 **User Authentication**: Secure user registration and login system, allowing for personalized experiences.
+- 📚 **Personalized Bookmark Management**: Each user gets a private space to save articles, edit summaries, search through their collection, filter by date ranges, and export bookmarks to a Chrome-compatible HTML format.
 - 🔍 **Automated Content Discovery**: Scrapes and processes content from multiple RSS sources (Hacker News, Substack) and Hugging Face.
 - 🧠 **AI-Powered Summaries**: Generates intelligent summaries for articles using Google Gemini with caching for improved performance.
 - 🎯 **Smart Filtering**: Balances content between research and industry, with configurable result limits.
 - 🏷️ **Multi-Tag Filtering**: Filter results by multiple criteria simultaneously - combine source types (Research/Industry) with specific keywords (machine learning, computer vision, etc.) for precise content discovery.
 - 🔍 **Matched Keywords Display**: See exactly which search terms matched each result with clickable keyword tags that enable instant filtering.
 - 🔎 **Real-time Text Search**: Search and filter both homepage results and bookmarks by keywords in titles and summaries with instant results.
-- 📚 **Advanced Bookmark Management**: Save articles, edit summaries, search through your collection, filter by date ranges, and export to Chrome-compatible HTML format.
 - 📤 **Multi-URL Processing**: Add single or multiple URLs (comma-separated) for batch processing with automatic scraping, summarization, and smart categorization.
-- 🔍 **Discovery Mode**: Randomly sample from all available content for serendipitous discovery without topic restrictions.
+- 🎲 **Discovery Mode**: Randomly sample from all available content for serendipitous discovery without topic restrictions.
 - ⏰ **Real-time Progress**: Live progress updates during content fetching and processing via SSE.
 - 🚀 **RESTful API**: Well-designed API following REST principles with comprehensive documentation.
 - 🌙 **Modern UI**: A clean, responsive interface with dark mode support and unified contextual modes (topic management vs. bookmark management).

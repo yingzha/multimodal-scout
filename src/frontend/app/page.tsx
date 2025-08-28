@@ -2,8 +2,12 @@
 
 import { useState, useEffect, useRef } from 'react'
 import ThemeToggle from './components/ThemeToggle'
+import AuthModal from './components/AuthModal'
+import { useAuth } from './contexts/AuthContext'
 
 export default function Home() {
+  const { user, sessionToken, isAuthenticated, isLoading: authLoading, login, logout } = useAuth()
+  const [showAuthModal, setShowAuthModal] = useState(false)
   const [selectedDays, setSelectedDays] = useState(1)
   const [defaultTopics, setDefaultTopics] = useState<string[]>([])
   const [customTopics, setCustomTopics] = useState<string[]>([])
@@ -47,8 +51,28 @@ export default function Home() {
   const [bookmarkSearchLimit, setBookmarkSearchLimit] = useState(50)
   const [bookmarkSearchQuery, setBookmarkSearchQuery] = useState('')
   const [homepageSearchQuery, setHomepageSearchQuery] = useState('')
+  const [previousViewState, setPreviousViewState] = useState<{showResults: boolean, showBookmarks: boolean} | null>(null)
+  const [showUserMenu, setShowUserMenu] = useState(false)
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const userMenuRef = useRef<HTMLDivElement>(null)
 
+
+  // Handle clicking outside user menu to close it
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false)
+      }
+    }
+
+    if (showUserMenu) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showUserMenu])
 
   // Handle gear button clicks (single and double click)
   const handleGearClick = () => {
@@ -96,8 +120,19 @@ export default function Home() {
 
   useEffect(() => {
     fetchDefaultTopics()
-    loadBookmarkStatus()
   }, [])
+
+  useEffect(() => {
+    if (isAuthenticated && !authLoading) {
+      loadBookmarkStatus()
+    }
+  }, [isAuthenticated, authLoading])
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setBookmarkedItems(new Set())
+    }
+  }, [isAuthenticated])
 
   const handleAddKeyword = () => {
     const trimmedKeyword = newKeyword.trim()
@@ -126,14 +161,24 @@ export default function Home() {
   }
 
   const handleBookmark = async (item: any) => {
+    if (!isAuthenticated) {
+      setKeywordMessage('⚠️ Login required: Please click the login icon to bookmark items')
+      setTimeout(() => setKeywordMessage(''), 4000)
+      return
+    }
+
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       const isCurrentlyBookmarked = bookmarkedItems.has(item.link)
+      // sessionToken is available from useAuth hook above
 
       if (isCurrentlyBookmarked) {
         // Remove bookmark
         const response = await fetch(`${apiUrl}/api/bookmarks?link=${encodeURIComponent(item.link)}`, {
-          method: 'DELETE'
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${sessionToken}`,
+          },
         })
 
         if (response.ok) {
@@ -149,6 +194,7 @@ export default function Home() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${sessionToken}`,
           },
           body: JSON.stringify({
             title: item.title,
@@ -168,9 +214,15 @@ export default function Home() {
   }
 
   const loadBookmarkStatus = async () => {
+    if (!isAuthenticated || !sessionToken) return
+
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-      const response = await fetch(`${apiUrl}/api/bookmarks`)
+      const response = await fetch(`${apiUrl}/api/bookmarks`, {
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`,
+        },
+      })
 
       if (response.ok) {
         const data = await response.json()
@@ -250,6 +302,8 @@ export default function Home() {
   }, [paginatedItems, paginatedBookmarks, expandedSummaries])
 
   const refreshBookmarks = async (searchDays?: number | null, searchLimit?: number) => {
+    if (!isAuthenticated || !sessionToken) return
+
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       const params = new URLSearchParams()
@@ -263,14 +317,18 @@ export default function Home() {
       params.append('limit', limit.toString())
       
       const url = `${apiUrl}/api/bookmarks?${params.toString()}`
-      console.log('Fetching bookmarks from:', url) // Debug log
+      console.log('Fetching bookmarks from:', url)
       
-      const response = await fetch(url)
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`,
+        },
+      })
 
       if (response.ok) {
         const data = await response.json()
         setBookmarkedCards(data.items)
-        console.log('Bookmarks fetched successfully:', data.items.length) // Debug log
+        console.log('Bookmarks fetched successfully:', data.items.length)
       } else {
         console.error('Failed to fetch bookmarks, status:', response.status)
       }
@@ -280,6 +338,17 @@ export default function Home() {
   }
 
   const handleReturnHome = () => {
+    // Close auth modal if open and restore previous view if available
+    if (showAuthModal && previousViewState) {
+      setShowResults(previousViewState.showResults)
+      setShowBookmarks(previousViewState.showBookmarks)
+      setPreviousViewState(null)
+      setShowAuthModal(false)
+      return
+    } else if (showAuthModal) {
+      setShowAuthModal(false)
+    }
+
     // Reset to default search state
     if (showBookmarks) {
       setShowBookmarks(false)
@@ -309,31 +378,33 @@ export default function Home() {
   }
 
   const handleViewBookmarks = async () => {
-    // Close advanced settings when navigating to bookmarks
+    if (!isAuthenticated) {
+      setKeywordMessage('⚠️ Login required: Please click the login icon to access bookmarks')
+      setTimeout(() => setKeywordMessage(''), 4000)
+      return
+    }
+
     setShowAdvancedSettings(false)
-    // Toggle bookmarks view
 
     if (showBookmarks) {
       setShowBookmarks(false)
       setBookmarkedCards([])
-      setExpandedSummaries(new Set()) // Clear expanded state when hiding bookmarks
-      setSelectedTags(new Set()) // Clear tag filter when hiding bookmarks
-      setBookmarksPage(1) // Reset bookmarks page when hiding
-      setUploadUrl('') // Clear URL
-      setUploadMessage('') // Clear message
+      setExpandedSummaries(new Set())
+      setSelectedTags(new Set())
+      setBookmarksPage(1)
+      setUploadUrl('')
+      setUploadMessage('')
       return
     }
 
     try {
-      // Use the new refreshBookmarks function which supports search parameters
       await refreshBookmarks()
       setShowBookmarks(true)
-      // Keep search results available - don't hide them
-      setExpandedSummaries(new Set()) // Clear expanded state when switching views
-      setSelectedTags(new Set()) // Clear tag filter when switching to bookmarks
-      setBookmarksPage(1) // Reset to first page when showing bookmarks
-      setUploadUrl('') // Clear any previous URL
-      setUploadMessage('') // Clear any previous message
+      setExpandedSummaries(new Set())
+      setSelectedTags(new Set())
+      setBookmarksPage(1)
+      setUploadUrl('')
+      setUploadMessage('')
     } catch (error) {
       console.error('Failed to fetch bookmarks:', error)
     }
@@ -341,22 +412,23 @@ export default function Home() {
 
 
   const confirmDelete = async () => {
-    if (!deleteConfirmItem) return
+    if (!deleteConfirmItem || !sessionToken) return
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       const response = await fetch(`${apiUrl}/api/bookmarks?link=${encodeURIComponent(deleteConfirmItem.link)}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`,
+        },
       })
 
       if (response.ok) {
-        // Remove from bookmark state
         setBookmarkedItems(prev => {
           const newSet = new Set(prev)
           newSet.delete(deleteConfirmItem.link)
           return newSet
         })
-        // Refresh bookmarks view if currently shown
         if (showBookmarks) {
           refreshBookmarks()
         }
@@ -380,7 +452,7 @@ export default function Home() {
   }
 
   const handleSaveSummary = async (link: string) => {
-    if (!editedSummaryText.trim()) {
+    if (!editedSummaryText.trim() || !sessionToken) {
       return
     }
 
@@ -388,11 +460,13 @@ export default function Home() {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       const response = await fetch(`${apiUrl}/api/bookmarks/summary?link=${encodeURIComponent(link)}&summary=${encodeURIComponent(editedSummaryText)}`, {
-        method: 'PUT'
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`,
+        },
       })
 
       if (response.ok) {
-        // Refresh bookmarks to show updated summary
         if (showBookmarks) {
           refreshBookmarks()
         }
@@ -406,6 +480,12 @@ export default function Home() {
   }
 
   const handleUploadLink = async () => {
+    if (!isAuthenticated) {
+      setUploadMessage('⚠️ Login required: Please click the login icon to upload bookmarks')
+      setTimeout(() => setUploadMessage(''), 4000)
+      return
+    }
+
     if (!uploadUrl.trim()) {
       setUploadMessage('Please enter at least one URL')
       setTimeout(() => setUploadMessage(''), 3000)
@@ -456,6 +536,7 @@ export default function Home() {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'Authorization': `Bearer ${sessionToken}`,
             },
             body: JSON.stringify({ url })
           })
@@ -559,14 +640,22 @@ export default function Home() {
 
 
   const handleExportChromeBookmarks = async () => {
+    if (!isAuthenticated || !sessionToken) {
+      setKeywordMessage('⚠️ Login required: Please click the login icon to export bookmarks')
+      setTimeout(() => setKeywordMessage(''), 4000)
+      return
+    }
+
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       const response = await fetch(`${apiUrl}/api/bookmarks/export/chrome`, {
-        method: 'GET'
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`,
+        },
       })
 
       if (response.ok) {
-        // Get the filename from the response headers
         const contentDisposition = response.headers.get('Content-Disposition')
         let filename = 'multimodal_scout_chrome_bookmarks.html'
 
@@ -577,7 +666,6 @@ export default function Home() {
           }
         }
 
-        // Convert response to blob and download
         const blob = await response.blob()
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
@@ -998,7 +1086,7 @@ export default function Home() {
           )}
 
           {/* Settings and Bookmarks Icons */}
-          <div className="flex justify-between items-center mt-6">
+          <div className="flex justify-between items-center mt-6 relative z-10">
             <div className="flex items-center gap-4">
               <button
                 onClick={handleReturnHome}
@@ -1033,6 +1121,71 @@ export default function Home() {
                 </svg>
               </button>
               <ThemeToggle />
+              
+              {isAuthenticated ? (
+                <div className="relative" ref={userMenuRef}>
+                  <button
+                    onClick={() => setShowUserMenu(!showUserMenu)}
+                    className="bg-gray-100 p-3 text-gray-700 hover:text-gray-900 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors flex items-center justify-center"
+                    data-tooltip="User Menu"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </button>
+                  
+                  {showUserMenu && (
+                    <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-3 px-4 z-50">
+                      <div className="flex items-center gap-3 mb-3 pb-3 border-b border-gray-100">
+                        <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                          <span className="text-gray-600 font-medium text-sm">
+                            {user?.username?.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">Hello, {user?.username}!</p>
+                          <p className="text-xs text-gray-500">{user?.email}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          logout()
+                          setShowUserMenu(false)
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-md transition-colors"
+                      >
+                        Logout
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    if (showAuthModal) {
+                      // If modal is open, close it and restore previous view
+                      if (previousViewState) {
+                        setShowResults(previousViewState.showResults)
+                        setShowBookmarks(previousViewState.showBookmarks)
+                        setPreviousViewState(null)
+                      }
+                      setShowAuthModal(false)
+                    } else {
+                      // If modal is closed, open it
+                      setPreviousViewState({ showResults, showBookmarks })
+                      setShowResults(false)
+                      setShowBookmarks(false)
+                      setShowAuthModal(true)
+                    }
+                  }}
+                  className="bg-gray-100 p-3 text-gray-700 hover:text-gray-900 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors flex items-center justify-center"
+                  data-tooltip="Login"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </button>
+              )}
             </div>
 
             {!showBookmarks && (
@@ -1693,6 +1846,43 @@ export default function Home() {
               </p>
             </div>
           </div>
+        )}
+
+        {/* Login Page View */}
+        {showAuthModal && !showResults && !showBookmarks && (
+          <div className="mt-12">
+            <AuthModal
+              isOpen={showAuthModal}
+              onClose={() => {
+                if (previousViewState) {
+                  setShowResults(previousViewState.showResults)
+                  setShowBookmarks(previousViewState.showBookmarks)
+                  setPreviousViewState(null)
+                }
+                setShowAuthModal(false)
+              }}
+              onSuccess={(sessionToken, userInfo) => {
+                login(sessionToken, userInfo)
+                loadBookmarkStatus()
+                setShowAuthModal(false)
+                setPreviousViewState(null)
+              }}
+              asPage={true}
+            />
+          </div>
+        )}
+
+        {/* Authentication Modal (for other cases) */}
+        {showAuthModal && (showResults || showBookmarks) && (
+          <AuthModal
+            isOpen={showAuthModal}
+            onClose={() => setShowAuthModal(false)}
+            onSuccess={(sessionToken, userInfo) => {
+              login(sessionToken, userInfo)
+              loadBookmarkStatus()
+              setShowAuthModal(false)
+            }}
+          />
         )}
       </div>
     </main>

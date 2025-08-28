@@ -3,7 +3,6 @@ from typing import List
 
 from .schema import SourceSchema
 from .logger import logger
-from .database import db_manager
 from .utils import generate_summary_from_link
 
 
