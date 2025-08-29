@@ -3,7 +3,7 @@ FastAPI backend server for Multimodal Scout application.
 Provides REST API endpoints for fetching topics and scraping content.
 """
 
-from fastapi import FastAPI, HTTPException, Header, Depends
+from fastapi import FastAPI, HTTPException, Header, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, Response
 from typing import List, Dict, Any, AsyncGenerator, Optional
@@ -110,6 +110,47 @@ app.add_middleware(
 )
 
 
+# Rate limiting storage (in production, use Redis or database)
+guest_rate_limits = {}
+GUEST_DAILY_LIMIT = 5  # 5 searches per day for guest users
+RATE_LIMIT_WINDOW = 24 * 60 * 60  # 24 hours in seconds
+
+
+def check_guest_rate_limit(client_ip: str) -> bool:
+    """Check if guest user has exceeded rate limit."""
+    current_time = time.time()
+
+    if client_ip not in guest_rate_limits:
+        guest_rate_limits[client_ip] = {"count": 0, "window_start": current_time}
+
+    rate_data = guest_rate_limits[client_ip]
+
+    # Reset window if 24 hours have passed
+    if current_time - rate_data["window_start"] > RATE_LIMIT_WINDOW:
+        rate_data["count"] = 0
+        rate_data["window_start"] = current_time
+
+    # Check if limit exceeded
+    if rate_data["count"] >= GUEST_DAILY_LIMIT:
+        return False
+
+    # Increment count
+    rate_data["count"] += 1
+    return True
+
+
+async def get_current_user_optional(
+    authorization: Optional[str] = Header(None),
+) -> Optional[str]:
+    """Get current user if authenticated, return None if not."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+
+    token = authorization.split(" ")[1]
+    user_id = db_manager.validate_session(token)
+    return user_id
+
+
 # Authentication dependency
 async def get_current_user(authorization: Optional[str] = Header(None)) -> str:
     """Extract and validate user from session token"""
@@ -178,16 +219,49 @@ async def get_default_topics():
 
 
 @app.post("/api/content/search", response_model=FetchResponse)
-async def search_content(request: FetchRequest):
+async def search_content(
+    request: FetchRequest,
+    request_obj: Request,
+    authorization: Optional[str] = Header(None),
+):
     """
     Search for content from various sources based on topics and time range.
-    This is the non-streaming version that uses the core pipeline.
+    Hybrid access:
+    - Authenticated users: Unlimited searches
+    - Guest users: 5 searches per day (rate limited by IP)
     """
     try:
+        # Check if user is authenticated
+        current_user = await get_current_user_optional(authorization)
+        client_ip = request_obj.client.host
+
+        if current_user:
+            # Authenticated user - unlimited access
+            user_type = f"authenticated user {current_user}"
+        else:
+            # Guest user - check rate limit
+            if not check_guest_rate_limit(client_ip):
+                remaining_hours = RATE_LIMIT_WINDOW - (
+                    time.time() - guest_rate_limits[client_ip]["window_start"]
+                )
+                raise HTTPException(
+                    status_code=429,
+                    detail={
+                        "error": "rate_limit_exceeded",
+                        "message": f"Daily search limit exceeded for guest users ({GUEST_DAILY_LIMIT} searches/day). Please register for unlimited access.",
+                        "reset_in_hours": round(remaining_hours / 3600, 1),
+                        "current_usage": guest_rate_limits[client_ip]["count"],
+                        "daily_limit": GUEST_DAILY_LIMIT,
+                    },
+                )
+            user_type = f"guest user (IP: {client_ip})"
+
         mode_msg = (
             "discovery mode" if request.discoveryMode else f"topics: {request.topics}"
         )
-        logger.info(f"Fetching items for {request.selectedDays} days with {mode_msg}")
+        logger.info(
+            f"{user_type}: Fetching items for {request.selectedDays} days with {mode_msg}"
+        )
 
         pipeline_generator = process_content_pipeline(
             topics=request.topics,
@@ -196,7 +270,7 @@ async def search_content(request: FetchRequest):
             selected_days=request.selectedDays,
             session_id=request.sessionId,
             discovery_mode=request.discoveryMode,
-            user_id=None,
+            user_id=current_user,
         )
 
         final_result = None
@@ -229,21 +303,63 @@ async def search_content(request: FetchRequest):
 
 
 @app.post("/api/content/search/stream")
-async def search_content_stream(request: FetchRequest):
+async def search_content_stream(
+    request: FetchRequest,
+    request_obj: Request,
+    authorization: Optional[str] = Header(None),
+):
     """
     Search for content with streaming progress updates using the core pipeline.
     Uses Server-Sent Events (SSE) to provide real-time progress.
+    Hybrid access:
+    - Authenticated users: Unlimited searches
+    - Guest users: 5 searches per day (rate limited by IP)
     """
+
+    # Check authentication and rate limiting before starting stream
+    current_user = await get_current_user_optional(authorization)
+    client_ip = request_obj.client.host
+
+    if current_user:
+        user_type = f"authenticated user {current_user}"
+    else:
+        # Guest user - check rate limit (but don't increment here, increment in stream)
+        if client_ip in guest_rate_limits:
+            rate_data = guest_rate_limits[client_ip]
+            current_time = time.time()
+
+            # Reset window if needed
+            if current_time - rate_data["window_start"] > RATE_LIMIT_WINDOW:
+                rate_data["count"] = 0
+                rate_data["window_start"] = current_time
+
+            if rate_data["count"] >= GUEST_DAILY_LIMIT:
+                remaining_hours = RATE_LIMIT_WINDOW - (
+                    current_time - rate_data["window_start"]
+                )
+                raise HTTPException(
+                    status_code=429,
+                    detail={
+                        "error": "rate_limit_exceeded",
+                        "message": f"Daily search limit exceeded for guest users ({GUEST_DAILY_LIMIT} searches/day). Please register for unlimited access.",
+                        "reset_in_hours": round(remaining_hours / 3600, 1),
+                    },
+                )
+        user_type = f"guest user (IP: {client_ip})"
 
     async def generate_stream():
         try:
+            # Increment rate limit for guest users (after auth check passes)
+            if not current_user:
+                check_guest_rate_limit(client_ip)
+
             mode_msg = (
                 "discovery mode"
                 if request.discoveryMode
                 else f"topics: {request.topics}"
             )
             logger.info(
-                f"Starting streaming fetch for {request.selectedDays} days with {mode_msg}"
+                f"{user_type}: Starting streaming fetch for {request.selectedDays} days with {mode_msg}"
             )
 
             pipeline_generator = process_content_pipeline(
@@ -253,7 +369,7 @@ async def search_content_stream(request: FetchRequest):
                 selected_days=request.selectedDays,
                 session_id=request.sessionId,
                 discovery_mode=request.discoveryMode,
-                user_id=None,
+                user_id=current_user,
             )
 
             async for event in pipeline_generator:
@@ -715,18 +831,14 @@ async def pipeline_cron_job(authorization: Optional[str] = Header(None)):
     if not authorization:
         logger.warning("Pipeline endpoint accessed without authorization")
         raise HTTPException(
-            status_code=401, 
-            detail="Authorization required for pipeline endpoint"
+            status_code=401, detail="Authorization required for pipeline endpoint"
         )
-    
+
     # For Cloud Scheduler OIDC tokens, we could verify the token here
     # For now, just check that authorization header is present
     if not authorization.startswith("Bearer "):
         logger.warning("Pipeline endpoint accessed with invalid authorization format")
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization format"
-        )
+        raise HTTPException(status_code=401, detail="Invalid authorization format")
     try:
         logger.info("🚀 Starting pipeline via HTTP endpoint...")
 
@@ -748,8 +860,10 @@ async def pipeline_cron_job(authorization: Optional[str] = Header(None)):
         if final_result:
             total_items = final_result.get("total_count", 0)
             sources = final_result.get("sources", [])
-            logger.info(f"✅ Pipeline completed: {total_items} items from {len(sources)} sources")
-            
+            logger.info(
+                f"✅ Pipeline completed: {total_items} items from {len(sources)} sources"
+            )
+
             return {
                 "status": "success",
                 "message": "Pipeline completed successfully",
@@ -769,10 +883,7 @@ async def pipeline_cron_job(authorization: Optional[str] = Header(None)):
         logger.error(f"❌ Pipeline failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail={
-                "status": "error",
-                "message": f"Pipeline failed: {str(e)}"
-            }
+            detail={"status": "error", "message": f"Pipeline failed: {str(e)}"},
         )
 
 

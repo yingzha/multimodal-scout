@@ -10,7 +10,7 @@ spec:
   schedule: "*/30 * * * *"  # Every 30 minutes for fresh content
   timeZone: "UTC"
   httpTarget:
-    uri: https://multimodal-scout-backend-HASH-uc.a.run.app/pipeline
+    uri: https://multimodal-scout-backend-${PROJECT_ID}.${REGION}.run.app/pipeline
     httpMethod: POST
     oidcToken:
-      serviceAccountEmail: multimodal-scout-scheduler@PROJECT_ID.iam.gserviceaccount.com
+      serviceAccountEmail: multimodal-scout-scheduler@${PROJECT_ID}.iam.gserviceaccount.com

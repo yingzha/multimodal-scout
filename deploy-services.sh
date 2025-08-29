@@ -20,15 +20,15 @@ gcloud auth configure-docker $REGION-docker.pkg.dev
 # Build and push backend image
 echo "🏗️ Building backend image..."
 gcloud builds submit \
-  --tag $REGION-docker.pkg.dev/$PROJECT_ID/multimodal-scout/backend:latest \
-  --file Dockerfile.backend \
+  --config cloudbuild.backend.yaml \
+  --substitutions _IMAGE_NAME=$REGION-docker.pkg.dev/$PROJECT_ID/multimodal-scout/backend:latest \
   .
 
 # Build and push frontend image  
 echo "🏗️ Building frontend image..."
 gcloud builds submit \
-  --tag $REGION-docker.pkg.dev/$PROJECT_ID/multimodal-scout/frontend:latest \
-  --file Dockerfile.frontend \
+  --config cloudbuild.frontend.yaml \
+  --substitutions _IMAGE_NAME=$REGION-docker.pkg.dev/$PROJECT_ID/multimodal-scout/frontend:latest \
   .
 
 # Cron service removed - using Cloud Scheduler → Backend /pipeline endpoint
@@ -85,16 +85,29 @@ FRONTEND_URL=$(gcloud run services describe multimodal-scout-frontend \
   --region $REGION \
   --format 'value(status.url)')
 
+# Deploy Cloud Scheduler job
+echo "⏰ Setting up Cloud Scheduler job..."
+# Substitute environment variables in the scheduler config
+envsubst < cloud-scheduler-jobs.yaml > /tmp/cloud-scheduler-jobs.yaml
+gcloud scheduler jobs create http pipeline-job \
+  --location=$REGION \
+  --schedule="*/30 * * * *" \
+  --uri="$BACKEND_URL/pipeline" \
+  --http-method=POST \
+  --oidc-service-account-email="multimodal-scout-scheduler@$PROJECT_ID.iam.gserviceaccount.com" \
+  --time-zone="UTC" \
+  || echo "Job may already exist"
+
 echo ""
 echo "✅ Complete deployment finished!"
 echo ""
 echo "🌐 Frontend URL: $FRONTEND_URL"
 echo "🖥️ Backend URL: $BACKEND_URL"
 echo "⏰ Pipeline Endpoint: $BACKEND_URL/pipeline"
+echo "📅 Scheduler Job: pipeline-job (runs every 30 minutes)"
 echo ""
 echo "💡 Next steps:"
-echo "1. Set up Cloud Scheduler jobs (replace HASH in cloud-scheduler-jobs.yaml)"
-echo "2. Run database migrations if needed" 
-echo "3. Test the application"
+echo "1. Run database migrations if needed" 
+echo "2. Test the application"
 echo ""
-echo "💰 Estimated cost: $5-8/month for <10 DAU (reduced without cron service)"
+echo "💰 Estimated cost: $5-8/month for <10 DAU"

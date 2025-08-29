@@ -37,5 +37,5 @@ ENV PATH="/app/.venv/bin:$PATH"
 # Expose port (if needed for future API)
 EXPOSE 8000
 
-# Default command
-CMD ["python", "src/backend/merger.py"]
+# Default command - run FastAPI app with uvicorn
+CMD ["uvicorn", "src.backend.app:app", "--host", "0.0.0.0", "--port", "8000"]

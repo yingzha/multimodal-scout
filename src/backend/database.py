@@ -299,7 +299,6 @@ class DatabaseManager:
                 "embeddings_cleaned": embedding_deleted_count,
             }
 
-
     def get_summary_cache_stats(self) -> Dict[str, int]:
         """Get summary statistics from sources table (consolidated approach)."""
         with self.get_session() as session:
