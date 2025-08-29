@@ -40,7 +40,7 @@ gcloud sql instances create $DB_INSTANCE_NAME \
   --tier=db-f1-micro \
   --region=$REGION \
   --storage-type=HDD \
-  --storage-size=5GB \
+  --storage-size=10GB \
   --backup-start-time=03:00 \
   --maintenance-release-channel=production \
   --maintenance-window-day=SUN \
