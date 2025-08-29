@@ -12,14 +12,5 @@ spec:
   httpTarget:
     uri: https://multimodal-scout-backend-HASH-uc.a.run.app/pipeline
     httpMethod: POST
-    headers:
-      Content-Type: application/json
-    body: |
-      {
-        "topics": [],
-        "max_results": 50,
-        "research_ratio": 0.5,
-        "selected_days": 1
-      }
     oidcToken:
       serviceAccountEmail: multimodal-scout-scheduler@PROJECT_ID.iam.gserviceaccount.com

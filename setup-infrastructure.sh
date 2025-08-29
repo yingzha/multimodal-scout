@@ -77,9 +77,7 @@ gcloud iam service-accounts create multimodal-scout-backend \
   --display-name="Multimodal Scout Backend Service Account" \
   || echo "Backend service account exists"
 
-gcloud iam service-accounts create multimodal-scout-cron \
-  --display-name="Multimodal Scout Cron Service Account" \
-  || echo "Cron service account exists"
+# Cron service account removed - using backend service for scheduled jobs
 
 gcloud iam service-accounts create multimodal-scout-scheduler \
   --display-name="Multimodal Scout Scheduler Service Account" \
@@ -95,13 +93,7 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
   --member="serviceAccount:multimodal-scout-backend@$PROJECT_ID.iam.gserviceaccount.com" \
   --role="roles/secretmanager.secretAccessor"
 
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:multimodal-scout-cron@$PROJECT_ID.iam.gserviceaccount.com" \
-  --role="roles/cloudsql.client"
-
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:multimodal-scout-cron@$PROJECT_ID.iam.gserviceaccount.com" \
-  --role="roles/secretmanager.secretAccessor"
+# Cron service permissions removed - backend service handles scheduled jobs
 
 gcloud projects add-iam-policy-binding $PROJECT_ID \
   --member="serviceAccount:multimodal-scout-scheduler@$PROJECT_ID.iam.gserviceaccount.com" \
@@ -110,7 +102,7 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
 echo "✅ Infrastructure setup complete!"
 echo ""
 echo "Next steps:"
-echo "1. Deploy services: ./setup-infrastructure.sh $PROJECT_ID $REGION"
+echo "1. Deploy services: ./deploy-services.sh $PROJECT_ID $REGION"
 echo ""
-echo "💰 Estimated monthly cost: $7-10 (Cloud SQL micro instance)"
+echo "💰 Estimated monthly cost: $5-8 (Cloud SQL micro + 2 services)"
 echo "🎯 Perfect for <10 DAU with auto-scaling to zero"
