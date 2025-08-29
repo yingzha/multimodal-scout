@@ -24,22 +24,13 @@ gcloud builds submit \
   --substitutions _IMAGE_NAME=$REGION-docker.pkg.dev/$PROJECT_ID/multimodal-scout/backend:latest \
   .
 
-# Build and push frontend image  
-echo "🏗️ Building frontend image..."
-gcloud builds submit \
-  --config cloudbuild.frontend.yaml \
-  --substitutions _IMAGE_NAME=$REGION-docker.pkg.dev/$PROJECT_ID/multimodal-scout/frontend:latest \
-  .
-
-# Cron service removed - using Cloud Scheduler → Backend /pipeline endpoint
-
-echo "✅ All images built and pushed successfully!"
+echo "✅ Backend image built and pushed successfully!"
 echo ""
 
 # Get Cloud SQL connection name
 CONNECTION_NAME="$PROJECT_ID:$REGION:$DB_INSTANCE_NAME"
 
-# Deploy backend service
+# Deploy backend service first
 echo "🖥️ Deploying backend service..."
 gcloud run deploy multimodal-scout-backend \
   --image $REGION-docker.pkg.dev/$PROJECT_ID/multimodal-scout/backend:latest \
@@ -58,10 +49,21 @@ gcloud run deploy multimodal-scout-backend \
   --port 8000 \
   --allow-unauthenticated
 
-# Get backend URL for frontend
+# Get actual backend URL
 BACKEND_URL=$(gcloud run services describe multimodal-scout-backend \
   --region $REGION \
   --format 'value(status.url)')
+
+echo "🖥️ Backend deployed at: $BACKEND_URL"
+
+# Now build and push frontend image with correct backend URL
+echo "🏗️ Building frontend image with backend URL..."
+gcloud builds submit \
+  --config cloudbuild.frontend.yaml \
+  --substitutions _IMAGE_NAME=$REGION-docker.pkg.dev/$PROJECT_ID/multimodal-scout/frontend:latest,_BACKEND_URL=$BACKEND_URL \
+  .
+
+echo "✅ Frontend image built and pushed successfully!"
 
 # Deploy frontend service
 echo "🌐 Deploying frontend service..."
@@ -85,18 +87,27 @@ FRONTEND_URL=$(gcloud run services describe multimodal-scout-frontend \
   --region $REGION \
   --format 'value(status.url)')
 
-# Deploy Cloud Scheduler job
+# Deploy Cloud Scheduler job (create or update)
 echo "⏰ Setting up Cloud Scheduler job..."
-# Substitute environment variables in the scheduler config
-envsubst < cloud-scheduler-jobs.yaml > /tmp/cloud-scheduler-jobs.yaml
-gcloud scheduler jobs create http pipeline-job \
-  --location=$REGION \
-  --schedule="*/30 * * * *" \
-  --uri="$BACKEND_URL/pipeline" \
-  --http-method=POST \
-  --oidc-service-account-email="multimodal-scout-scheduler@$PROJECT_ID.iam.gserviceaccount.com" \
-  --time-zone="UTC" \
-  || echo "Job may already exist"
+if gcloud scheduler jobs describe pipeline-job --location=$REGION &>/dev/null; then
+  echo "📝 Updating existing scheduler job with new backend URL..."
+  gcloud scheduler jobs update http pipeline-job \
+    --location=$REGION \
+    --schedule="*/30 * * * *" \
+    --uri="$BACKEND_URL/pipeline" \
+    --http-method=POST \
+    --oidc-service-account-email="multimodal-scout-scheduler@$PROJECT_ID.iam.gserviceaccount.com" \
+    --time-zone="UTC"
+else
+  echo "➕ Creating new scheduler job..."
+  gcloud scheduler jobs create http pipeline-job \
+    --location=$REGION \
+    --schedule="*/30 * * * *" \
+    --uri="$BACKEND_URL/pipeline" \
+    --http-method=POST \
+    --oidc-service-account-email="multimodal-scout-scheduler@$PROJECT_ID.iam.gserviceaccount.com" \
+    --time-zone="UTC"
+fi
 
 echo ""
 echo "✅ Complete deployment finished!"

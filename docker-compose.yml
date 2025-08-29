@@ -38,19 +38,7 @@ services:
         python -m uvicorn src.backend.app:app --host 0.0.0.0 --port 8000 --reload
       "
 
-  cron:
-    build:
-      context: .
-      dockerfile: Dockerfile.cron
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      - DATABASE_URL=postgresql://scout_user:scout_password@postgres:5432/multimodal_scout
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-    volumes:
-      - ./src:/app/src
-      - ./tests:/app/tests
+  # Cron service removed - using backend /pipeline endpoint with manual triggers in local dev
 
   frontend:
     build:

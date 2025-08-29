@@ -101,8 +101,7 @@ You can obtain a session token by using the `/api/auth/login` or `/api/auth/regi
   {
     "topics": [
       "multimodal", 
-      "document processing",
-      "computer vision",
+      "image understanding",
       "video understanding",
       "visual agents"
     ]

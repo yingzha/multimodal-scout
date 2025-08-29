@@ -12,6 +12,44 @@ The cron service runs in a separate Docker container and automatically:
 - Applies filtering and content processing
 - Saves everything to the database with optimized batch operations
 
+## Local Development Pipeline Testing
+
+For local development, you can manually trigger the pipeline to test content collection:
+
+### **Manual Pipeline Trigger**
+```bash
+# Start local development environment
+docker-compose up -d
+
+# Trigger pipeline manually to test data collection
+curl -X POST "http://localhost:8000/pipeline" \
+  -H "Authorization: Bearer test-token" \
+  -H "Content-Type: application/json"
+```
+
+### **Check Results**
+```bash
+# View backend logs to see pipeline progress
+docker-compose logs -f backend
+
+# Check database for new content
+docker-compose exec postgres psql -U scout_user -d multimodal_scout -c "SELECT COUNT(*) FROM sources;"
+```
+
+### **API Testing**
+```bash
+# Test search with collected data
+curl -X POST "http://localhost:8000/api/content/search" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "topics": ["AI"], 
+    "selectedDays": 1, 
+    "maxResults": 5,
+    "sessionId": "test",
+    "discoveryMode": false
+  }'
+```
+
 ## Schedule
 
 | Job | Frequency | Schedule Expression | Description |
