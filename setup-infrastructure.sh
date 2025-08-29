@@ -40,7 +40,7 @@ gcloud sql instances create $DB_INSTANCE_NAME \
   --tier=db-f1-micro \
   --region=$REGION \
   --storage-type=HDD \
-  --storage-size=10GB \
+  --storage-size=5GB \
   --backup-start-time=03:00 \
   --maintenance-release-channel=production \
   --maintenance-window-day=SUN \
@@ -54,20 +54,24 @@ gcloud sql databases create multimodal_scout \
   --instance=$DB_INSTANCE_NAME \
   || echo "Database already exists"
 
-# Step 5: Create database user
+# Step 5: Generate database password
+echo "🔐 Generating database password..."
+DB_PASSWORD=$(openssl rand -base64 32)
+
+# Step 6: Create database user
 echo "👤 Creating database user..."
 gcloud sql users create scout_user \
   --instance=$DB_INSTANCE_NAME \
-  --password=$(openssl rand -base64 32) \
+  --password="$DB_PASSWORD" \
   || echo "User already exists"
 
-# Step 6: Store secrets
+# Step 7: Store secrets
 echo "🔐 Storing secrets in Secret Manager..."
-echo -n "$(openssl rand -base64 32)" | gcloud secrets create database-password --data-file=-
+echo -n "$DB_PASSWORD" | gcloud secrets create database-password --data-file=-
 echo -n "$GOOGLE_API_KEY" | gcloud secrets create google-api-key --data-file=- \
   || echo "Secrets may already exist"
 
-# Step 7: Create service accounts
+# Step 8: Create service accounts
 echo "🔑 Creating service accounts..."
 gcloud iam service-accounts create multimodal-scout-backend \
   --display-name="Multimodal Scout Backend Service Account" \
@@ -81,7 +85,7 @@ gcloud iam service-accounts create multimodal-scout-scheduler \
   --display-name="Multimodal Scout Scheduler Service Account" \
   || echo "Scheduler service account exists"
 
-# Step 8: Grant permissions
+# Step 9: Grant permissions
 echo "🛡️ Granting permissions..."
 gcloud projects add-iam-policy-binding $PROJECT_ID \
   --member="serviceAccount:multimodal-scout-backend@$PROJECT_ID.iam.gserviceaccount.com" \
@@ -106,7 +110,7 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
 echo "✅ Infrastructure setup complete!"
 echo ""
 echo "Next steps:"
-echo "1. Deploy services: ./deploy-services.sh $PROJECT_ID $REGION"
+echo "1. Deploy services: ./setup-infrastructure.sh $PROJECT_ID $REGION"
 echo ""
 echo "💰 Estimated monthly cost: $7-10 (Cloud SQL micro instance)"
 echo "🎯 Perfect for <10 DAU with auto-scaling to zero"

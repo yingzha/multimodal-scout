@@ -10,6 +10,8 @@ from typing import List, Dict, Any, AsyncGenerator, Optional
 from contextlib import asynccontextmanager
 import asyncio
 import json
+import time
+from datetime import datetime
 from functools import lru_cache
 
 from .constants import INTERESTED_KEYWORDS
@@ -699,6 +701,105 @@ async def export_bookmarks(current_user: str = Depends(get_current_user)):
         logger.error(f"Failed to export bookmarks: {e}", exc_info=True)
         raise HTTPException(
             status_code=500, detail=f"Failed to export bookmarks: {str(e)}"
+        )
+
+
+@app.post("/pipeline")
+async def pipeline_cron_job():
+    """
+    Pipeline endpoint for Cloud Scheduler cron jobs.
+    Mimics the functionality of run_pipeline.py for HTTP-based execution.
+    """
+    try:
+        start_time = time.time()
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Enhanced logging header
+        logger.info("=" * 80)
+        logger.info(f"🤖 PIPELINE CRON JOB STARTED: {timestamp}")
+        logger.info("=" * 80)
+
+        logger.info("🚀 Starting full content processing pipeline...")
+
+        # Run the full pipeline with cron job defaults matching cloud-scheduler-jobs.yaml
+        pipeline_generator = process_content_pipeline(
+            topics=[],  # No topic filtering for cron jobs
+            max_results=50,  # Match the config file setting
+            research_ratio=0.5,
+            selected_days=1,  # Process content from last day
+        )
+
+        # Process all pipeline events and log key milestones
+        event_count = 0
+        final_result = None
+
+        async for event in pipeline_generator:
+            event_count += 1
+            event_type = event.get("type", "unknown")
+            message = event.get("message", "")
+
+            # Log important events
+            if event_type in ["status", "start", "complete", "error"]:
+                logger.info(f"📋 {event_type.upper()}: {message}")
+            elif event_type == "progress":
+                processed = event.get("processed", 0)
+                total = event.get("total", 100)
+                logger.info(f"⏳ PROGRESS: {processed}% - {message}")
+            elif event_type == "result":
+                final_result = event.get("data", {})
+                logger.info("🎯 RESULT: Pipeline completed with final results")
+
+            # Safety break to prevent infinite loops
+            if event_count > 50:
+                logger.warning(
+                    "⚠️  Pipeline generated more than 50 events, stopping for safety"
+                )
+                break
+
+        # Log final results
+        if final_result:
+            total_items = final_result.get("total_count", 0)
+            sources = final_result.get("sources", [])
+            logger.info(f"📊 FINAL RESULTS: {total_items} items processed")
+            logger.info(f"📊 SOURCES: {', '.join(sources) if sources else 'None'}")
+        else:
+            logger.warning("⚠️  No final result received from pipeline")
+
+        total_time = time.time() - start_time
+        end_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        logger.info("=" * 80)
+        logger.info("✅ SUCCESS: Pipeline cron job completed successfully")
+        logger.info(f"⏱️  Total execution time: {total_time:.2f}s")
+        logger.info(f"🏁 Job ended: {end_timestamp}")
+        logger.info("=" * 80)
+
+        return {
+            "status": "success",
+            "message": "Pipeline completed successfully",
+            "execution_time": f"{total_time:.2f}s",
+            "total_items": final_result.get("total_count", 0) if final_result else 0,
+            "sources": final_result.get("sources", []) if final_result else [],
+        }
+
+    except Exception as e:
+        total_time = time.time() - start_time
+        end_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        logger.error("=" * 80)
+        logger.error(f"❌ FAILURE: Pipeline cron job failed after {total_time:.2f}s")
+        logger.error(f"❌ Error: {e}")
+        logger.error(f"🏁 Job ended: {end_timestamp}")
+        logger.error("=" * 80)
+        logger.error("Full error traceback:", exc_info=True)
+        
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "status": "error",
+                "message": f"Pipeline failed: {str(e)}",
+                "execution_time": f"{total_time:.2f}s"
+            }
         )
 
 
