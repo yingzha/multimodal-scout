@@ -14,10 +14,12 @@ spec:
         autoscaling.knative.dev/maxScale: "10"
         # CPU allocation optimized for low traffic
         run.googleapis.com/cpu-throttling: "true"
+        # Cloud SQL connection
+        run.googleapis.com/cloudsql-instances: PROJECT_ID:REGION:multimodal-scout-db
     spec:
       serviceAccountName: multimodal-scout-backend@PROJECT_ID.iam.gserviceaccount.com
       containers:
-      - image: gcr.io/PROJECT_ID/multimodal-scout-backend:latest
+      - image: REGION-docker.pkg.dev/PROJECT_ID/multimodal-scout/backend:latest
         ports:
         - containerPort: 8000
         env:

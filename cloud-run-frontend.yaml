@@ -16,7 +16,7 @@ spec:
         run.googleapis.com/cpu-throttling: "true"
     spec:
       containers:
-      - image: gcr.io/PROJECT_ID/multimodal-scout-frontend:latest
+      - image: REGION-docker.pkg.dev/PROJECT_ID/multimodal-scout/frontend:latest
         ports:
         - containerPort: 3000
         env:

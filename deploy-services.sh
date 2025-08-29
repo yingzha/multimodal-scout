@@ -31,12 +31,7 @@ gcloud builds submit \
   --file Dockerfile.frontend \
   .
 
-# Build and push cron image
-echo "🏗️ Building cron image..."
-gcloud builds submit \
-  --tag $REGION-docker.pkg.dev/$PROJECT_ID/multimodal-scout/cron:latest \
-  --file Dockerfile.cron \
-  .
+# Cron service removed - using Cloud Scheduler → Backend /pipeline endpoint
 
 echo "✅ All images built and pushed successfully!"
 echo ""
@@ -83,30 +78,10 @@ gcloud run deploy multimodal-scout-frontend \
   --port 3000 \
   --allow-unauthenticated
 
-# Deploy cron job service (for scheduler to trigger)
-echo "⏰ Deploying cron job service..."
-gcloud run deploy multimodal-scout-cron \
-  --image $REGION-docker.pkg.dev/$PROJECT_ID/multimodal-scout/cron:latest \
-  --platform managed \
-  --region $REGION \
-  --service-account multimodal-scout-cron@$PROJECT_ID.iam.gserviceaccount.com \
-  --set-env-vars GOOGLE_CLOUD_PROJECT=$PROJECT_ID \
-  --set-env-vars DB_USER=scout_user \
-  --set-env-vars DB_NAME=multimodal_scout \
-  --set-env-vars INSTANCE_CONNECTION_NAME=$CONNECTION_NAME \
-  --add-cloudsql-instances $CONNECTION_NAME \
-  --cpu 1 \
-  --memory 512Mi \
-  --min-instances 0 \
-  --max-instances 1 \
-  --no-allow-unauthenticated
+# Cron service deployment removed - using Cloud Scheduler → Backend /pipeline endpoint
 
 # Get URLs
 FRONTEND_URL=$(gcloud run services describe multimodal-scout-frontend \
-  --region $REGION \
-  --format 'value(status.url)')
-
-CRON_URL=$(gcloud run services describe multimodal-scout-cron \
   --region $REGION \
   --format 'value(status.url)')
 
@@ -115,11 +90,11 @@ echo "✅ Complete deployment finished!"
 echo ""
 echo "🌐 Frontend URL: $FRONTEND_URL"
 echo "🖥️ Backend URL: $BACKEND_URL"
-echo "⏰ Cron URL: $CRON_URL"
+echo "⏰ Pipeline Endpoint: $BACKEND_URL/pipeline"
 echo ""
 echo "💡 Next steps:"
-echo "1. Set up Cloud Scheduler jobs (update URLs in cloud-scheduler-jobs.yaml)"
-echo "2. Run database migrations if needed"
+echo "1. Set up Cloud Scheduler jobs (replace HASH in cloud-scheduler-jobs.yaml)"
+echo "2. Run database migrations if needed" 
 echo "3. Test the application"
 echo ""
-echo "💰 Estimated cost: $7-10/month for <10 DAU"
+echo "💰 Estimated cost: $5-8/month for <10 DAU (reduced without cron service)"
