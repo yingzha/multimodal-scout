@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Deploy Cloud Run Services
-# Final deployment step
+# Build Images and Deploy Services to Google Cloud
+# Complete build and deployment process
 
 set -e
 
@@ -9,9 +9,37 @@ PROJECT_ID=${1:-"your-project-id"}
 REGION=${2:-"us-central1"}
 DB_INSTANCE_NAME="multimodal-scout-db"
 
-echo "🚀 Deploying Cloud Run services for Multimodal Scout"
+echo "🚀 Building images and deploying services for Multimodal Scout"
 echo "Project ID: $PROJECT_ID"
 echo "Region: $REGION"
+
+# Configure Docker for Artifact Registry
+echo "🔐 Configuring Docker authentication..."
+gcloud auth configure-docker $REGION-docker.pkg.dev
+
+# Build and push backend image
+echo "🏗️ Building backend image..."
+gcloud builds submit \
+  --tag $REGION-docker.pkg.dev/$PROJECT_ID/multimodal-scout/backend:latest \
+  --file Dockerfile.backend \
+  .
+
+# Build and push frontend image  
+echo "🏗️ Building frontend image..."
+gcloud builds submit \
+  --tag $REGION-docker.pkg.dev/$PROJECT_ID/multimodal-scout/frontend:latest \
+  --file Dockerfile.frontend \
+  .
+
+# Build and push cron image
+echo "🏗️ Building cron image..."
+gcloud builds submit \
+  --tag $REGION-docker.pkg.dev/$PROJECT_ID/multimodal-scout/cron:latest \
+  --file Dockerfile.cron \
+  .
+
+echo "✅ All images built and pushed successfully!"
+echo ""
 
 # Get Cloud SQL connection name
 CONNECTION_NAME="$PROJECT_ID:$REGION:$DB_INSTANCE_NAME"
@@ -83,7 +111,7 @@ CRON_URL=$(gcloud run services describe multimodal-scout-cron \
   --format 'value(status.url)')
 
 echo ""
-echo "✅ Deployment complete!"
+echo "✅ Complete deployment finished!"
 echo ""
 echo "🌐 Frontend URL: $FRONTEND_URL"
 echo "🖥️ Backend URL: $BACKEND_URL"

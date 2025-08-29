@@ -22,8 +22,7 @@ export GOOGLE_API_KEY="your-gemini-api-key-here"
 2. **Run the complete setup:**
 ```bash
 # Replace with your actual project ID
-./deploy.sh your-project-id us-central1
-./build-and-deploy.sh your-project-id us-central1  
+./setup-infrastructure.sh your-project-id us-central1
 ./deploy-services.sh your-project-id us-central1
 ```
 
@@ -112,8 +111,7 @@ Current setup auto-scales from 0 to handle traffic spikes:
 
 **Deploy new version:**
 ```bash
-./build-and-deploy.sh your-project-id
-./deploy-services.sh your-project-id
+./deploy-services.sh your-project-id us-central1
 ```
 
 **Database migrations:**
