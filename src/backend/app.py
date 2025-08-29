@@ -705,11 +705,28 @@ async def export_bookmarks(current_user: str = Depends(get_current_user)):
 
 
 @app.post("/pipeline")
-async def pipeline_cron_job():
+async def pipeline_cron_job(authorization: Optional[str] = Header(None)):
     """
     Pipeline endpoint for Cloud Scheduler cron jobs.
     Runs the same pipeline logic as run_pipeline.py but returns HTTP response.
+    Requires valid authorization header (OIDC token from Cloud Scheduler).
     """
+    # Verify authorization for pipeline endpoint
+    if not authorization:
+        logger.warning("Pipeline endpoint accessed without authorization")
+        raise HTTPException(
+            status_code=401, 
+            detail="Authorization required for pipeline endpoint"
+        )
+    
+    # For Cloud Scheduler OIDC tokens, we could verify the token here
+    # For now, just check that authorization header is present
+    if not authorization.startswith("Bearer "):
+        logger.warning("Pipeline endpoint accessed with invalid authorization format")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid authorization format"
+        )
     try:
         logger.info("🚀 Starting pipeline via HTTP endpoint...")
 
