@@ -1,12 +1,11 @@
-# API Documentation
+# Multimodal Scout API Documentation
 
-The Multimodal Scout backend provides a RESTful API built with FastAPI. All endpoints return JSON responses and follow standard HTTP status codes.
+RESTful API built with FastAPI for content discovery and bookmark management. All endpoints return JSON responses and follow standard HTTP status codes.
 
 ## Base URL
 
-```
-http://localhost:8000
-```
+- **Local Development**: `http://localhost:8000`
+- **Production**: `https://your-backend-service.region.run.app`
 
 ## Authentication
 
@@ -94,8 +93,9 @@ You can obtain a session token by using the `/api/auth/login` or `/api/auth/regi
 
 **GET /api/topics**
 - **Description**: Get the default interested topics configured in the backend
-- **Caching**: Cached for 30 minutes (client & server-side)
-- **Headers**: `Cache-Control: public, max-age=1800`
+- **Authentication**: Not required
+- **Caching**: Cached for 1 hour (client & server-side)
+- **Headers**: `Cache-Control: public, max-age=3600`
 - **Response**:
   ```json
   {
@@ -112,13 +112,16 @@ You can obtain a session token by using the `/api/auth/login` or `/api/auth/regi
 
 **POST /api/content/search**
 - **Description**: Search for content from various sources based on topics and time range
+- **Authentication**: Optional (guest users: 3 searches/day, authenticated: unlimited)
 - **Request Body**:
   ```json
   {
     "selectedDays": 7,
-    "topics": ["multimodal agents", "computer vision", "custom topic"],
+    "topics": ["multimodal agents", "computer vision"],
     "maxResults": 10,
-    "researchRatio": 0.5
+    "researchRatio": 0.5,
+    "sessionId": "optional-session-id",
+    "discoveryMode": false
   }
   ```
 - **Parameters**:
@@ -126,6 +129,8 @@ You can obtain a session token by using the `/api/auth/login` or `/api/auth/regi
   - `topics` (required): Array of keywords to search for
   - `maxResults` (optional): Maximum results to return (5-50, default: 10)
   - `researchRatio` (optional): Ratio of research vs industry content (0.0-1.0, default: 0.5)
+  - `sessionId` (optional): Session identifier for tracking
+  - `discoveryMode` (optional): Enable random content discovery (default: false)
 - **Response**:
   ```json
   {
@@ -145,23 +150,29 @@ You can obtain a session token by using the `/api/auth/login` or `/api/auth/regi
 
 **POST /api/content/search/stream**
 - **Description**: Streaming version of content search with real-time progress updates via Server-Sent Events (SSE)
+- **Authentication**: Optional (same rate limits as `/api/content/search`)
 - **Request Body**: Same as `/api/content/search`
 - **Response**: Server-Sent Events stream with progress updates and final result
 - **Content-Type**: `text/event-stream`
 - **Event Types**:
   - `status`: General status messages
-  - `progress`: Progress updates with percentage (0-100)
+  - `start`: Search started
+  - `progress`: Progress updates during processing
+  - `complete`: Step completion
+  - `info`/`warning`: Informational messages
   - `error`: Error occurred
   - `result`: Final search results
 - **Example Events**:
   ```
-  data: {"type": "status", "message": "Starting search..."}
-  data: {"type": "progress", "message": "Generating summaries...", "processed": 50, "total": 100}
-  data: {"type": "result", "data": {"items": [...], "total_count": 10}}
+  data: {"type": "start", "message": "Starting content search..."}
+  data: {"type": "progress", "message": "Generating summaries..."}
+  data: {"type": "result", "data": {"items": [...], "total_count": 10, "sources": [...]}}
+  data: [DONE]
   ```
 
 **POST /api/content**
 - **Description**: Create content item from user-provided link with automatic processing
+- **Authentication**: Required
 - **Request Body**:
   ```json
   {
@@ -190,8 +201,11 @@ You can obtain a session token by using the `/api/auth/login` or `/api/auth/regi
 #### Collection Operations
 
 **GET /api/bookmarks**
-- **Description**: Get all user bookmarks
-- **Authentication**: Required.
+- **Description**: Get all user bookmarks with optional filtering
+- **Authentication**: Required
+- **Query Parameters** (optional):
+  - `limit` (default: 100): Maximum number of bookmarks to return
+  - `days`: Filter bookmarks from the last N days
 - **Response**: Same format as content search but only bookmarked items
   ```json
   {
@@ -275,27 +289,6 @@ You can obtain a session token by using the `/api/auth/login` or `/api/auth/regi
   ```
 - **Error Response** (404): `{"detail": "Bookmark not found"}`
 
-#### Legacy Endpoints (Deprecated)
-
-**DELETE /api/bookmarks**
-- **Description**: Remove a bookmark by URL (deprecated - use DELETE /api/bookmarks/{id})
-- **Authentication**: Required.
-- **Query Parameters**: 
-  - `link` (required): URL of the bookmark to remove
-
-**GET /api/bookmarks/check**
-- **Description**: Check if a URL is bookmarked (deprecated)
-- **Authentication**: Required.
-- **Query Parameters**:
-  - `link` (required): URL to check
-
-**PUT /api/bookmarks/summary**
-- **Description**: Update bookmark summary by URL (deprecated - use PATCH /api/bookmarks/{id})
-- **Authentication**: Required.
-- **Query Parameters**:
-  - `link` (required): URL of the bookmark
-  - `summary` (required): New summary text
-
 #### Export Operations
 
 **GET /api/bookmarks/export**
@@ -306,15 +299,20 @@ You can obtain a session token by using the `/api/auth/login` or `/api/auth/regi
 - **Headers**: `Content-Disposition: attachment; filename="multimodal_scout_bookmarks_{timestamp}.xlsx"`
 
 **GET /api/bookmarks/export/chrome**
-- **Description**: Export bookmarks in Chrome-compatible HTML format
-- **Authentication**: Required.
-- **Response**: HTML file that can be imported into Chrome browser
-- **Content-Type**: `text/html`
+- **Description**: Export bookmarks in Chrome-compatible HTML format with optional filtering
+- **Authentication**: Required
+- **Query Parameters** (optional):
+  - `selected_tags`: Comma-separated list of source tags to filter
+  - `search_query`: Text search filter for title/summary
+  - `export_format`: `html` (default) or `markdown`
+- **Response**: HTML or Markdown file download
+- **Content-Type**: `text/html` or `text/markdown`
 - **Headers**: `Content-Disposition: attachment; filename="multimodal_scout_chrome_bookmarks_{timestamp}.html"`
 - **Features**:
   - Creates "Multimodal Scout" folder with "Research" and "Industry" subfolders
   - Automatically categorizes bookmarks based on source tags
   - Compatible with Chrome's bookmark import feature
+  - Support for filtered exports based on current view
 
 
 ## Interactive Documentation
@@ -343,8 +341,8 @@ Error responses include details:
 
 The API implements rate limiting for guest users to ensure fair usage:
 
-- **Authenticated Users**: No rate limits
-- **Guest Users**: 3 searches per day (rate limited by IP address)
+- **Authenticated Users**: Unlimited access to all endpoints
+- **Guest Users**: 3 searches per day for `/api/content/search` and `/api/content/search/stream` (rate limited by IP address)
 - **Window**: 24-hour rolling window
 
 ### Rate Limit Response
@@ -358,8 +356,14 @@ When rate limit is exceeded, the API returns:
 {
   "error": "rate_limit_exceeded",
   "message": "Daily search limit exceeded for guest users (3 searches/day). Please register for unlimited access.",
+  "reset_in_hours": 12.5,
   "current_usage": 3,
-  "daily_limit": 3,
-  "reset_time": 1673942400
+  "daily_limit": 3
 }
 ```
+
+### Hybrid Access Model
+
+The API supports both authenticated and guest access:
+- **Guest Access**: Limited searches per day, no bookmark management
+- **Authenticated Access**: Unlimited searches, full bookmark management, export capabilities
