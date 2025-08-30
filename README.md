@@ -34,13 +34,30 @@ A smart content discovery platform that automatically finds, curates, and helps 
     docker-compose up -d
     ```
 
+    This starts 4 services:
+    - **PostgreSQL**: Database
+    - **Backend**: FastAPI server  
+    - **Frontend**: Next.js application
+    - **Cron**: Automated pipeline (runs every 30 minutes)
+
     **Note:** On first run, the database tables will be automatically created when the backend starts. If you encounter any database connection issues, ensure PostgreSQL is fully started before the backend attempts to connect.
 
 3.  **Open Your Browser:**
     - **Frontend:** http://localhost:3000
     - **API Docs:** http://localhost:8000/docs
 
-The system will automatically start scraping and processing content in the background.
+4.  **Monitor Pipeline Automation:**
+    ```bash
+    # View cron service logs
+    docker-compose logs -f cron
+    
+    # Manually trigger pipeline
+    curl -X POST "http://localhost:8000/pipeline" \
+      -H "Authorization: Bearer test-token" \
+      -H "Content-Type: application/json"
+    ```
+
+The system will automatically start scraping and processing content every 30 minutes.
 
 ## Environment Configuration
 

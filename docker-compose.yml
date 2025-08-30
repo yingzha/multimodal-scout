@@ -39,7 +39,33 @@ services:
         python -m uvicorn src.backend.app:app --host 0.0.0.0 --port 8000 --reload
       "
 
-  # Cron service removed - using backend /pipeline endpoint with manual triggers in local dev
+  cron:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    env_file:
+      - .env
+    volumes:
+      - ./src:/app/src
+      - ./crontab:/etc/cron.d/multimodal-scout
+      - ./cron_env.sh:/app/cron_env.sh
+      - cron_logs:/var/log
+    command: >
+      sh -c "
+        echo '🕐 Starting cron service...' &&
+        apt-get update -qq && apt-get install -y -qq cron &&
+        chmod 0644 /etc/cron.d/multimodal-scout &&
+        chmod +x /app/cron_env.sh &&
+        mkdir -p /var/log && touch /var/log/cron.log &&
+        crontab /etc/cron.d/multimodal-scout &&
+        echo '✅ Pipeline will run every 30 minutes' &&
+        cron && tail -f /var/log/cron.log
+      "
 
   frontend:
     build:
@@ -58,3 +84,4 @@ services:
 
 volumes:
   postgres_data:
+  cron_logs:
