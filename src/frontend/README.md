@@ -2,6 +2,10 @@
 
 Modern Next.js web interface for Multimodal Scout. Provides real-time content discovery and bookmark management.
 
+> For complete setup and usage instructions, see [docs/development.md](../../docs/development.md)  
+> For API documentation, see [docs/api.md](../../docs/api.md)  
+> For automated pipeline details, see [docs/cron.md](../../docs/cron.md)
+
 ## 🚀 Key Features
 
 - 🔐 **User Authentication**: Secure login/registration with session management
@@ -28,5 +32,3 @@ Modern Next.js web interface for Multimodal Scout. Provides real-time content di
 - REST API calls for standard operations
 - Server-Sent Events for real-time progress updates
 - Context providers for shared state management
-
-For development setup, see the main [Development Guide](../../docs/development.md).
