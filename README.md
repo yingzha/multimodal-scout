@@ -28,9 +28,6 @@ A smart content discovery platform that automatically finds, curates, and helps 
    
    # Configure environment
    ./scripts/configure-env.sh local
-   
-   # Add your API key
-   echo "GOOGLE_API_KEY=your_actual_api_key" >> .env
    ```
 
 2. **Start All Services:**
