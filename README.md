@@ -139,6 +139,8 @@ Switch between environments easily:
 
 See the [Development Guide](docs/development.md) for detailed setup and workflow instructions.
 
-## 📄 License
+## ☕ Support
 
-MIT License - see [LICENSE](LICENSE) for details.
+If you find this project helpful, consider buying me a coffee to support continued development!
+
+[![Buy Me A Coffee](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/yingzh)
