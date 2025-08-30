@@ -25,10 +25,13 @@ EXPOSE 8080
 # For production: build and start standalone server
 CMD if [ "$NODE_ENV" = "production" ]; then \
       npm run build && \
+      cp -r public .next/standalone/ 2>/dev/null || true && \
+      cp -r .next/static .next/standalone/.next/ 2>/dev/null || true && \
       addgroup -g 1001 -S nodejs && \
       adduser -S nextjs -u 1001 && \
       chown -R nextjs:nodejs /app && \
-      su-exec nextjs node .next/standalone/server.js; \
+      cd .next/standalone && \
+      su-exec nextjs env PORT=${PORT:-8080} HOSTNAME=0.0.0.0 node server.js; \
     else \
       npm run dev -- -p ${PORT:-3000}; \
     fi

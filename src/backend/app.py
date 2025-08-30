@@ -891,6 +891,7 @@ async def pipeline_cron_job(authorization: Optional[str] = Header(None)):
 async def export_chrome_bookmarks(
     selected_tags: str = None,
     search_query: str = None,
+    export_format: str = "html",
     current_user: str = Depends(get_current_user),
 ):
     """Export bookmarks in Chrome-compatible HTML format with optional filtering"""
@@ -899,7 +900,7 @@ async def export_chrome_bookmarks(
         from html import escape
         from io import StringIO
 
-        logger.info("Starting Chrome bookmark export")
+        logger.info(f"Starting bookmark export in {export_format} format")
 
         # Get all bookmarks
         bookmarks = db_manager.get_bookmarks(current_user)
@@ -941,6 +942,42 @@ async def export_chrome_bookmarks(
 
             bookmarks = filtered_bookmarks
             logger.info(f"Filtered bookmarks: {len(bookmarks)} items")
+
+        if export_format == "markdown":
+            # Generate Markdown content
+            markdown_buffer = StringIO()
+            markdown_buffer.write("# Bookmarks\n\n")
+
+            for bookmark in bookmarks:
+                title = (
+                    (bookmark.title or "Untitled")
+                    .replace("\n", " ")
+                    .replace("\r", " ")
+                    .strip()
+                )
+                summary = (
+                    (bookmark.summary or "No description available.")
+                    .replace("\n", " ")
+                    .replace("\r", " ")
+                    .strip()
+                )
+                markdown_buffer.write(f"## {title}\n\n")
+                markdown_buffer.write(f"{summary}\n\n")
+
+            # Generate filename with timestamp
+            timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"multimodal_scout_bookmarks_{timestamp_str}.md"
+
+            logger.info(f"Successfully exported {len(bookmarks)} bookmarks to Markdown")
+
+            markdown_content = markdown_buffer.getvalue()
+            markdown_buffer.close()
+
+            return Response(
+                content=markdown_content.encode("utf-8"),
+                media_type="text/markdown",
+                headers={"Content-Disposition": f"attachment; filename={filename}"},
+            )
 
         # Group bookmarks by source for subfolder organization
         research_bookmarks = []
@@ -987,8 +1024,11 @@ async def export_chrome_bookmarks(
                 .strip()
             )
             url = escape(bookmark.link)
+            summary = escape(
+                (bookmark.summary or "").replace("\n", " ").replace("\r", " ").strip()
+            )
             html_buffer.write(
-                f'            <DT><A HREF="{url}" ADD_DATE="{add_date}">{title}</A>\n'
+                f'            <DT><A HREF="{url}" ADD_DATE="{add_date}" DESCRIPTION="{summary}">{title}</A>\n'
             )
 
         html_buffer.write(
@@ -1012,8 +1052,11 @@ async def export_chrome_bookmarks(
                 .strip()
             )
             url = escape(bookmark.link)
+            summary = escape(
+                (bookmark.summary or "").replace("\n", " ").replace("\r", " ").strip()
+            )
             html_buffer.write(
-                f'            <DT><A HREF="{url}" ADD_DATE="{add_date}">{title}</A>\n'
+                f'            <DT><A HREF="{url}" ADD_DATE="{add_date}" DESCRIPTION="{summary}">{title}</A>\n'
             )
 
         html_buffer.write(
@@ -1041,9 +1084,9 @@ async def export_chrome_bookmarks(
         )
 
     except Exception as e:
-        logger.error(f"Failed to export Chrome bookmarks: {e}", exc_info=True)
+        logger.error(f"Failed to export bookmarks: {e}", exc_info=True)
         raise HTTPException(
-            status_code=500, detail=f"Failed to export Chrome bookmarks: {str(e)}"
+            status_code=500, detail=f"Failed to export bookmarks: {str(e)}"
         )
 
 
