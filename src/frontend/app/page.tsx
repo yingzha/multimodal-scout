@@ -7,10 +7,10 @@ import { useAuth } from './contexts/AuthContext'
 
 export default function Home() {
   const { user, sessionToken, isAuthenticated, isLoading: authLoading, login, logout } = useAuth()
-  
+
   // API configuration
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-  
+
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [selectedDays, setSelectedDays] = useState(1)
   const [defaultTopics, setDefaultTopics] = useState<string[]>([])
@@ -122,7 +122,7 @@ export default function Home() {
     }
   }
 
-  
+
 
   // Fetch default topics from backend
   const fetchDefaultTopics = async () => {
@@ -273,7 +273,7 @@ export default function Home() {
         const summaryMatch = item.summary?.toLowerCase().includes(query)
         if (!titleMatch && !summaryMatch) return false
       }
-      
+
       // Tag filter
       if (selectedTags.size === 0) return true
       // Check if item matches any selected tag
@@ -336,18 +336,18 @@ export default function Home() {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       const params = new URLSearchParams()
-      
+
       const days = searchDays !== undefined ? searchDays : bookmarkSearchDays
       const limit = searchLimit !== undefined ? searchLimit : bookmarkSearchLimit
-      
+
       if (days !== null && days !== undefined) {
         params.append('days', days.toString())
       }
       params.append('limit', limit.toString())
-      
+
       const url = `${apiUrl}/api/bookmarks?${params.toString()}`
       console.log('Fetching bookmarks from:', url)
-      
+
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${sessionToken}`,
@@ -676,21 +676,21 @@ export default function Home() {
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-      
+
       // Build URL with filter parameters based on current state
       const params = new URLSearchParams()
-      
+
       // Add selected tags if any
       if (selectedTags.size > 0) {
         params.append('selected_tags', Array.from(selectedTags).join(','))
       }
-      
+
       // Add search query if any (use bookmark search query when in bookmark mode)
       const searchQuery = showBookmarks ? bookmarkSearchQuery : homepageSearchQuery
       if (searchQuery.trim()) {
         params.append('search_query', searchQuery)
       }
-      
+
       // Export HTML format
       params.append('export_format', 'html')
 
@@ -1155,6 +1155,18 @@ export default function Home() {
             </div>
           )}
 
+          {/* Bookmark mode info message */}
+          {showBookmarks && (
+            <div className="mt-6 text-sm text-gray-600 border border-gray-200 p-3 rounded-lg">
+              <div className="flex items-start gap-2">
+                <span className="flex-shrink-0">ℹ️</span>
+                <div>
+                  Search settings are disabled in this view as they only apply to content discovery. Use the controls above to filter your saved bookmarks.
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Settings and Bookmarks Icons */}
           <div className="flex justify-between items-center mt-6 relative z-10">
             <div className="flex items-center gap-4">
@@ -1191,7 +1203,7 @@ export default function Home() {
                 </svg>
               </button>
               <ThemeToggle />
-              
+
               {isAuthenticated ? (
                 <div className="relative" ref={userMenuRef}>
                   <button
@@ -1203,7 +1215,7 @@ export default function Home() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
                   </button>
-                  
+
                   {showUserMenu && (
                     <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-3 px-4 z-50">
                       <div className="flex items-center gap-3 mb-3 pb-3 border-b border-gray-100">
@@ -1387,7 +1399,7 @@ export default function Home() {
                 <div className="text-sm text-gray-600">
                   {(() => {
                     const filteredItems = filterItems(fetchedItems, homepageSearchQuery)
-                    
+
                     const hasFilters = selectedTags.size > 0 || homepageSearchQuery.trim()
                     if (hasFilters) {
                       const filterParts = []
@@ -1592,7 +1604,7 @@ export default function Home() {
                 <div className="text-sm text-gray-600">
                   {(() => {
                     const filteredItems = filterItems(bookmarkedCards, bookmarkSearchQuery)
-                    
+
                     const hasFilters = selectedTags.size > 0 || bookmarkSearchQuery.trim()
                     if (hasFilters) {
                       const filterParts = []
