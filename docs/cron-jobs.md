@@ -1,60 +1,84 @@
-# Cron Jobs & Monitoring
+# Automation & Pipeline Guide
 
-Multimodal Scout uses Docker-based cron jobs to automatically collect content from external sources. This document covers the automated content collection system and monitoring capabilities.
+Multimodal Scout automatically discovers, processes, and curates content using an intelligent pipeline system. This guide covers both local development automation and cloud deployment.
 
-## Overview
+## 🤖 How It Works
 
-The cron service runs in a separate Docker container and automatically:
-- Runs the complete content processing pipeline every 2 hours
-- Fetches content from all sources (Hacker News, Substack, Hugging Face) 
-- Generates AI summaries for new content
-- Creates embeddings for semantic search
-- Applies filtering and content processing
-- Saves everything to the database with optimized batch operations
+The automated pipeline runs every 30 minutes and:
+- 🔍 **Discovers** content from Hacker News, Substack, and Hugging Face
+- 🤖 **Processes** with Google Gemini AI for intelligent summaries  
+- 🏷️ **Categorizes** and tags content automatically
+- 💾 **Stores** in PostgreSQL with semantic search embeddings
+- 📊 **Reports** progress with real-time logging
 
-## Local Development Pipeline Testing
+## 🛠️ Local Development
 
-For local development, you can manually trigger the pipeline to test content collection:
-
-### **Manual Pipeline Trigger**
+### Automated Mode (Default)
 ```bash
-# Start local development environment
+# Start services (includes automated cron)
 docker-compose up -d
 
-# Trigger pipeline manually to test data collection
+# Monitor pipeline execution
+docker-compose logs -f cron
+```
+
+### Manual Triggers
+```bash
+# Trigger pipeline immediately
 curl -X POST "http://localhost:8000/pipeline" \
-  -H "Authorization: Bearer test-token" \
-  -H "Content-Type: application/json"
-```
+  -H "Authorization: Bearer test-token"
 
-### **Check Results**
-```bash
-# View backend logs to see pipeline progress
-docker-compose logs -f backend
+# Check database content
+docker-compose exec postgres psql -U scout_user -d multimodal_scout \
+  -c "SELECT COUNT(*) FROM sources;"
 
-# Check database for new content
-docker-compose exec postgres psql -U scout_user -d multimodal_scout -c "SELECT COUNT(*) FROM sources;"
-```
-
-### **API Testing**
-```bash
-# Test search with collected data
+# Test search functionality  
 curl -X POST "http://localhost:8000/api/content/search" \
   -H "Content-Type: application/json" \
-  -d '{
-    "topics": ["AI"], 
-    "selectedDays": 1, 
-    "maxResults": 5,
-    "sessionId": "test",
-    "discoveryMode": false
-  }'
+  -d '{"topics": ["AI"], "selectedDays": 1, "maxResults": 5}'
 ```
 
-## Schedule
+### Monitoring
+```bash
+# Watch real-time pipeline logs
+docker-compose logs -f cron
 
-| Job | Frequency | Schedule Expression | Description |
-|-----|-----------|---------------------|-------------|
-| Full Pipeline | Every 30 minutes | `*/30 * * * *` | Complete content processing: scraping + AI processing + database storage |
+# View all service status
+docker-compose ps
+
+# Check specific service logs
+docker-compose logs -f backend
+docker-compose logs -f frontend
+```
+
+## ☁️ Cloud Deployment
+
+In production, the pipeline runs via Google Cloud Scheduler:
+
+```bash
+# Deploy with automated pipeline
+./scripts/configure-env.sh cloud
+./deploy-services.sh YOUR_PROJECT_ID us-central1
+```
+
+**Cloud Features:**
+- ⏰ **Scheduled**: Runs every 30 minutes via Cloud Scheduler  
+- 📊 **Monitored**: Cloud Logging and monitoring built-in
+- 🔒 **Secure**: OIDC authentication for scheduler → backend calls
+- 💰 **Cost-optimized**: Scales to zero when not processing
+
+**Monitoring:**
+- View logs in [Google Cloud Console](https://console.cloud.google.com/logs)
+- Check scheduler jobs in Cloud Scheduler
+- Monitor via Cloud Run service metrics
+
+## 📋 Schedule
+
+**Both Environments:**
+- **Frequency**: Every 30 minutes  
+- **Cron Expression**: `*/30 * * * *`
+- **Typical Duration**: 30-90 seconds per run
+- **Content Sources**: Hacker News, Substack, Hugging Face Papers
 
 ## Architecture
 

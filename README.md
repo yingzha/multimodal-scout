@@ -1,131 +1,134 @@
 # Multimodal Scout
 
-A smart content discovery platform that automatically finds, curates, and helps you bookmark the latest multimodal AI research papers and industry articles. Built with FastAPI, Next.js, and PostgreSQL, and powered by Google Gemini AI.
+A smart content discovery platform that automatically finds, curates, and helps you bookmark the latest multimodal AI research papers and industry articles. Built with FastAPI, Next.js, and PostgreSQL, powered by Google Gemini AI.
 
 ![Multimodal Scout Interface](./assets/homepage.png)
 
-## Key Features
+## ✨ Features
 
-- 🧠 **Intelligent Content Curation**: Automatically discovers, processes, and summarizes the latest multimodal AI research and industry articles from various sources using Google Gemini AI. Includes the ability to "bring your own URL" for instant processing.
-- 🔍 **Advanced Filtering & Search**: Find exactly what you need with smart balancing between research and industry, multi-tag filtering, real-time text search, and a "Discovery Mode" for serendipitous content exploration.
-- 📚 **Personalized Experience**: Secure user authentication, private bookmark management with editing and export, and real-time progress updates for a seamless user journey.
-- 🌙 **Modern & Responsive Interface**: Enjoy a clean UI with dark mode support, designed for intuitive content discovery and management.
+- 🤖 **AI-Powered Curation**: Auto-discovers and summarizes multimodal AI research and industry content
+- 🔍 **Smart Search**: Advanced filtering, real-time search, and "Discovery Mode" for exploration  
+- 📚 **Personal Library**: Secure bookmarking with editing, export, and management
+- 🌙 **Modern UI**: Clean, responsive interface with dark mode support
+- ⚡ **Real-time Updates**: Live content processing with progress tracking
 
-## Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
 - Docker and Docker Compose
-- Google Gemini API key
+- [Google Gemini API key](https://aistudio.google.com/app/apikey)
 
-### Installation
+### Local Development
 
-1.  **Clone and Configure:**
-    ```bash
-    git clone https://github.com/yingzha/multimodal-scout.git
-    cd multimodal-scout
-    
-    # Configure for local development
-    ./scripts/configure-env.sh local
-    echo "GOOGLE_API_KEY=your_api_key_here" >> .env
-    ```
+1. **Clone & Setup:**
+   ```bash
+   git clone https://github.com/yingzha/multimodal-scout.git
+   cd multimodal-scout
+   
+   # Configure environment
+   ./scripts/configure-env.sh local
+   
+   # Add your API key
+   echo "GOOGLE_API_KEY=your_actual_api_key" >> .env
+   ```
 
-2.  **Start Services:**
-    ```bash
-    docker-compose up -d
-    ```
+2. **Start All Services:**
+   ```bash
+   docker-compose up -d
+   ```
+   
+   This launches:
+   - 🗄️ **PostgreSQL** (port 5432)
+   - 🖥️ **Backend API** (port 8000) 
+   - 🌐 **Frontend** (port 3000)
+   - ⏰ **Cron Pipeline** (every 30 min)
 
-    This starts 4 services:
-    - **PostgreSQL**: Database
-    - **Backend**: FastAPI server  
-    - **Frontend**: Next.js application
-    - **Cron**: Automated pipeline (runs every 30 minutes)
+3. **Access Applications:**
+   - **Main App**: http://localhost:3000
+   - **API Docs**: http://localhost:8000/docs
 
-    **Note:** On first run, the database tables will be automatically created when the backend starts. If you encounter any database connection issues, ensure PostgreSQL is fully started before the backend attempts to connect.
+4. **Monitor & Control:**
+   ```bash
+   # Watch pipeline automation
+   docker-compose logs -f cron
+   
+   # Manual pipeline trigger
+   curl -X POST "http://localhost:8000/pipeline" \
+     -H "Authorization: Bearer test-token"
+   
+   # View all services
+   docker-compose ps
+   ```
 
-3.  **Open Your Browser:**
-    - **Frontend:** http://localhost:3000
-    - **API Docs:** http://localhost:8000/docs
+🎉 **Ready!** The system auto-discovers and processes content every 30 minutes.
 
-4.  **Monitor Pipeline Automation:**
-    ```bash
-    # View cron service logs
-    docker-compose logs -f cron
-    
-    # Manually trigger pipeline
-    curl -X POST "http://localhost:8000/pipeline" \
-      -H "Authorization: Bearer test-token" \
-      -H "Content-Type: application/json"
-    ```
+## ☁️ Cloud Deployment
 
-The system will automatically start scraping and processing content every 30 minutes.
+Deploy to Google Cloud Platform with auto-scaling and cost optimization:
 
-## Environment Configuration
+### Prerequisites
+- [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) installed and authenticated
+- Google Cloud project with billing enabled
+- [Required APIs enabled](./GOOGLE_CLOUD_SETUP.md)
 
-Switch between local development and cloud deployment configurations:
+### Deploy to Production
+
+1. **Prepare Environment:**
+   ```bash
+   # Configure for cloud deployment
+   ./scripts/configure-env.sh cloud
+   
+   # Set up infrastructure (run once)
+   ./setup-infrastructure.sh YOUR_PROJECT_ID us-central1
+   ```
+
+2. **Deploy Services:**
+   ```bash
+   # Build and deploy all services
+   ./deploy-services.sh YOUR_PROJECT_ID us-central1
+   ```
+
+3. **Access Your App:**
+   - Frontend URL will be displayed after deployment
+   - Automatic HTTPS with custom domain support
+   - Built-in monitoring and logging
+
+### Cloud Features
+- ⚡ **Auto-scaling**: 0 to 10+ instances based on traffic
+- 💰 **Cost-optimized**: ~$5-8/month for <10 DAU
+- 🔒 **Secure**: IAM, Cloud SQL, and encrypted connections
+- 📊 **Monitored**: Cloud Scheduler + Logging + Metrics
+- 🚀 **Fast**: Global CDN and optimized builds
+
+## 🔧 Configuration
+
+Switch between environments easily:
 
 ```bash
-# Configure for local development
+# Local development
 ./scripts/configure-env.sh local
 
-# Configure for cloud deployment  
+# Cloud deployment  
 ./scripts/configure-env.sh cloud
 ```
 
-**Local Development:**
-- Uses Docker services for PostgreSQL
-- Frontend connects to `http://localhost:8000` 
-- Suitable for development and testing
+## 📚 Documentation
 
-**Cloud Deployment:**
-- Uses Google Cloud SQL for database
-- Frontend connects to actual Cloud Run backend URL
-- Configured by deployment script with dynamic values
+- 🛠️ **[Development Guide](docs/development.md)** - Local setup, testing, and workflows
+- 🔗 **[API Reference](docs/api.md)** - Complete REST API documentation
+- ⏰ **[Automation Guide](docs/cron-jobs.md)** - Pipeline and content processing
+- ☁️ **[Cloud Setup](GOOGLE_CLOUD_SETUP.md)** - Google Cloud deployment guide
 
-## Architecture Overview
+## 🤝 Contributing
 
-The application runs in separate, containerized services:
+1. Fork the repository
+2. Create feature branch: `git checkout -b feature/amazing-feature`
+3. Commit changes: `git commit -m 'Add amazing feature'`
+4. Push branch: `git push origin feature/amazing-feature`
+5. Open a Pull Request
 
-- **Frontend:** A **Next.js** application providing the user interface.
-- **Backend:** A **FastAPI** server that handles API requests, content processing, and AI integration.
-- **Database:** A **PostgreSQL** instance for persistent storage of bookmarks and cached data.
-- **Cron:** A scheduled service for automated, periodic content scraping.
+See the [Development Guide](docs/development.md) for detailed setup and workflow instructions.
 
-```
-Frontend (Next.js)          Backend (FastAPI)           External Services
-       ↓                           ↓                            ↓
-┌─────────────┐             ┌─────────────┐              ┌─────────────┐
-│   Web UI    │    SSE      │   API       │              │ Google      │
-│  (React)    │ ←────────→  │  Endpoints  │ ←──────────→ │ Gemini AI   │
-└─────────────┘             └─────────────┘              └─────────────┘
-                                   ↓                            ↑
-                            ┌─────────────┐              ┌─────────────┐
-                            │  AI Engine  │              │   Content   │
-                            │             │ ←──────────→ │   Sources   │
-                            └─────────────┘              └─────────────┘
-                                   ↓
-                            ┌─────────────┐      ┌─────────────┐
-                            │ PostgreSQL  │      │ Cron Jobs   │
-                            │ Database    │ ←──→ │ (Docker)    │
-                            └─────────────┘      └─────────────┘
-```
+## 📄 License
 
-## Developer Documentation
-
-For more detailed information on development, deployment, and specific service architecture, please see the READMEs in the service directories:
-
-- **📖 [Backend README](src/backend/README.md)** - API architecture, database operations, and development commands
-- **🛠 [Frontend README](src/frontend/README.md)** - React/Next.js implementation and UI components
-- **🔗 [API Documentation](docs/api.md)** - Complete REST API reference
-- **⏰ [Cron Job Docs](docs/cron-jobs.md)** - Automated content scraping configuration
-
-## Contributing
-
-1.  Fork the repository.
-2.  Create your feature branch (`git checkout -b feature/amazing-feature`).
-3.  Commit your changes (`git commit -m 'Add some amazing feature'`).
-4.  Push to the branch (`git push origin feature/amazing-feature`).
-5.  Open a Pull Request.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) for details.

@@ -1,6 +1,72 @@
-# Development Workflow Guide
+# Development Guide
 
-This guide provides a streamlined workflow for developers actively working on the Multimodal Scout project. For initial setup, see the root [README.md](../README.md).
+Complete guide for developing Multimodal Scout. For quick setup, see the main [README.md](../README.md).
+
+## 🚀 Initial Setup
+
+### Prerequisites
+- Docker and Docker Compose
+- [Google Gemini API key](https://aistudio.google.com/app/apikey)
+
+### Quick Start
+```bash
+git clone https://github.com/yingzha/multimodal-scout.git
+cd multimodal-scout
+
+# Configure environment
+./scripts/configure-env.sh local
+echo "GOOGLE_API_KEY=your_actual_api_key" >> .env
+
+# Start all services
+docker-compose up -d
+
+# Verify everything works
+curl http://localhost:8000/health
+curl http://localhost:3000
+```
+
+## 🛠️ Common Commands
+
+### Environment Management
+```bash
+# Switch to local development
+./scripts/configure-env.sh local
+
+# Switch to cloud deployment  
+./scripts/configure-env.sh cloud
+```
+
+### Service Management  
+```bash
+# Start all services
+docker-compose up -d
+
+# View service status
+docker-compose ps
+
+# View logs
+docker-compose logs -f [service]     # Specific service
+docker-compose logs -f               # All services
+
+# Stop services
+docker-compose down
+
+# Rebuild after dependency changes
+docker-compose up -d --build [service]
+```
+
+### Pipeline Control
+```bash
+# Watch automated pipeline (every 30 min)
+docker-compose logs -f cron
+
+# Manual pipeline trigger
+curl -X POST localhost:8000/pipeline \
+  -H "Authorization: Bearer test-token"
+
+# Check pipeline status
+curl localhost:8000/health
+```
 
 ## Making Changes
 
