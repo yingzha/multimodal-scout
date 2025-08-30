@@ -854,9 +854,14 @@ export default function Home() {
       const allTopics = [...defaultTopics, ...customTopics]
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`
+      }
+
       const response = await fetch(`${apiUrl}/api/content/search/stream`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ selectedDays, topics: allTopics, maxResults, researchRatio, sessionId, discoveryMode })
       })
 

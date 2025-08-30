@@ -74,10 +74,9 @@ gcloud run deploy multimodal-scout-frontend \
   --set-env-vars NEXT_PUBLIC_API_URL=$BACKEND_URL \
   --set-env-vars NODE_ENV=production \
   --cpu 1 \
-  --memory 256Mi \
+  --memory 1Gi \
   --min-instances 0 \
   --max-instances 5 \
-  --port 3000 \
   --allow-unauthenticated
 
 # Cron service deployment removed - using Cloud Scheduler → Backend /pipeline endpoint

@@ -17,18 +17,18 @@ COPY src/frontend/ ./
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
-# Expose port
-EXPOSE 3000
+# Expose port (Cloud Run will set the PORT environment variable)
+EXPOSE 8080
 
 # Conditional build and start based on NODE_ENV
 # For development: just start dev server
-# For production: build and start production server
+# For production: build and start standalone server
 CMD if [ "$NODE_ENV" = "production" ]; then \
       npm run build && \
       addgroup -g 1001 -S nodejs && \
       adduser -S nextjs -u 1001 && \
       chown -R nextjs:nodejs /app && \
-      su-exec nextjs npm start; \
+      su-exec nextjs node .next/standalone/server.js; \
     else \
-      npm run dev; \
+      npm run dev -- -p ${PORT:-3000}; \
     fi

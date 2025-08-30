@@ -2,7 +2,7 @@
 
 A smart content discovery platform that automatically finds, curates, and helps you bookmark the latest multimodal AI research papers and industry articles. Built with FastAPI, Next.js, and PostgreSQL, powered by Google Gemini AI.
 
-![Multimodal Scout Interface](./assets/homepage.png)
+![Multimodal Scout Interface](./assets/screenshot.png)
 
 ## ✨ Features
 
