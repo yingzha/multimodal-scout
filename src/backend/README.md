@@ -2,6 +2,10 @@
 
 FastAPI-based backend service for Multimodal Scout. Handles content discovery, AI processing, and user management.
 
+> For complete setup and usage instructions, see [docs/development.md](../../docs/development.md)  
+> For API documentation, see [docs/api.md](../../docs/api.md)  
+> For automated pipeline details, see [docs/cron.md](../../docs/cron.md)
+
 ## 🚀 Key Features
 
 - 🤖 **AI-Powered Processing**: Google Gemini integration for content summarization
@@ -10,7 +14,7 @@ FastAPI-based backend service for Multimodal Scout. Handles content discovery, A
 - 📊 **Real-time Updates**: Server-Sent Events for live progress tracking
 - 🗄️ **PostgreSQL Integration**: Robust data storage with automated migrations
 
-## 🛠️ Development Commands
+## 🛠️ Backend-Specific Commands
 
 ### Database Management
 ```bash
