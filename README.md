@@ -65,6 +65,53 @@ A smart content discovery platform that automatically finds, curates, and helps 
    ./deploy-services.sh YOUR_PROJECT_ID us-central1
    ```
 
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                            Frontend (Next.js)                           │ 
+│                     Real-time UI + Authentication                       │
+└─────────────────────────┬───────────────────────────────────────────────┘
+                          │ REST API + SSE
+┌─────────────────────────▼───────────────────────────────────────────────┐
+│                            Backend (FastAPI)                            │
+│                    API Endpoints + Pipeline Logic                       │
+└─────┬─────────────────────────────┬─────────────────────────────────────┘
+      │                             │
+      ▼                             ▼
+┌──────────────┐            ┌──────────────────┐
+│  PostgreSQL  |            |    Google Gemini │
+│   Database   │            │      AI API      │
+│              │            │                  │
+│ • Bookmarks  │            │ • Summarization  │
+│ • Content    │            │ • Categorization │
+│ • Users      │            │ • Smart Filters  │
+│ • Cache      │            └──────────────────┘
+└──────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         Automated Pipeline                              │
+│                        (Every 30 minutes)                               │
+│                                                                         │
+│ Content Discovery  →  AI Processing  →  Storage & Indexing              │
+│                                                                         │
+│ • Hacker News         →  • Summarization   →  • PostgreSQL              │
+│ • Substack Feeds      →  • Categorization  →  • Search Embeddings       │
+│ • Hugging Face        →  • Quality Filter  →  • Cache Management        │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Local Development:**
+- 4 Docker services: Frontend, Backend, PostgreSQL, Cron
+- Automated content processing every 30 minutes
+- Real-time monitoring and manual triggers
+
+**Cloud Production:**
+- Google Cloud Run (auto-scaling)
+- Google Cloud SQL (managed PostgreSQL)
+- Google Cloud Scheduler (automated pipeline)
+- Cost-optimized: ~$5-8/month for <10 DAU
+
 ## 🔧 Configuration
 
 Switch between environments easily:
