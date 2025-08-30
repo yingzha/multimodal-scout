@@ -3,6 +3,9 @@ FROM node:18-alpine
 # Set working directory
 WORKDIR /app
 
+# Install su-exec for production user switching
+RUN apk add --no-cache su-exec
+
 # Install dependencies first (for better Docker caching)
 COPY src/frontend/package*.json ./
 RUN npm ci
@@ -14,19 +17,18 @@ COPY src/frontend/ ./
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
-# Build the application
-RUN npm run build
-
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nextjs -u 1001
-
-# Change ownership of the app directory
-RUN chown -R nextjs:nodejs /app
-USER nextjs
-
 # Expose port
 EXPOSE 3000
 
-# Start the application
-CMD ["npm", "start"]
+# Conditional build and start based on NODE_ENV
+# For development: just start dev server
+# For production: build and start production server
+CMD if [ "$NODE_ENV" = "production" ]; then \
+      npm run build && \
+      addgroup -g 1001 -S nodejs && \
+      adduser -S nextjs -u 1001 && \
+      chown -R nextjs:nodejs /app && \
+      su-exec nextjs npm start; \
+    else \
+      npm run dev; \
+    fi
