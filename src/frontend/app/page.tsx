@@ -874,15 +874,21 @@ export default function Home() {
       })
 
       if (!response.ok) {
-        // Try to parse error response for rate limiting
-        try {
-          const errorData = await response.json()
-          if (errorData.error === 'rate_limit_exceeded') {
-            throw new Error(`RATE_LIMIT: ${errorData.message}`)
+        // Check for rate limiting first
+        if (response.status === 429) {
+          try {
+            const errorData = await response.json()
+            if (errorData.error === 'rate_limit_exceeded') {
+              throw new Error(`RATE_LIMIT: ${errorData.message}`)
+            }
+            // If 429 but not our expected rate limit format, still treat as rate limit
+            throw new Error(`RATE_LIMIT: Daily search limit exceeded for guest users. Please register for unlimited access.`)
+          } catch (parseError) {
+            // If we can't parse a 429 response, assume it's rate limiting
+            throw new Error(`RATE_LIMIT: Daily search limit exceeded for guest users. Please register for unlimited access.`)
           }
-        } catch (parseError) {
-          // If we can't parse the error, fall back to generic error
         }
+        // For other HTTP errors, throw generic error
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
