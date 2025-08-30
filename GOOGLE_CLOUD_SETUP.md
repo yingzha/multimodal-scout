@@ -37,17 +37,6 @@ export GOOGLE_API_KEY="your-gemini-api-key-here"
 - **Secrets**: Secret Manager - 6 secrets FREE
 - **Images**: Artifact Registry - FREE tier
 
-### 💰 Cost Breakdown
-
-| Service | Cost | Notes |
-|---------|------|-------|
-| Cloud Run Backend | $0 | FREE tier (2M requests/month) |
-| Cloud Run Frontend | $0 | FREE tier |
-| Cloud SQL Micro | ~$7/month | Smallest PostgreSQL instance |
-| Cloud Scheduler | $0 | FREE tier (3 jobs) |
-| Artifact Registry | $0 | FREE tier |
-| Secret Manager | $0 | FREE tier (6 secrets) |
-| **Total** | **~$7-10/month** | Perfect for low traffic |
 
 ### ⚙️ Services Created
 
@@ -57,7 +46,7 @@ export GOOGLE_API_KEY="your-gemini-api-key-here"
 - `multimodal-scout-cron` - Background job processor
 
 **Cloud SQL:**
-- Instance: `multimodal-scout-db` (micro, PostgreSQL 15)
+- Instance: `multimodal-scout-db` (micro, PostgreSQL 17)
 - Database: `multimodal_scout`
 - User: `scout_user`
 
@@ -70,7 +59,6 @@ export GOOGLE_API_KEY="your-gemini-api-key-here"
 - `cloud-run-backend.yaml` - Backend service config
 - `cloud-run-frontend.yaml` - Frontend service config  
 - `cloud-run-cron.yaml` - Cron job config
-- `cloud-scheduler-jobs.yaml` - Scheduler configuration
 
 ### 🔐 Security Features
 

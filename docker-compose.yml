@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:17-alpine
     environment:
       POSTGRES_DB: multimodal_scout
       POSTGRES_USER: scout_user
@@ -43,6 +43,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
+    user: root
     depends_on:
       postgres:
         condition: service_healthy

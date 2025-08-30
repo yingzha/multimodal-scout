@@ -842,7 +842,7 @@ async def pipeline_cron_job(authorization: Optional[str] = Header(None)):
     try:
         logger.info("🚀 Starting pipeline via HTTP endpoint...")
 
-        # Run pipeline with Cloud Scheduler defaults from cloud-scheduler-jobs.yaml
+        # Run pipeline with Cloud Scheduler (every 30 minutes)
         pipeline_generator = process_content_pipeline(
             topics=[],  # No topic filtering for cron jobs
             max_results=50,  # Match the config file setting
