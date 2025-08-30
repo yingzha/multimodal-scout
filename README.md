@@ -23,7 +23,10 @@ A smart content discovery platform that automatically finds, curates, and helps 
     ```bash
     git clone https://github.com/yingzha/multimodal-scout.git
     cd multimodal-scout
-    echo "GOOGLE_API_KEY=your_api_key_here" > .env
+    
+    # Configure for local development
+    ./scripts/configure-env.sh local
+    echo "GOOGLE_API_KEY=your_api_key_here" >> .env
     ```
 
 2.  **Start Services:**
@@ -38,6 +41,28 @@ A smart content discovery platform that automatically finds, curates, and helps 
     - **API Docs:** http://localhost:8000/docs
 
 The system will automatically start scraping and processing content in the background.
+
+## Environment Configuration
+
+Switch between local development and cloud deployment configurations:
+
+```bash
+# Configure for local development
+./scripts/configure-env.sh local
+
+# Configure for cloud deployment  
+./scripts/configure-env.sh cloud
+```
+
+**Local Development:**
+- Uses Docker services for PostgreSQL
+- Frontend connects to `http://localhost:8000` 
+- Suitable for development and testing
+
+**Cloud Deployment:**
+- Uses Google Cloud SQL for database
+- Frontend connects to actual Cloud Run backend URL
+- Configured by deployment script with dynamic values
 
 ## Architecture Overview
 

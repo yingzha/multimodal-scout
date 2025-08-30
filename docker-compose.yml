@@ -22,8 +22,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=postgresql://scout_user:scout_password@postgres:5432/multimodal_scout
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
     volumes:
       - ./src:/app/src
@@ -48,9 +49,8 @@ services:
       - backend
     ports:
       - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
-      - NODE_ENV=development
+    env_file:
+      - .env
     volumes:
       - ./src/frontend:/app
       - /app/node_modules

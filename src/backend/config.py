@@ -5,8 +5,15 @@ Handles environment variables and secrets from Google Secret Manager.
 
 import os
 from typing import Optional
-from google.cloud import secretmanager
 from .logger import logger
+
+# Conditionally import Google Cloud modules only if needed
+try:
+    from google.cloud import secretmanager
+    HAS_GOOGLE_CLOUD = True
+except ImportError:
+    secretmanager = None
+    HAS_GOOGLE_CLOUD = False
 
 
 class Config:
@@ -14,7 +21,7 @@ class Config:
 
     def __init__(self):
         self.project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
-        self.is_cloud_environment = bool(self.project_id)
+        self.is_cloud_environment = bool(self.project_id and HAS_GOOGLE_CLOUD)
 
         if self.is_cloud_environment:
             self.secret_client = secretmanager.SecretManagerServiceClient()
