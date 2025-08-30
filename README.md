@@ -2,6 +2,8 @@
 
 A smart content discovery platform that automatically finds, curates, and helps you bookmark the latest multimodal AI research papers and industry articles. Built with FastAPI, Next.js, and PostgreSQL, powered by Google Gemini AI.
 
+**🌐 Live Demo**: [https://multimodal-scout.app/](https://multimodal-scout.app/)
+
 ![Multimodal Scout Interface](./assets/screenshot.png)
 
 ## ✨ Features
@@ -11,6 +13,14 @@ A smart content discovery platform that automatically finds, curates, and helps 
 - 📚 **Personal Library**: Secure bookmarking with editing, export, and management
 - 🌙 **Modern UI**: Clean, responsive interface with dark mode support
 - ⚡ **Real-time Updates**: Live content processing with progress tracking
+
+## 📚 Documentation
+
+- 📖 **[User Guide](docs/user-guide.md)** - Complete walkthrough of all features and controls
+- 🛠️ **[Development Guide](docs/development.md)** - Local setup, testing, and workflows
+- 🔗 **[API Reference](docs/api.md)** - Complete REST API documentation
+- ⏰ **[Automation Guide](docs/cron-jobs.md)** - Pipeline and content processing
+- ☁️ **[Cloud Setup](GOOGLE_CLOUD_SETUP.md)** - Google Cloud deployment guide
 
 ## 🚀 Quick Start
 
@@ -28,6 +38,8 @@ A smart content discovery platform that automatically finds, curates, and helps 
    
    # Configure environment
    ./scripts/configure-env.sh local
+
+   # Add your Gemini API key to .env
    ```
 
 2. **Start All Services:**
@@ -51,6 +63,8 @@ A smart content discovery platform that automatically finds, curates, and helps 
    ```bash
    # Configure for cloud deployment
    ./scripts/configure-env.sh cloud
+
+   # Add your Gemini API to .env
    
    # Set up infrastructure (run once)
    ./setup-infrastructure.sh YOUR_PROJECT_ID us-central1
@@ -99,17 +113,6 @@ A smart content discovery platform that automatically finds, curates, and helps 
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Local Development:**
-- 4 Docker services: Frontend, Backend, PostgreSQL, Cron
-- Automated content processing every 30 minutes
-- Real-time monitoring and manual triggers
-
-**Cloud Production:**
-- Google Cloud Run (auto-scaling)
-- Google Cloud SQL (managed PostgreSQL)
-- Google Cloud Scheduler (automated pipeline)
-- Cost-optimized: ~$5-8/month for <10 DAU
-
 ## 🔧 Configuration
 
 Switch between environments easily:
@@ -121,23 +124,6 @@ Switch between environments easily:
 # Cloud deployment  
 ./scripts/configure-env.sh cloud
 ```
-
-## 📚 Documentation
-
-- 🛠️ **[Development Guide](docs/development.md)** - Local setup, testing, and workflows
-- 🔗 **[API Reference](docs/api.md)** - Complete REST API documentation
-- ⏰ **[Automation Guide](docs/cron-jobs.md)** - Pipeline and content processing
-- ☁️ **[Cloud Setup](GOOGLE_CLOUD_SETUP.md)** - Google Cloud deployment guide
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create feature branch: `git checkout -b feature/amazing-feature`
-3. Commit changes: `git commit -m 'Add amazing feature'`
-4. Push branch: `git push origin feature/amazing-feature`
-5. Open a Pull Request
-
-See the [Development Guide](docs/development.md) for detailed setup and workflow instructions.
 
 ## ☕ Support
 
