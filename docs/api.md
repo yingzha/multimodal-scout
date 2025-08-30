@@ -341,4 +341,25 @@ Error responses include details:
 
 ## Rate Limiting
 
-Currently no rate limiting is implemented, but it's recommended for production deployments.
+The API implements rate limiting for guest users to ensure fair usage:
+
+- **Authenticated Users**: No rate limits
+- **Guest Users**: 3 searches per day (rate limited by IP address)
+- **Window**: 24-hour rolling window
+
+### Rate Limit Response
+
+When rate limit is exceeded, the API returns:
+
+**Status Code**: 429 (Too Many Requests)
+
+**Response**:
+```json
+{
+  "error": "rate_limit_exceeded",
+  "message": "Daily search limit exceeded for guest users (3 searches/day). Please register for unlimited access.",
+  "current_usage": 3,
+  "daily_limit": 3,
+  "reset_time": 1673942400
+}
+```

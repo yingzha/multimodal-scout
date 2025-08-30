@@ -112,7 +112,7 @@ app.add_middleware(
 
 # Rate limiting storage (in production, use Redis or database)
 guest_rate_limits = {}
-GUEST_DAILY_LIMIT = 5  # 5 searches per day for guest users
+GUEST_DAILY_LIMIT = 3  # 3 searches per day for guest users
 RATE_LIMIT_WINDOW = 24 * 60 * 60  # 24 hours in seconds
 
 
@@ -228,7 +228,7 @@ async def search_content(
     Search for content from various sources based on topics and time range.
     Hybrid access:
     - Authenticated users: Unlimited searches
-    - Guest users: 5 searches per day (rate limited by IP)
+    - Guest users: 3 searches per day (rate limited by IP)
     """
     try:
         # Check if user is authenticated
@@ -313,7 +313,7 @@ async def search_content_stream(
     Uses Server-Sent Events (SSE) to provide real-time progress.
     Hybrid access:
     - Authenticated users: Unlimited searches
-    - Guest users: 5 searches per day (rate limited by IP)
+    - Guest users: 3 searches per day (rate limited by IP)
     """
 
     # Check authentication and rate limiting before starting stream

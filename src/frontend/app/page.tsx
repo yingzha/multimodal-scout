@@ -854,6 +854,7 @@ export default function Home() {
     setIsLoading(true)
     setShowBookmarks(false)
     setShowAdvancedSettings(false) // Close settings panel when search starts
+    setShowAuthModal(false) // Close auth modal when search starts
     setProgressMessage('Starting fetch...')
     setShowDetailedProgress(false)
 
@@ -873,6 +874,15 @@ export default function Home() {
       })
 
       if (!response.ok) {
+        // Try to parse error response for rate limiting
+        try {
+          const errorData = await response.json()
+          if (errorData.error === 'rate_limit_exceeded') {
+            throw new Error(`RATE_LIMIT: ${errorData.message}`)
+          }
+        } catch (parseError) {
+          // If we can't parse the error, fall back to generic error
+        }
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
@@ -885,8 +895,16 @@ export default function Home() {
 
     } catch (error) {
       console.error('Failed to fetch items:', error)
-      alert('Failed to fetch items. Please check if the backend server is running.')
-      setProgressMessage('Failed to fetch items')
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+
+      if (errorMessage.startsWith('RATE_LIMIT:')) {
+        const rateLimitMessage = errorMessage.replace('RATE_LIMIT: ', '')
+        showTemporaryMessage(`⚠️ ${rateLimitMessage}`, 8000)
+        setProgressMessage('Rate limit exceeded')
+      } else {
+        alert('Failed to fetch items. Please check if the backend server is running.')
+        setProgressMessage('Failed to fetch items')
+      }
     } finally {
       setTimeout(() => {
         setIsLoading(false)
@@ -1062,7 +1080,7 @@ export default function Home() {
                       className="inline-flex items-center px-4 py-2 bg-white rounded-full border border-gray-200 text-gray-800"
                     >
                       {topic}
-                      <span className="ml-3 text-gray-400 text-sm">🔒</span>
+                      <span className="ml-3 text-gray-400 text-sm" data-tooltip="Default system topic">🔒</span>
                     </span>
                   ))}
 
@@ -1165,7 +1183,7 @@ export default function Home() {
                 className={`bg-gray-100 p-3 text-gray-700 hover:text-gray-900 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors flex items-center justify-center ${
                   isLoading || showBookmarks ? 'cursor-not-allowed opacity-50' : ''
                 }`}
-                data-tooltip='Advanced Settings'
+                data-tooltip='Search Settings'
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />

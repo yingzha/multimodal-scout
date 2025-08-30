@@ -157,7 +157,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, asPage = false }
             disabled={isLoading}
             className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
               isLoading
-                ? 'bg-gray-400 cursor-not-allowed'
+                ? 'bg-gray-500 cursor-not-allowed'
                 : 'bg-gray-500 hover:bg-gray-600'
             } text-white`}
           >
