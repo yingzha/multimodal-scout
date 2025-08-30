@@ -16,7 +16,8 @@ A smart content discovery platform that automatically finds, curates, and helps 
 
 ### Prerequisites
 - Docker and Docker Compose
-- [Google Gemini API key](https://aistudio.google.com/app/apikey)
+- Google Gemini API key
+- Google Cloud CLI (optional)
 
 ### Local Development
 
@@ -47,16 +48,7 @@ A smart content discovery platform that automatically finds, curates, and helps 
    - **Main App**: http://localhost:3000
    - **API Docs**: http://localhost:8000/docs
 
-## ☁️ Cloud Deployment
-
-Deploy to Google Cloud Platform with auto-scaling and cost optimization:
-
-### Prerequisites
-- [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) installed and authenticated
-- Google Cloud project with billing enabled
-- [Required APIs enabled](./GOOGLE_CLOUD_SETUP.md)
-
-### Deploy to Production
+### Production Deployment
 
 1. **Prepare Environment:**
    ```bash
@@ -72,11 +64,6 @@ Deploy to Google Cloud Platform with auto-scaling and cost optimization:
    # Build and deploy all services
    ./deploy-services.sh YOUR_PROJECT_ID us-central1
    ```
-
-3. **Access Your App:**
-   - Frontend URL will be displayed after deployment
-   - Automatic HTTPS with custom domain support
-   - Built-in monitoring and logging
 
 ## 🔧 Configuration
 
