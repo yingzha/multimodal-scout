@@ -10,6 +10,7 @@ from .logger import logger
 # Conditionally import Google Cloud modules only if needed
 try:
     from google.cloud import secretmanager
+
     HAS_GOOGLE_CLOUD = True
 except ImportError:
     secretmanager = None
