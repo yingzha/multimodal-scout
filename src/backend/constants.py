@@ -14,8 +14,7 @@ GEMINI_MODEL_NAME = "gemini-2.5-flash"
 # such as "multimodal", "llm", "computer vision", etc.
 INTERESTED_KEYWORDS = [
     "multimodal",
-    "document processing",
-    "computer vision",
+    "image understanding",
     "video understanding",
     "visual agents",
 ]
