@@ -75,7 +75,7 @@ gcloud run deploy multimodal-scout-frontend \
   --set-env-vars NODE_ENV=production \
   --cpu 1 \
   --memory 1Gi \
-  --min-instances 0 \
+  --min-instances 1 \
   --max-instances 5 \
   --allow-unauthenticated
 

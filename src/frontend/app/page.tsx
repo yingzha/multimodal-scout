@@ -668,7 +668,7 @@ export default function Home() {
 
 
 
-  const handleExportBothFormats = async () => {
+  const handleExportBookmarks = async () => {
     if (!isAuthenticated || !sessionToken) {
       showTemporaryMessage('⚠️ Login required: Please click the login icon to export bookmarks', 4000)
       return
@@ -690,51 +690,41 @@ export default function Home() {
       if (searchQuery.trim()) {
         params.append('search_query', searchQuery)
       }
+      
+      // Export HTML format
+      params.append('export_format', 'html')
 
-      // Export both HTML and Markdown
-      const formats = [
-        { format: 'html', name: 'HTML' },
-        { format: 'markdown', name: 'Markdown' }
-      ]
+      const url = `${apiUrl}/api/bookmarks/export/chrome?${params.toString()}`
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`,
+        },
+      })
 
-      for (const { format, name } of formats) {
-        const formatParams = new URLSearchParams(params)
-        formatParams.append('export_format', format)
+      if (response.ok) {
+        const contentDisposition = response.headers.get('Content-Disposition')
+        let filename = 'multimodal_scout_chrome_bookmarks.html'
 
-        const url = `${apiUrl}/api/bookmarks/export/chrome?${formatParams.toString()}`
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${sessionToken}`,
-          },
-        })
-
-        if (response.ok) {
-          const contentDisposition = response.headers.get('Content-Disposition')
-          let filename = format === 'markdown' 
-            ? 'multimodal_scout_bookmarks.md' 
-            : 'multimodal_scout_chrome_bookmarks.html'
-
-          if (contentDisposition) {
-            const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
-            if (filenameMatch && filenameMatch[1]) {
-              filename = filenameMatch[1].replace(/['"]/g, '')
-            }
+        if (contentDisposition) {
+          const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
+          if (filenameMatch && filenameMatch[1]) {
+            filename = filenameMatch[1].replace(/['"]/g, '')
           }
-
-          const blob = await response.blob()
-          const url = window.URL.createObjectURL(blob)
-          const a = document.createElement('a')
-          a.style.display = 'none'
-          a.href = url
-          a.download = filename
-          document.body.appendChild(a)
-          a.click()
-          window.URL.revokeObjectURL(url)
-          document.body.removeChild(a)
-        } else {
-          console.error(`Failed to export ${name} bookmarks`)
         }
+
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.style.display = 'none'
+        a.href = url
+        a.download = filename
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+      } else {
+        console.error('Failed to export bookmarks')
       }
     } catch (error) {
       console.error('Failed to export bookmarks:', error)
@@ -1642,9 +1632,9 @@ export default function Home() {
                   )}
                 </div>
                 <button
-                  onClick={handleExportBothFormats}
+                  onClick={handleExportBookmarks}
                   className="bg-gray-100 p-3 text-gray-700 hover:text-gray-900 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors flex items-center justify-center"
-                  data-tooltip="Export bookmarks (HTML & Markdown)"
+                  data-tooltip="Export bookmarks"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
