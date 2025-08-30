@@ -47,21 +47,6 @@ A smart content discovery platform that automatically finds, curates, and helps 
    - **Main App**: http://localhost:3000
    - **API Docs**: http://localhost:8000/docs
 
-4. **Monitor & Control:**
-   ```bash
-   # Watch pipeline automation
-   docker-compose logs -f cron
-   
-   # Manual pipeline trigger
-   curl -X POST "http://localhost:8000/pipeline" \
-     -H "Authorization: Bearer test-token"
-   
-   # View all services
-   docker-compose ps
-   ```
-
-🎉 **Ready!** The system auto-discovers and processes content every 30 minutes.
-
 ## ☁️ Cloud Deployment
 
 Deploy to Google Cloud Platform with auto-scaling and cost optimization:
@@ -92,13 +77,6 @@ Deploy to Google Cloud Platform with auto-scaling and cost optimization:
    - Frontend URL will be displayed after deployment
    - Automatic HTTPS with custom domain support
    - Built-in monitoring and logging
-
-### Cloud Features
-- ⚡ **Auto-scaling**: 0 to 10+ instances based on traffic
-- 💰 **Cost-optimized**: ~$5-8/month for <10 DAU
-- 🔒 **Secure**: IAM, Cloud SQL, and encrypted connections
-- 📊 **Monitored**: Cloud Scheduler + Logging + Metrics
-- 🚀 **Fast**: Global CDN and optimized builds
 
 ## 🔧 Configuration
 
