@@ -543,87 +543,61 @@ export default function Home() {
     }
 
     setIsUploading(true)
-    setUploadProgress(0)
+    setUploadProgress(25)
     setUploadProgressMessage(`Processing ${validUrls.length} URL${validUrls.length > 1 ? 's' : ''}...`)
 
-    const results = []
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
     try {
-      for (let i = 0; i < validUrls.length; i++) {
-        const url = validUrls[i]
-        const baseProgress = (i / validUrls.length) * 100
-        const stepProgress = 100 / validUrls.length
+      setUploadProgress(50)
+      setUploadProgressMessage('Sending URLs to server...')
 
-        // Update progress for this URL
-        setUploadProgress(baseProgress + stepProgress * 0.2)
-        setUploadProgressMessage(`Processing URL ${i + 1}/${validUrls.length}: Fetching content...`)
+      const response = await fetch(`${apiUrl}/api/content`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`,
+        },
+        body: JSON.stringify({ urls: validUrls })
+      })
 
-        try {
-          const response = await fetch(`${apiUrl}/api/content`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${sessionToken}`,
-            },
-            body: JSON.stringify({ url })
-          })
+      setUploadProgress(75)
+      setUploadProgressMessage('Processing response...')
 
-          setUploadProgress(baseProgress + stepProgress * 0.6)
-          setUploadProgressMessage(`Processing URL ${i + 1}/${validUrls.length}: Generating summary...`)
+      const result = await response.json()
 
-          if (response.ok) {
-            const result = await response.json()
-            results.push({
-              url,
-              success: result.success,
-              message: result.message || (result.success ? 'Success' : 'Failed'),
-              title: result.title
-            })
-          } else {
-            const errorData = await response.json()
-            results.push({
-              url,
-              success: false,
-              message: errorData.detail || 'Failed to process',
-              title: null
-            })
-          }
+      if (response.ok) {
+        setUploadProgress(100)
+        const successful = result.results?.length || 0
+        const failed = result.failed_urls?.length || 0
 
-          setUploadProgress(baseProgress + stepProgress)
-
-        } catch (error) {
-          console.error(`Failed to process URL ${url}:`, error)
-          results.push({
-            url,
-            success: false,
-            message: 'Network error',
-            title: null
-          })
-          setUploadProgress(baseProgress + stepProgress)
+        if (result.success && failed === 0) {
+          setUploadProgressMessage('All URLs processed successfully!')
+          setUploadMessage(`🎉 Successfully processed ${successful} URL${successful > 1 ? 's' : ''}!`)
+        } else if (successful > 0) {
+          setUploadProgressMessage('Processing complete with some issues')
+          setUploadMessage(`⚠️ Processed ${successful} URL${successful > 1 ? 's' : ''} successfully, ${failed} failed.`)
+        } else {
+          setUploadProgressMessage('Processing failed')
+          setUploadMessage(`❌ ${result.message || 'Failed to process URLs'}`)
         }
-      }
-
-      // Show final results
-      setUploadProgress(100)
-      const successful = results.filter(r => r.success).length
-      const failed = results.length - successful
-
-      if (successful === results.length) {
-        setUploadProgressMessage('All URLs processed successfully!')
-        setUploadMessage(`🎉 Successfully processed ${successful} URL${successful > 1 ? 's' : ''}!`)
-      } else if (successful > 0) {
-        setUploadProgressMessage('Processing complete with some issues')
-        setUploadMessage(`⚠️ Processed ${successful} URL${successful > 1 ? 's' : ''} successfully, ${failed} failed.`)
       } else {
+        setUploadProgress(100)
         setUploadProgressMessage('Processing failed')
-        setUploadMessage(`❌ Failed to process all URLs. Please check the URLs and try again.`)
+        
+        if (response.status === 422) {
+          setUploadMessage(`❌ Validation error: ${result.detail?.message || result.detail || 'Invalid request format'}`)
+        } else if (response.status === 429) {
+          setUploadMessage(`❌ Rate limit exceeded: ${result.detail?.message || result.detail || 'Too many requests'}`)
+        } else {
+          setUploadMessage(`❌ ${result.detail?.message || result.detail || result.message || 'Failed to process URLs'}`)
+        }
       }
 
       setUploadUrl('')
 
-      // Refresh bookmarks to show new items
-      if (showBookmarks && successful > 0) {
+      // Refresh bookmarks to show new items if any were successful
+      if (showBookmarks && result.success && result.results?.length > 0) {
         refreshBookmarks()
       }
 
