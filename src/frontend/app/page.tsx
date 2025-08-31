@@ -257,7 +257,7 @@ export default function Home() {
     const updatedTopics = [...customTopics, trimmedKeyword]
     setCustomTopics(updatedTopics)
     setNewKeyword('')
-    showTemporaryMessage('Keyword added successfully!', 2000)
+    showTemporaryMessage('Keyword added successfully!', 1000)
     
     // Save to backend for authenticated users
     if (isAuthenticated) {
@@ -1243,7 +1243,7 @@ export default function Home() {
               <div className="flex items-start gap-2">
                 <span className="flex-shrink-0">ℹ️</span>
                 <div>
-                  Search settings are disabled in this view as they only apply to content discovery. Use the controls above to filter your saved bookmarks.
+                  Search settings are disabled in this view as they only apply to content discovery.
                 </div>
               </div>
             </div>
