@@ -10,7 +10,9 @@ from typing import Optional
 from contextlib import asynccontextmanager
 import asyncio
 import json
+import os
 import time
+import subprocess
 from functools import lru_cache
 
 from .constants import INTERESTED_KEYWORDS
@@ -49,9 +51,30 @@ async def lifespan(app: FastAPI):
     try:
         logger.info("🚀 Initializing database tables...")
         db_manager.create_tables()
-        logger.info("✅ Database tables initialized successfully")
+        
+        # Check if we need to run migrations automatically
+        try:
+            logger.info("🔄 Checking database schema and running migrations if needed...")
+            
+            # Import alembic programmatically
+            from alembic.config import Config
+            from alembic import command
+            
+            # Set up alembic configuration
+            alembic_cfg = Config("/app/alembic.ini")
+            alembic_cfg.set_main_option("script_location", "/app/alembic")
+            
+            # Run migration
+            command.upgrade(alembic_cfg, "head")
+            logger.info("✅ Database migrations completed successfully")
+            
+        except Exception as migration_error:
+            logger.error(f"❌ Failed to run migrations: {migration_error}")
+            # Don't fail startup if migrations fail - allow manual intervention
+        
+        logger.info("✅ Database initialization completed")
     except Exception as e:
-        logger.error(f"❌ Failed to initialize database tables: {e}", exc_info=True)
+        logger.error(f"❌ Failed to initialize database: {e}", exc_info=True)
         # Don't raise here to allow the app to start even if DB init fails
         # This allows for debugging and manual intervention
 
