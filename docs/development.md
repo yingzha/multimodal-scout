@@ -66,16 +66,7 @@ The project is configured for hot reloading. When you save changes to a file, th
 
 -   **Backend Changes**: Edit files in the `src/backend/` directory.
 -   **Frontend Changes**: Edit files in the `src/frontend/` directory.
--   **Database Schema Changes**:
-    1.  Modify the SQLAlchemy models in `src/backend/database.py`.
-    2.  Generate a new migration script:
-        ```bash
-        docker-compose exec backend alembic revision --autogenerate -m "Your migration message"
-        ```
-    3.  Apply the migration to the database:
-        ```bash
-        docker-compose exec backend alembic upgrade head
-        ```
+-   **Database Schema Changes**: See the [Database Migrations](#-database-migrations) section below for detailed workflows.
 
 ## Testing
 
@@ -190,3 +181,69 @@ docker-compose exec backend uv run pylint src/backend/
 # Install/sync new dependencies
 docker-compose exec backend uv sync
 ```
+
+## 🗄️ Database Migrations
+
+When you change the database structure (add columns, tables, etc.), you need to create and apply migrations.
+
+### 📝 Creating Migrations (Local Development)
+
+1. **Modify your models** in `src/backend/database.py`
+2. **Generate migration**:
+   ```bash
+   docker-compose exec backend alembic revision --autogenerate -m "Add new feature"
+   ```
+3. **Apply locally**:
+   ```bash
+   docker-compose exec backend alembic upgrade head
+   ```
+
+### 🚀 Deploying Migrations to Cloud
+
+**Good news**: Migrations run automatically when you deploy!
+
+```bash
+# Just deploy as normal - migrations happen automatically
+./deploy-services.sh YOUR_PROJECT_ID us-central1
+```
+
+The backend will:
+- ✅ Check database connection
+- ✅ Run pending migrations automatically  
+- ✅ Start the service
+
+### 🔧 Manual Migration (If Automatic Fails)
+
+If you see migration errors in the logs, run this complete command:
+
+```bash
+# 1. Install Cloud SQL Proxy (one-time setup)
+gcloud components install cloud_sql_proxy
+
+# 2. Get database password
+DB_PASSWORD=$(gcloud secrets versions access latest --secret="database-password")
+
+# 3. Start proxy and run SQL directly
+cloud_sql_proxy -instances YOUR_PROJECT_ID:us-central1:multimodal-scout-db=tcp:9470
+
+# 4. Execute your migration SQL (example)
+PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -p 9470 -U scout_user -d multimodal_scout -c "
+ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_topics JSON DEFAULT '[]'::json;
+UPDATE users SET custom_topics = '[]'::json WHERE custom_topics IS NULL;
+"
+
+# 5. Stop proxy
+pkill cloud_sql_proxy
+```
+
+### 🔍 Checking Migration Status
+
+```bash
+# See current migration version
+docker-compose exec backend alembic current
+
+# View all migrations
+docker-compose exec backend alembic history
+```
+
+**That's it!** Most of the time, migrations just work automatically when you deploy. 🎉
