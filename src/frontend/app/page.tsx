@@ -542,62 +542,79 @@ export default function Home() {
       return
     }
 
+    // Check if we exceed the server limit (5 URLs max)
+    if (validUrls.length > 5) {
+      setUploadMessage(`❌ Too many URLs: Maximum 5 URLs allowed per request, you provided ${validUrls.length}`)
+      setTimeout(() => setUploadMessage(''), 4000)
+      return
+    }
+
     setIsUploading(true)
-    setUploadProgress(25)
-    setUploadProgressMessage(`Processing ${validUrls.length} URL${validUrls.length > 1 ? 's' : ''}...`)
+    setUploadProgress(0)
+    setUploadProgressMessage(`Starting to process ${validUrls.length} URL${validUrls.length > 1 ? 's' : ''}...`)
 
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+    let successful = 0
+    let failed = 0
 
     try {
-      setUploadProgress(50)
-      setUploadProgressMessage('Sending URLs to server...')
+      // Process URLs one by one to show real progress
+      for (let i = 0; i < validUrls.length; i++) {
+        const currentUrl = validUrls[i]
+        const urlNumber = i + 1
+        const progressPercent = Math.floor((i / validUrls.length) * 90) // Reserve 90% for processing, 10% for final steps
 
-      const response = await fetch(`${apiUrl}/api/content`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionToken}`,
-        },
-        body: JSON.stringify({ urls: validUrls })
-      })
+        setUploadProgress(progressPercent)
+        setUploadProgressMessage(`Processing URL ${urlNumber}/${validUrls.length}: ${currentUrl.length > 50 ? currentUrl.substring(0, 50) + '...' : currentUrl}`)
 
-      setUploadProgress(75)
-      setUploadProgressMessage('Processing response...')
+        try {
+          const response = await fetch(`${apiUrl}/api/content`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${sessionToken}`,
+            },
+            body: JSON.stringify({ urls: [currentUrl] })
+          })
 
-      const result = await response.json()
+          const result = await response.json()
 
-      if (response.ok) {
-        setUploadProgress(100)
-        const successful = result.results?.length || 0
-        const failed = result.failed_urls?.length || 0
+          if (response.ok && result.success) {
+            successful++
+            setUploadProgressMessage(`✅ Processed ${urlNumber}/${validUrls.length}: Success`)
+          } else {
+            failed++
+            const errorMsg = result.detail?.message || result.detail || result.message || 'Failed'
+            setUploadProgressMessage(`❌ Processed ${urlNumber}/${validUrls.length}: ${errorMsg}`)
+          }
 
-        if (result.success && failed === 0) {
-          setUploadProgressMessage('All URLs processed successfully!')
-          setUploadMessage(`🎉 Successfully processed ${successful} URL${successful > 1 ? 's' : ''}!`)
-        } else if (successful > 0) {
-          setUploadProgressMessage('Processing complete with some issues')
-          setUploadMessage(`⚠️ Processed ${successful} URL${successful > 1 ? 's' : ''} successfully, ${failed} failed.`)
-        } else {
-          setUploadProgressMessage('Processing failed')
-          setUploadMessage(`❌ ${result.message || 'Failed to process URLs'}`)
+        } catch (error) {
+          failed++
+          setUploadProgressMessage(`❌ Processed ${urlNumber}/${validUrls.length}: Network error`)
         }
+
+        // Small delay to show the result message briefly
+        await new Promise(resolve => setTimeout(resolve, 800))
+      }
+
+      // Final results after processing all URLs
+      setUploadProgress(100)
+      
+      if (successful === validUrls.length) {
+        setUploadProgressMessage(`All ${successful} URL${successful > 1 ? 's' : ''} processed successfully!`)
+        setUploadMessage(`🎉 Successfully processed ${successful} URL${successful > 1 ? 's' : ''}!`)
+      } else if (successful > 0) {
+        setUploadProgressMessage(`${successful}/${validUrls.length} URLs processed successfully`)
+        setUploadMessage(`⚠️ Processed ${successful} URL${successful > 1 ? 's' : ''} successfully, ${failed} failed.`)
       } else {
-        setUploadProgress(100)
-        setUploadProgressMessage('Processing failed')
-        
-        if (response.status === 422) {
-          setUploadMessage(`❌ Validation error: ${result.detail?.message || result.detail || 'Invalid request format'}`)
-        } else if (response.status === 429) {
-          setUploadMessage(`❌ Rate limit exceeded: ${result.detail?.message || result.detail || 'Too many requests'}`)
-        } else {
-          setUploadMessage(`❌ ${result.detail?.message || result.detail || result.message || 'Failed to process URLs'}`)
-        }
+        setUploadProgressMessage(`Failed to process all ${validUrls.length} URL${validUrls.length > 1 ? 's' : ''}`)
+        setUploadMessage(`❌ Failed to process all URLs. Please check the URLs and try again.`)
       }
 
       setUploadUrl('')
 
       // Refresh bookmarks to show new items if any were successful
-      if (showBookmarks && result.success && result.results?.length > 0) {
+      if (showBookmarks && successful > 0) {
         refreshBookmarks()
       }
 
@@ -987,7 +1004,7 @@ export default function Home() {
             /* Smart Processing Mode - URL Input */
             <div className="space-y-4">
               <div className="text-sm text-gray-700 mb-4">
-                🔗 Add one or more URLs (separated by commas) and we'll automatically extract the content, create smart summaries, and organize them for you!
+                🔗 Add one or more URLs (separated by commas, max 5) and we'll automatically extract the content, create smart summaries, and organize them for you!
               </div>
               <div className="flex gap-2">
                 <input

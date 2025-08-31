@@ -112,7 +112,7 @@ app.add_middleware(
 guest_rate_limits = {}
 user_content_rate_limits = {}  # Rate limiting for /api/content endpoint
 GUEST_DAILY_LIMIT = 3  # 3 searches per day for guest users
-USER_CONTENT_DAILY_LIMIT = 20  # 20 content requests per day for authenticated users
+USER_CONTENT_DAILY_LIMIT = 10  # 10 content requests per day for authenticated users
 RATE_LIMIT_WINDOW = 24 * 60 * 60  # 24 hours in seconds
 MAX_URLS_PER_REQUEST = 5  # Maximum URLs per /api/content request
 
@@ -701,7 +701,7 @@ async def create_content(
                 }
             )
 
-        # Security check 2: Rate limiting (20 requests per 24h for authenticated users)
+        # Security check 2: Rate limiting (10 requests per 24h for authenticated users)
         if not check_user_content_rate_limit(current_user):
             remaining_hours = RATE_LIMIT_WINDOW - (
                 time.time() - user_content_rate_limits[current_user]["window_start"]
