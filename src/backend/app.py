@@ -6,16 +6,14 @@ Provides REST API endpoints for fetching topics and scraping content.
 from fastapi import FastAPI, HTTPException, Header, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, Response
-from typing import List, Dict, Any, AsyncGenerator, Optional
+from typing import Optional
 from contextlib import asynccontextmanager
 import asyncio
 import json
 import time
-from datetime import datetime
 from functools import lru_cache
 
 from .constants import INTERESTED_KEYWORDS
-from .config import config
 from .logger import logger
 from .database import db_manager
 from .pipeline import process_content_pipeline
@@ -32,6 +30,7 @@ from .schema import (
     UserLoginRequest,
     AuthResponse,
     UserResponse,
+    ConfigResponse,
 )
 from .utils import (
     generate_summary_from_link,
@@ -112,18 +111,21 @@ app.add_middleware(
 
 # Rate limiting storage (in production, use Redis or database)
 guest_rate_limits = {}
-GUEST_DAILY_LIMIT = 5  # 5 searches per day for guest users
+user_content_rate_limits = {}  # Rate limiting for /api/content endpoint
+GUEST_DAILY_LIMIT = 3  # 3 searches per day for guest users
+USER_CONTENT_DAILY_LIMIT = 10  # 10 content requests per day for authenticated users
 RATE_LIMIT_WINDOW = 24 * 60 * 60  # 24 hours in seconds
+MAX_URLS_PER_REQUEST = 5  # Maximum URLs per /api/content request
 
 
-def check_guest_rate_limit(client_ip: str) -> bool:
-    """Check if guest user has exceeded rate limit."""
+def check_rate_limit(identifier: str, limit: int, storage: dict) -> bool:
+    """Generic rate limiting function."""
     current_time = time.time()
 
-    if client_ip not in guest_rate_limits:
-        guest_rate_limits[client_ip] = {"count": 0, "window_start": current_time}
+    if identifier not in storage:
+        storage[identifier] = {"count": 0, "window_start": current_time}
 
-    rate_data = guest_rate_limits[client_ip]
+    rate_data = storage[identifier]
 
     # Reset window if 24 hours have passed
     if current_time - rate_data["window_start"] > RATE_LIMIT_WINDOW:
@@ -131,12 +133,22 @@ def check_guest_rate_limit(client_ip: str) -> bool:
         rate_data["window_start"] = current_time
 
     # Check if limit exceeded
-    if rate_data["count"] >= GUEST_DAILY_LIMIT:
+    if rate_data["count"] >= limit:
         return False
 
     # Increment count
     rate_data["count"] += 1
     return True
+
+
+def check_guest_rate_limit(client_ip: str) -> bool:
+    """Check if guest user has exceeded rate limit."""
+    return check_rate_limit(client_ip, GUEST_DAILY_LIMIT, guest_rate_limits)
+
+
+def check_user_content_rate_limit(user_id: str) -> bool:
+    """Check if authenticated user has exceeded content processing rate limit."""
+    return check_rate_limit(user_id, USER_CONTENT_DAILY_LIMIT, user_content_rate_limits)
 
 
 async def get_current_user_optional(
@@ -187,6 +199,16 @@ async def health_check():
         raise HTTPException(status_code=503, detail="Service unhealthy")
 
 
+@app.get("/api/config", response_model=ConfigResponse)
+async def get_config():
+    """Get application configuration values"""
+    return ConfigResponse(
+        max_urls_per_request=MAX_URLS_PER_REQUEST,
+        user_content_daily_limit=USER_CONTENT_DAILY_LIMIT,
+        guest_daily_limit=GUEST_DAILY_LIMIT,
+    )
+
+
 @lru_cache(maxsize=1)
 def get_cached_topics() -> TopicResponse:
     """Cache static topics data"""
@@ -228,7 +250,7 @@ async def search_content(
     Search for content from various sources based on topics and time range.
     Hybrid access:
     - Authenticated users: Unlimited searches
-    - Guest users: 5 searches per day (rate limited by IP)
+    - Guest users: 3 searches per day (rate limited by IP)
     """
     try:
         # Check if user is authenticated
@@ -313,7 +335,7 @@ async def search_content_stream(
     Uses Server-Sent Events (SSE) to provide real-time progress.
     Hybrid access:
     - Authenticated users: Unlimited searches
-    - Guest users: 5 searches per day (rate limited by IP)
+    - Guest users: 3 searches per day (rate limited by IP)
     """
 
     # Check authentication and rate limiting before starting stream
@@ -676,61 +698,130 @@ async def update_bookmark(
 async def create_content(
     request: UploadLinkRequest, current_user: str = Depends(get_current_user)
 ):
-    """Create content item from user-provided link"""
+    """Create content items from user-provided links with security restrictions"""
     try:
-        url = str(request.url)
-        logger.info(f"Processing uploaded link: {url}")
-
-        # Check if already bookmarked
-        if db_manager.is_bookmarked(current_user, url):
-            return UploadLinkResponse(
-                success=False, message="This link is already bookmarked"
+        # Security check 1: URL count validation (max 5 URLs per request)
+        if len(request.urls) > MAX_URLS_PER_REQUEST:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "validation_error",
+                    "message": f"Maximum {MAX_URLS_PER_REQUEST} URLs allowed per request",
+                    "provided": len(request.urls),
+                    "limit": MAX_URLS_PER_REQUEST,
+                },
             )
 
-        # Extract title
-        title = extract_title_from_url(request.url)
-        if not title:
-            title = f"Article from {request.url.host}"
-
-        # Extract content for categorization
-        article_text = _fetch_article_text(request.url)
-        if not article_text:
-            article_text = ""
-
-        # Generate summary
-        summary = generate_summary_from_link(request.url, title)
-
-        # Categorize content
-        source_tag = categorize_content(title, article_text, url)
-
-        # Add to bookmarks
-        bookmark_id = db_manager.add_bookmark(
-            user_id=current_user,
-            title=title,
-            link=url,
-            source_tag=source_tag,
-            summary=summary,
-        )
-
-        # Also cache the summary for future reference
-        db_manager.add_summary(url, summary)
+        # Security check 2: Rate limiting (10 requests per 24h for authenticated users)
+        if not check_user_content_rate_limit(current_user):
+            remaining_hours = RATE_LIMIT_WINDOW - (
+                time.time() - user_content_rate_limits[current_user]["window_start"]
+            )
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "error": "rate_limit_exceeded",
+                    "message": f"Daily content processing limit exceeded ({USER_CONTENT_DAILY_LIMIT} requests/day)",
+                    "reset_in_hours": round(remaining_hours / 3600, 1),
+                    "current_usage": user_content_rate_limits[current_user]["count"],
+                    "daily_limit": USER_CONTENT_DAILY_LIMIT,
+                },
+            )
 
         logger.info(
-            f"Successfully processed and bookmarked: {title} (Category: {source_tag})"
+            f"Processing {len(request.urls)} uploaded links for user {current_user}"
         )
 
-        return UploadLinkResponse(
-            success=True,
-            message=f"Link processed and added to bookmarks as '{source_tag}' content",
-            bookmark_id=bookmark_id,
-            title=title,
-            summary=summary,
-            source_tag=source_tag,
-        )
+        results = []
+        failed_urls = []
+        success_count = 0
 
+        for url_obj in request.urls:
+            try:
+                url = str(url_obj)
+                logger.info(f"Processing URL: {url}")
+
+                # Check if already bookmarked
+                if db_manager.is_bookmarked(current_user, url):
+                    failed_urls.append(url)
+                    logger.info(f"URL already bookmarked, skipping: {url}")
+                    continue
+
+                # Extract title
+                title = extract_title_from_url(url_obj)
+                if not title:
+                    title = f"Article from {url_obj.host}"
+
+                # Extract content for categorization
+                article_text = _fetch_article_text(url_obj)
+                if not article_text:
+                    article_text = ""
+
+                # Generate summary
+                summary = generate_summary_from_link(url_obj, title)
+
+                # Categorize content
+                source_tag = categorize_content(title, article_text, url)
+
+                # Add to bookmarks
+                bookmark_id = db_manager.add_bookmark(
+                    user_id=current_user,
+                    title=title,
+                    link=url,
+                    source_tag=source_tag,
+                    summary=summary,
+                )
+
+                # Also cache the summary for future reference
+                db_manager.add_summary(url, summary)
+
+                results.append(
+                    {
+                        "url": url,
+                        "title": title,
+                        "summary": summary,
+                        "source_tag": source_tag,
+                        "bookmark_id": bookmark_id,
+                    }
+                )
+                success_count += 1
+
+                logger.info(f"Successfully processed: {title} (Category: {source_tag})")
+
+            except Exception as url_error:
+                logger.error(f"Failed to process URL {url}: {url_error}")
+                failed_urls.append(str(url_obj))
+
+        # Determine response
+        if success_count == 0:
+            return UploadLinkResponse(
+                success=False,
+                message="Failed to process any URLs",
+                results=[],
+                failed_urls=failed_urls,
+            )
+        elif len(failed_urls) > 0:
+            return UploadLinkResponse(
+                success=True,
+                message=f"Processed {success_count} URLs successfully, {len(failed_urls)} failed",
+                results=results,
+                failed_urls=failed_urls,
+            )
+        else:
+            return UploadLinkResponse(
+                success=True,
+                message=f"Successfully processed all {success_count} URLs",
+                results=results,
+                failed_urls=[],
+            )
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Failed to process uploaded link: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to process link: {str(e)}")
+        logger.error(f"Failed to process uploaded links: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail=f"Failed to process links: {str(e)}"
+        )
 
 
 @app.get("/api/bookmarks/export")

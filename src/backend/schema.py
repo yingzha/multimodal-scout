@@ -77,7 +77,7 @@ class BookmarkResponse(BaseModel):
 class UploadLinkRequest(BaseModel):
     """Request model for uploading user links"""
 
-    url: HttpUrl
+    urls: List[HttpUrl]  # Changed to support multiple URLs (max 5)
 
 
 class UploadLinkResponse(BaseModel):
@@ -85,10 +85,8 @@ class UploadLinkResponse(BaseModel):
 
     success: bool
     message: str
-    bookmark_id: str = None
-    title: str = None
-    summary: str = None
-    source_tag: str = None
+    results: List[dict] = []  # List of results for multiple URLs
+    failed_urls: List[str] = []  # URLs that failed to process
 
 
 class UserRegistrationRequest(BaseModel):
@@ -123,3 +121,11 @@ class UserResponse(BaseModel):
     username: str
     created_at: str
     last_login: str = None
+
+
+class ConfigResponse(BaseModel):
+    """Response model for application configuration"""
+
+    max_urls_per_request: int
+    user_content_daily_limit: int
+    guest_daily_limit: int

@@ -7,10 +7,10 @@ import { useAuth } from './contexts/AuthContext'
 
 export default function Home() {
   const { user, sessionToken, isAuthenticated, isLoading: authLoading, login, logout } = useAuth()
-  
+
   // API configuration
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-  
+
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [selectedDays, setSelectedDays] = useState(1)
   const [defaultTopics, setDefaultTopics] = useState<string[]>([])
@@ -28,6 +28,7 @@ export default function Home() {
   const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set())
   const [keywordMessage, setKeywordMessage] = useState('')
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
+  const [appConfig, setAppConfig] = useState({ max_urls_per_request: 5 }) // Default fallback
 
   // Utility function to show temporary messages
   const showTemporaryMessage = (message: string, duration: number = 3000) => {
@@ -122,7 +123,7 @@ export default function Home() {
     }
   }
 
-  
+
 
   // Fetch default topics from backend
   const fetchDefaultTopics = async () => {
@@ -151,8 +152,30 @@ export default function Home() {
     }
   }
 
+  const fetchConfig = async () => {
+    try {
+      const response = await fetch(`${apiUrl}/api/config`, {
+        cache: 'no-cache',
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+      setAppConfig(data)
+    } catch (error) {
+      console.error('Failed to fetch app config:', error)
+      // Keep default fallback values if API fails
+    }
+  }
+
   useEffect(() => {
     fetchDefaultTopics()
+    fetchConfig()
   }, [])
 
   useEffect(() => {
@@ -273,7 +296,7 @@ export default function Home() {
         const summaryMatch = item.summary?.toLowerCase().includes(query)
         if (!titleMatch && !summaryMatch) return false
       }
-      
+
       // Tag filter
       if (selectedTags.size === 0) return true
       // Check if item matches any selected tag
@@ -336,18 +359,18 @@ export default function Home() {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       const params = new URLSearchParams()
-      
+
       const days = searchDays !== undefined ? searchDays : bookmarkSearchDays
       const limit = searchLimit !== undefined ? searchLimit : bookmarkSearchLimit
-      
+
       if (days !== null && days !== undefined) {
         params.append('days', days.toString())
       }
       params.append('limit', limit.toString())
-      
+
       const url = `${apiUrl}/api/bookmarks?${params.toString()}`
       console.log('Fetching bookmarks from:', url)
-      
+
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${sessionToken}`,
@@ -542,22 +565,30 @@ export default function Home() {
       return
     }
 
+    // Check if we exceed the server limit (dynamic from backend)
+    if (validUrls.length > appConfig.max_urls_per_request) {
+      setUploadMessage(`❌ Too many URLs: Maximum ${appConfig.max_urls_per_request} URLs allowed per request, you provided ${validUrls.length}`)
+      setTimeout(() => setUploadMessage(''), 4000)
+      return
+    }
+
     setIsUploading(true)
     setUploadProgress(0)
-    setUploadProgressMessage(`Processing ${validUrls.length} URL${validUrls.length > 1 ? 's' : ''}...`)
+    setUploadProgressMessage(`Starting to process ${validUrls.length} URL${validUrls.length > 1 ? 's' : ''}...`)
 
-    const results = []
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+    let successful = 0
+    let failed = 0
 
     try {
+      // Process URLs one by one to show real progress
       for (let i = 0; i < validUrls.length; i++) {
-        const url = validUrls[i]
-        const baseProgress = (i / validUrls.length) * 100
-        const stepProgress = 100 / validUrls.length
+        const currentUrl = validUrls[i]
+        const urlNumber = i + 1
+        const progressPercent = Math.floor((i / validUrls.length) * 90) // Reserve 90% for processing, 10% for final steps
 
-        // Update progress for this URL
-        setUploadProgress(baseProgress + stepProgress * 0.2)
-        setUploadProgressMessage(`Processing URL ${i + 1}/${validUrls.length}: Fetching content...`)
+        setUploadProgress(progressPercent)
+        setUploadProgressMessage(`Processing URL ${urlNumber}/${validUrls.length}: ${currentUrl.length > 50 ? currentUrl.substring(0, 50) + '...' : currentUrl}`)
 
         try {
           const response = await fetch(`${apiUrl}/api/content`, {
@@ -566,63 +597,46 @@ export default function Home() {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${sessionToken}`,
             },
-            body: JSON.stringify({ url })
+            body: JSON.stringify({ urls: [currentUrl] })
           })
 
-          setUploadProgress(baseProgress + stepProgress * 0.6)
-          setUploadProgressMessage(`Processing URL ${i + 1}/${validUrls.length}: Generating summary...`)
+          const result = await response.json()
 
-          if (response.ok) {
-            const result = await response.json()
-            results.push({
-              url,
-              success: result.success,
-              message: result.message || (result.success ? 'Success' : 'Failed'),
-              title: result.title
-            })
+          if (response.ok && result.success) {
+            successful++
+            setUploadProgressMessage(`✅ Processed ${urlNumber}/${validUrls.length}: Success`)
           } else {
-            const errorData = await response.json()
-            results.push({
-              url,
-              success: false,
-              message: errorData.detail || 'Failed to process',
-              title: null
-            })
+            failed++
+            const errorMsg = result.detail?.message || result.detail || result.message || 'Failed'
+            setUploadProgressMessage(`❌ Processed ${urlNumber}/${validUrls.length}: ${errorMsg}`)
           }
 
-          setUploadProgress(baseProgress + stepProgress)
-
         } catch (error) {
-          console.error(`Failed to process URL ${url}:`, error)
-          results.push({
-            url,
-            success: false,
-            message: 'Network error',
-            title: null
-          })
-          setUploadProgress(baseProgress + stepProgress)
+          failed++
+          setUploadProgressMessage(`❌ Processed ${urlNumber}/${validUrls.length}: Network error`)
         }
+
+        // Small delay to show the result message briefly
+        await new Promise(resolve => setTimeout(resolve, 800))
       }
 
-      // Show final results
+      // Final results after processing all URLs
       setUploadProgress(100)
-      const successful = results.filter(r => r.success).length
-      const failed = results.length - successful
-
-      if (successful === results.length) {
-        setUploadProgressMessage('All URLs processed successfully!')
+      
+      if (successful === validUrls.length) {
+        setUploadProgressMessage(`All ${successful} URL${successful > 1 ? 's' : ''} processed successfully!`)
         setUploadMessage(`🎉 Successfully processed ${successful} URL${successful > 1 ? 's' : ''}!`)
       } else if (successful > 0) {
-        setUploadProgressMessage('Processing complete with some issues')
+        setUploadProgressMessage(`${successful}/${validUrls.length} URLs processed successfully`)
         setUploadMessage(`⚠️ Processed ${successful} URL${successful > 1 ? 's' : ''} successfully, ${failed} failed.`)
       } else {
-        setUploadProgressMessage('Processing failed')
+        setUploadProgressMessage(`Failed to process all ${validUrls.length} URL${validUrls.length > 1 ? 's' : ''}`)
         setUploadMessage(`❌ Failed to process all URLs. Please check the URLs and try again.`)
       }
 
       setUploadUrl('')
 
-      // Refresh bookmarks to show new items
+      // Refresh bookmarks to show new items if any were successful
       if (showBookmarks && successful > 0) {
         refreshBookmarks()
       }
@@ -676,21 +690,21 @@ export default function Home() {
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-      
+
       // Build URL with filter parameters based on current state
       const params = new URLSearchParams()
-      
+
       // Add selected tags if any
       if (selectedTags.size > 0) {
         params.append('selected_tags', Array.from(selectedTags).join(','))
       }
-      
+
       // Add search query if any (use bookmark search query when in bookmark mode)
       const searchQuery = showBookmarks ? bookmarkSearchQuery : homepageSearchQuery
       if (searchQuery.trim()) {
         params.append('search_query', searchQuery)
       }
-      
+
       // Export HTML format
       params.append('export_format', 'html')
 
@@ -854,6 +868,7 @@ export default function Home() {
     setIsLoading(true)
     setShowBookmarks(false)
     setShowAdvancedSettings(false) // Close settings panel when search starts
+    setShowAuthModal(false) // Close auth modal when search starts
     setProgressMessage('Starting fetch...')
     setShowDetailedProgress(false)
 
@@ -873,6 +888,21 @@ export default function Home() {
       })
 
       if (!response.ok) {
+        // Check for rate limiting first
+        if (response.status === 429) {
+          try {
+            const errorData = await response.json()
+            if (errorData.error === 'rate_limit_exceeded') {
+              throw new Error(`RATE_LIMIT: ${errorData.message}`)
+            }
+            // If 429 but not our expected rate limit format, still treat as rate limit
+            throw new Error(`RATE_LIMIT: Daily search limit exceeded for guest users. Please register for unlimited access.`)
+          } catch (parseError) {
+            // If we can't parse a 429 response, assume it's rate limiting
+            throw new Error(`RATE_LIMIT: Daily search limit exceeded for guest users. Please register for unlimited access.`)
+          }
+        }
+        // For other HTTP errors, throw generic error
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
@@ -885,8 +915,16 @@ export default function Home() {
 
     } catch (error) {
       console.error('Failed to fetch items:', error)
-      alert('Failed to fetch items. Please check if the backend server is running.')
-      setProgressMessage('Failed to fetch items')
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+
+      if (errorMessage.startsWith('RATE_LIMIT:')) {
+        const rateLimitMessage = errorMessage.replace('RATE_LIMIT: ', '')
+        showTemporaryMessage(`⚠️ ${rateLimitMessage}`, 8000)
+        setProgressMessage('Rate limit exceeded')
+      } else {
+        alert('Failed to fetch items. Please check if the backend server is running.')
+        setProgressMessage('Failed to fetch items')
+      }
     } finally {
       setTimeout(() => {
         setIsLoading(false)
@@ -989,7 +1027,7 @@ export default function Home() {
             /* Smart Processing Mode - URL Input */
             <div className="space-y-4">
               <div className="text-sm text-gray-700 mb-4">
-                🔗 Add one or more URLs (separated by commas) and we'll automatically extract the content, create smart summaries, and organize them for you!
+                🔗 Add one or more URLs (separated by commas, max {appConfig.max_urls_per_request}) and we'll automatically extract the content, create smart summaries, and organize them for you!
               </div>
               <div className="flex gap-2">
                 <input
@@ -1062,7 +1100,7 @@ export default function Home() {
                       className="inline-flex items-center px-4 py-2 bg-white rounded-full border border-gray-200 text-gray-800"
                     >
                       {topic}
-                      <span className="ml-3 text-gray-400 text-sm">🔒</span>
+                      <span className="ml-3 text-gray-400 text-sm" data-tooltip="Default system topic">🔒</span>
                     </span>
                   ))}
 
@@ -1137,6 +1175,18 @@ export default function Home() {
             </div>
           )}
 
+          {/* Bookmark mode info message */}
+          {showBookmarks && (
+            <div className="mt-6 text-sm text-gray-600 border border-gray-200 p-3 rounded-lg">
+              <div className="flex items-start gap-2">
+                <span className="flex-shrink-0">ℹ️</span>
+                <div>
+                  Search settings are disabled in this view as they only apply to content discovery. Use the controls above to filter your saved bookmarks.
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Settings and Bookmarks Icons */}
           <div className="flex justify-between items-center mt-6 relative z-10">
             <div className="flex items-center gap-4">
@@ -1165,7 +1215,7 @@ export default function Home() {
                 className={`bg-gray-100 p-3 text-gray-700 hover:text-gray-900 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors flex items-center justify-center ${
                   isLoading || showBookmarks ? 'cursor-not-allowed opacity-50' : ''
                 }`}
-                data-tooltip='Advanced Settings'
+                data-tooltip='Search Settings'
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -1173,7 +1223,7 @@ export default function Home() {
                 </svg>
               </button>
               <ThemeToggle />
-              
+
               {isAuthenticated ? (
                 <div className="relative" ref={userMenuRef}>
                   <button
@@ -1185,7 +1235,7 @@ export default function Home() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
                   </button>
-                  
+
                   {showUserMenu && (
                     <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-3 px-4 z-50">
                       <div className="flex items-center gap-3 mb-3 pb-3 border-b border-gray-100">
@@ -1369,7 +1419,7 @@ export default function Home() {
                 <div className="text-sm text-gray-600">
                   {(() => {
                     const filteredItems = filterItems(fetchedItems, homepageSearchQuery)
-                    
+
                     const hasFilters = selectedTags.size > 0 || homepageSearchQuery.trim()
                     if (hasFilters) {
                       const filterParts = []
@@ -1574,7 +1624,7 @@ export default function Home() {
                 <div className="text-sm text-gray-600">
                   {(() => {
                     const filteredItems = filterItems(bookmarkedCards, bookmarkSearchQuery)
-                    
+
                     const hasFilters = selectedTags.size > 0 || bookmarkSearchQuery.trim()
                     if (hasFilters) {
                       const filterParts = []

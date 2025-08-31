@@ -1,12 +1,11 @@
-# API Documentation
+# Multimodal Scout API Documentation
 
-The Multimodal Scout backend provides a RESTful API built with FastAPI. All endpoints return JSON responses and follow standard HTTP status codes.
+RESTful API built with FastAPI for content discovery and bookmark management. All endpoints return JSON responses and follow standard HTTP status codes.
 
 ## Base URL
 
-```
-http://localhost:8000
-```
+- **Local Development**: `http://localhost:8000`
+- **Production**: `https://your-backend-service.region.run.app`
 
 ## Authentication
 
@@ -90,12 +89,26 @@ You can obtain a session token by using the `/api/auth/login` or `/api/auth/regi
 - **Response**: `{"status": "healthy", "database": "connected"}`
 - **Error Response** (503): `{"detail": "Service unhealthy"}` when database is unreachable
 
+**GET /api/config**
+- **Description**: Get application configuration values for client-side validation
+- **Authentication**: Not required
+- **Response**:
+  ```json
+  {
+    "max_urls_per_request": 5,
+    "user_content_daily_limit": 10,
+    "guest_daily_limit": 3
+  }
+  ```
+- **Purpose**: Allows frontend to dynamically adapt to backend configuration changes
+
 ### Topics Management
 
 **GET /api/topics**
 - **Description**: Get the default interested topics configured in the backend
-- **Caching**: Cached for 30 minutes (client & server-side)
-- **Headers**: `Cache-Control: public, max-age=1800`
+- **Authentication**: Not required
+- **Caching**: Cached for 1 hour (client & server-side)
+- **Headers**: `Cache-Control: public, max-age=3600`
 - **Response**:
   ```json
   {
@@ -112,13 +125,16 @@ You can obtain a session token by using the `/api/auth/login` or `/api/auth/regi
 
 **POST /api/content/search**
 - **Description**: Search for content from various sources based on topics and time range
+- **Authentication**: Optional (guest users: 3 searches/day, authenticated: unlimited)
 - **Request Body**:
   ```json
   {
     "selectedDays": 7,
-    "topics": ["multimodal agents", "computer vision", "custom topic"],
+    "topics": ["multimodal agents", "computer vision"],
     "maxResults": 10,
-    "researchRatio": 0.5
+    "researchRatio": 0.5,
+    "sessionId": "optional-session-id",
+    "discoveryMode": false
   }
   ```
 - **Parameters**:
@@ -126,6 +142,8 @@ You can obtain a session token by using the `/api/auth/login` or `/api/auth/regi
   - `topics` (required): Array of keywords to search for
   - `maxResults` (optional): Maximum results to return (5-50, default: 10)
   - `researchRatio` (optional): Ratio of research vs industry content (0.0-1.0, default: 0.5)
+  - `sessionId` (optional): Session identifier for tracking
+  - `discoveryMode` (optional): Enable random content discovery (default: false)
 - **Response**:
   ```json
   {
@@ -145,53 +163,97 @@ You can obtain a session token by using the `/api/auth/login` or `/api/auth/regi
 
 **POST /api/content/search/stream**
 - **Description**: Streaming version of content search with real-time progress updates via Server-Sent Events (SSE)
+- **Authentication**: Optional (same rate limits as `/api/content/search`)
 - **Request Body**: Same as `/api/content/search`
 - **Response**: Server-Sent Events stream with progress updates and final result
 - **Content-Type**: `text/event-stream`
 - **Event Types**:
   - `status`: General status messages
-  - `progress`: Progress updates with percentage (0-100)
+  - `start`: Search started
+  - `progress`: Progress updates during processing
+  - `complete`: Step completion
+  - `info`/`warning`: Informational messages
   - `error`: Error occurred
   - `result`: Final search results
 - **Example Events**:
   ```
-  data: {"type": "status", "message": "Starting search..."}
-  data: {"type": "progress", "message": "Generating summaries...", "processed": 50, "total": 100}
-  data: {"type": "result", "data": {"items": [...], "total_count": 10}}
+  data: {"type": "start", "message": "Starting content search..."}
+  data: {"type": "progress", "message": "Generating summaries..."}
+  data: {"type": "result", "data": {"items": [...], "total_count": 10, "sources": [...]}}
+  data: [DONE]
   ```
 
 **POST /api/content**
-- **Description**: Create content item from user-provided link with automatic processing
+- **Description**: Create content items from user-provided URLs with automatic processing
+- **Authentication**: Required
+- **Rate Limiting**: 10 requests per day per authenticated user
 - **Request Body**:
   ```json
   {
-    "url": "https://example.com/article"
+    "urls": [
+      "https://example.com/article1",
+      "https://example.com/article2"
+    ]
   }
   ```
+- **Constraints**:
+  - Maximum 5 URLs per request (configurable via `/api/config`)
+  - URLs must be valid HTTP/HTTPS links
 - **Response**:
   ```json
   {
     "success": true,
-    "message": "Link processed and added to bookmarks as 'Research' content",
-    "bookmark_id": "uuid-here",
-    "title": "Extracted Article Title",
-    "summary": "AI-generated summary...",
-    "source_tag": "Research"
+    "message": "Successfully processed all 2 URLs",
+    "results": [
+      {
+        "url": "https://example.com/article1",
+        "title": "Extracted Article Title",
+        "summary": "AI-generated summary...",
+        "source_tag": "Research",
+        "bookmark_id": "uuid-here"
+      }
+    ],
+    "failed_urls": []
   }
   ```
+- **Error Responses**:
+  - **400**: URL count exceeds limit
+    ```json
+    {
+      "error": "validation_error",
+      "message": "Maximum 5 URLs allowed per request",
+      "provided": 8,
+      "limit": 5
+    }
+    ```
+  - **429**: Rate limit exceeded
+    ```json
+    {
+      "error": "rate_limit_exceeded",
+      "message": "Daily content processing limit exceeded (10 requests/day)",
+      "reset_in_hours": 12.5,
+      "current_usage": 10,
+      "daily_limit": 10
+    }
+    ```
 - **Features**:
-  - Automatic title extraction from webpage
+  - Batch processing of multiple URLs
+  - Automatic title extraction from webpages
   - AI-powered content summarization using Google Gemini
   - Smart categorization as Research, Industry, or General
   - Automatic bookmark creation for processed content
+  - Partial success handling (some URLs may fail while others succeed)
 
 ### Bookmark Management
 
 #### Collection Operations
 
 **GET /api/bookmarks**
-- **Description**: Get all user bookmarks
-- **Authentication**: Required.
+- **Description**: Get all user bookmarks with optional filtering
+- **Authentication**: Required
+- **Query Parameters** (optional):
+  - `limit` (default: 100): Maximum number of bookmarks to return
+  - `days`: Filter bookmarks from the last N days
 - **Response**: Same format as content search but only bookmarked items
   ```json
   {
@@ -275,27 +337,6 @@ You can obtain a session token by using the `/api/auth/login` or `/api/auth/regi
   ```
 - **Error Response** (404): `{"detail": "Bookmark not found"}`
 
-#### Legacy Endpoints (Deprecated)
-
-**DELETE /api/bookmarks**
-- **Description**: Remove a bookmark by URL (deprecated - use DELETE /api/bookmarks/{id})
-- **Authentication**: Required.
-- **Query Parameters**: 
-  - `link` (required): URL of the bookmark to remove
-
-**GET /api/bookmarks/check**
-- **Description**: Check if a URL is bookmarked (deprecated)
-- **Authentication**: Required.
-- **Query Parameters**:
-  - `link` (required): URL to check
-
-**PUT /api/bookmarks/summary**
-- **Description**: Update bookmark summary by URL (deprecated - use PATCH /api/bookmarks/{id})
-- **Authentication**: Required.
-- **Query Parameters**:
-  - `link` (required): URL of the bookmark
-  - `summary` (required): New summary text
-
 #### Export Operations
 
 **GET /api/bookmarks/export**
@@ -306,15 +347,20 @@ You can obtain a session token by using the `/api/auth/login` or `/api/auth/regi
 - **Headers**: `Content-Disposition: attachment; filename="multimodal_scout_bookmarks_{timestamp}.xlsx"`
 
 **GET /api/bookmarks/export/chrome**
-- **Description**: Export bookmarks in Chrome-compatible HTML format
-- **Authentication**: Required.
-- **Response**: HTML file that can be imported into Chrome browser
-- **Content-Type**: `text/html`
+- **Description**: Export bookmarks in Chrome-compatible HTML format with optional filtering
+- **Authentication**: Required
+- **Query Parameters** (optional):
+  - `selected_tags`: Comma-separated list of source tags to filter
+  - `search_query`: Text search filter for title/summary
+  - `export_format`: `html` (default) or `markdown`
+- **Response**: HTML or Markdown file download
+- **Content-Type**: `text/html` or `text/markdown`
 - **Headers**: `Content-Disposition: attachment; filename="multimodal_scout_chrome_bookmarks_{timestamp}.html"`
 - **Features**:
   - Creates "Multimodal Scout" folder with "Research" and "Industry" subfolders
   - Automatically categorizes bookmarks based on source tags
   - Compatible with Chrome's bookmark import feature
+  - Support for filtered exports based on current view
 
 
 ## Interactive Documentation
@@ -341,4 +387,39 @@ Error responses include details:
 
 ## Rate Limiting
 
-Currently no rate limiting is implemented, but it's recommended for production deployments.
+The API implements rate limiting to ensure fair usage and prevent abuse:
+
+### Search Endpoints
+- **Authenticated Users**: Unlimited access to all endpoints
+- **Guest Users**: 3 searches per day for `/api/content/search` and `/api/content/search/stream` (rate limited by IP address)
+
+### Content Processing Endpoints  
+- **Authenticated Users**: 10 requests per day for `/api/content` (rate limited per user)
+- **Guest Users**: No access to `/api/content` (authentication required)
+
+### Configuration
+- **Window**: 24-hour rolling window for all rate limits
+- **Limits**: Configurable via backend constants, exposed through `/api/config`
+
+### Rate Limit Response
+
+When rate limit is exceeded, the API returns:
+
+**Status Code**: 429 (Too Many Requests)
+
+**Response**:
+```json
+{
+  "error": "rate_limit_exceeded",
+  "message": "Daily search limit exceeded for guest users (3 searches/day). Please register for unlimited access.",
+  "reset_in_hours": 12.5,
+  "current_usage": 3,
+  "daily_limit": 3
+}
+```
+
+### Hybrid Access Model
+
+The API supports both authenticated and guest access:
+- **Guest Access**: Limited searches per day, no bookmark management
+- **Authenticated Access**: Unlimited searches, full bookmark management, export capabilities
