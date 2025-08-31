@@ -110,6 +110,7 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
     last_login = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
+    custom_topics = Column(JSON, nullable=True, default=lambda: [])
 
 
 class UserSession(Base):
@@ -570,6 +571,28 @@ class DatabaseManager:
         """Get user by ID"""
         with self.get_session() as session:
             return session.query(User).filter(User.id == user_id).first()
+
+    def get_user_custom_topics(self, user_id: str) -> List[str]:
+        """Get custom topics for a user"""
+        with self.get_session() as session:
+            user = session.query(User).filter(User.id == user_id).first()
+            if user and user.custom_topics:
+                return user.custom_topics
+            return []
+
+    def update_user_custom_topics(self, user_id: str, topics: List[str]) -> bool:
+        """Update custom topics for a user"""
+        try:
+            with self.get_session() as session:
+                user = session.query(User).filter(User.id == user_id).first()
+                if user:
+                    user.custom_topics = topics
+                    session.commit()
+                    return True
+                return False
+        except Exception as e:
+            logger.error(f"Failed to update custom topics for user {user_id}: {e}")
+            return False
 
     def _hash_password(self, password: str) -> str:
         """Hash password using hashlib (simple implementation for now)"""

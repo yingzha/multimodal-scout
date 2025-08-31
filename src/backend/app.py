@@ -31,6 +31,8 @@ from .schema import (
     AuthResponse,
     UserResponse,
     ConfigResponse,
+    UserPreferencesResponse,
+    UpdateUserPreferencesRequest,
 )
 from .utils import (
     generate_summary_from_link,
@@ -506,6 +508,38 @@ async def get_current_user_info(current_user: str = Depends(get_current_user)):
         create_user_friendly_error(
             "database_error", "Unable to get user information.", str(e), 500
         )
+
+
+@app.get("/api/user/preferences", response_model=UserPreferencesResponse)
+async def get_user_preferences(current_user: str = Depends(get_current_user)):
+    """Get user preferences including custom topics"""
+    try:
+        custom_topics = db_manager.get_user_custom_topics(current_user)
+        return UserPreferencesResponse(custom_topics=custom_topics)
+    except Exception as e:
+        logger.error(f"Failed to get user preferences: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get user preferences")
+
+
+@app.put("/api/user/preferences")
+async def update_user_preferences(
+    preferences: UpdateUserPreferencesRequest,
+    current_user: str = Depends(get_current_user),
+):
+    """Update user preferences including custom topics"""
+    try:
+        success = db_manager.update_user_custom_topics(
+            current_user, preferences.custom_topics
+        )
+        if success:
+            return {"success": True, "message": "Preferences updated successfully"}
+        else:
+            raise HTTPException(status_code=404, detail="User not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update user preferences: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update preferences")
 
 
 @app.post("/api/bookmarks", response_model=BookmarkResponse)
