@@ -3,6 +3,8 @@ FastAPI backend server for Multimodal Scout application.
 Provides REST API endpoints for fetching topics and scraping content.
 """
 
+from alembic.config import Config
+from alembic import command
 from fastapi import FastAPI, HTTPException, Header, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, Response
@@ -12,6 +14,7 @@ import asyncio
 import json
 import time
 from functools import lru_cache
+from sqlalchemy import text
 
 from .constants import INTERESTED_KEYWORDS
 from .logger import logger
@@ -31,6 +34,8 @@ from .schema import (
     AuthResponse,
     UserResponse,
     ConfigResponse,
+    UserPreferencesResponse,
+    UpdateUserPreferencesRequest,
 )
 from .utils import (
     generate_summary_from_link,
@@ -47,9 +52,52 @@ async def lifespan(app: FastAPI):
     try:
         logger.info("🚀 Initializing database tables...")
         db_manager.create_tables()
-        logger.info("✅ Database tables initialized successfully")
+
+        # Check if we need to run migrations automatically
+        try:
+            logger.info(
+                "🔄 Checking database schema and running migrations if needed..."
+            )
+
+            # Test database connection first
+
+            try:
+                with db_manager.engine.connect() as conn:
+                    conn.execute(text("SELECT 1"))
+                    logger.info("✅ Database connection verified")
+            except Exception as conn_error:
+                logger.warning(
+                    f"⚠️ Database connection failed: {conn_error} - migration skipped"
+                )
+                logger.warning(
+                    "💡 Manual migration may be needed using Cloud SQL Proxy"
+                )
+                return
+
+            # Set up alembic configuration
+            alembic_cfg = Config("/app/alembic.ini")
+            alembic_cfg.set_main_option("script_location", "/app/alembic")
+
+            # Run migration
+            logger.info("🔄 Running database migrations...")
+            command.upgrade(alembic_cfg, "head")
+            logger.info("✅ Database migrations completed successfully")
+
+        except Exception as migration_error:
+            logger.error(
+                f"❌ Failed to run migrations: {migration_error}", exc_info=True
+            )
+            logger.warning(
+                "⚠️ Migration failed - manual intervention may be needed. Service will continue to start."
+            )
+            logger.warning(
+                "💡 Use Cloud SQL Proxy method for manual migration if needed"
+            )
+            # Don't fail startup if migrations fail - allow manual intervention
+
+        logger.info("✅ Database initialization completed")
     except Exception as e:
-        logger.error(f"❌ Failed to initialize database tables: {e}", exc_info=True)
+        logger.error(f"❌ Failed to initialize database: {e}", exc_info=True)
         # Don't raise here to allow the app to start even if DB init fails
         # This allows for debugging and manual intervention
 
@@ -189,8 +237,6 @@ async def health_check():
     """Health check endpoint for monitoring"""
     try:
         # Test database connection
-        from sqlalchemy import text
-
         with db_manager.get_session() as session:
             session.execute(text("SELECT 1"))
         return {"status": "healthy", "database": "connected"}
@@ -506,6 +552,38 @@ async def get_current_user_info(current_user: str = Depends(get_current_user)):
         create_user_friendly_error(
             "database_error", "Unable to get user information.", str(e), 500
         )
+
+
+@app.get("/api/user/preferences", response_model=UserPreferencesResponse)
+async def get_user_preferences(current_user: str = Depends(get_current_user)):
+    """Get user preferences including custom topics"""
+    try:
+        custom_topics = db_manager.get_user_custom_topics(current_user)
+        return UserPreferencesResponse(custom_topics=custom_topics)
+    except Exception as e:
+        logger.error(f"Failed to get user preferences: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get user preferences")
+
+
+@app.put("/api/user/preferences")
+async def update_user_preferences(
+    preferences: UpdateUserPreferencesRequest,
+    current_user: str = Depends(get_current_user),
+):
+    """Update user preferences including custom topics"""
+    try:
+        success = db_manager.update_user_custom_topics(
+            current_user, preferences.custom_topics
+        )
+        if success:
+            return {"success": True, "message": "Preferences updated successfully"}
+        else:
+            raise HTTPException(status_code=404, detail="User not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update user preferences: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update preferences")
 
 
 @app.post("/api/bookmarks", response_model=BookmarkResponse)

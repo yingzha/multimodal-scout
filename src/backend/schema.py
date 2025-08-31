@@ -129,3 +129,15 @@ class ConfigResponse(BaseModel):
     max_urls_per_request: int
     user_content_daily_limit: int
     guest_daily_limit: int
+
+
+class UserPreferencesResponse(BaseModel):
+    """Response model for user preferences"""
+
+    custom_topics: List[str]
+
+
+class UpdateUserPreferencesRequest(BaseModel):
+    """Request model for updating user preferences"""
+
+    custom_topics: List[str]

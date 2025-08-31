@@ -173,6 +173,52 @@ export default function Home() {
     }
   }
 
+  const fetchUserPreferences = async () => {
+    if (!isAuthenticated || !sessionToken) return
+    
+    try {
+      const response = await fetch(`${apiUrl}/api/user/preferences`, {
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`,
+          'Cache-Control': 'no-cache'
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+      setCustomTopics(data.custom_topics || [])
+    } catch (error) {
+      console.error('Failed to fetch user preferences:', error)
+      // Keep empty array if API fails
+    }
+  }
+
+  const saveUserPreferences = async (topics: string[]) => {
+    if (!isAuthenticated || !sessionToken) return
+    
+    try {
+      const response = await fetch(`${apiUrl}/api/user/preferences`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`
+        },
+        body: JSON.stringify({
+          custom_topics: topics
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+    } catch (error) {
+      console.error('Failed to save user preferences:', error)
+    }
+  }
+
   useEffect(() => {
     fetchDefaultTopics()
     fetchConfig()
@@ -181,6 +227,10 @@ export default function Home() {
   useEffect(() => {
     if (isAuthenticated && !authLoading) {
       loadBookmarkStatus()
+      fetchUserPreferences()
+    } else if (!authLoading) {
+      // Clear custom topics for guest users
+      setCustomTopics([])
     }
   }, [isAuthenticated, authLoading])
 
@@ -204,13 +254,25 @@ export default function Home() {
       return
     }
 
-    setCustomTopics([...customTopics, trimmedKeyword])
+    const updatedTopics = [...customTopics, trimmedKeyword]
+    setCustomTopics(updatedTopics)
     setNewKeyword('')
-    showTemporaryMessage('Keyword added successfully!', 2000)
+    showTemporaryMessage('Keyword added successfully!', 1000)
+    
+    // Save to backend for authenticated users
+    if (isAuthenticated) {
+      saveUserPreferences(updatedTopics)
+    }
   }
 
   const handleRemoveCustomTopic = (topicToRemove: string) => {
-    setCustomTopics(customTopics.filter(topic => topic !== topicToRemove))
+    const updatedTopics = customTopics.filter(topic => topic !== topicToRemove)
+    setCustomTopics(updatedTopics)
+    
+    // Save to backend for authenticated users
+    if (isAuthenticated) {
+      saveUserPreferences(updatedTopics)
+    }
   }
 
   const handleBookmark = async (item: any) => {
@@ -1181,7 +1243,7 @@ export default function Home() {
               <div className="flex items-start gap-2">
                 <span className="flex-shrink-0">ℹ️</span>
                 <div>
-                  Search settings are disabled in this view as they only apply to content discovery. Use the controls above to filter your saved bookmarks.
+                  Search settings are disabled in this view as they only apply to content discovery.
                 </div>
               </div>
             </div>
