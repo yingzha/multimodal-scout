@@ -121,3 +121,11 @@ class UserResponse(BaseModel):
     username: str
     created_at: str
     last_login: str = None
+
+
+class ConfigResponse(BaseModel):
+    """Response model for application configuration"""
+
+    max_urls_per_request: int
+    user_content_daily_limit: int
+    guest_daily_limit: int

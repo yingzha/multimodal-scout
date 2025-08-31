@@ -28,6 +28,7 @@ export default function Home() {
   const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set())
   const [keywordMessage, setKeywordMessage] = useState('')
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
+  const [appConfig, setAppConfig] = useState({ max_urls_per_request: 5 }) // Default fallback
 
   // Utility function to show temporary messages
   const showTemporaryMessage = (message: string, duration: number = 3000) => {
@@ -151,8 +152,30 @@ export default function Home() {
     }
   }
 
+  const fetchConfig = async () => {
+    try {
+      const response = await fetch(`${apiUrl}/api/config`, {
+        cache: 'no-cache',
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+      setAppConfig(data)
+    } catch (error) {
+      console.error('Failed to fetch app config:', error)
+      // Keep default fallback values if API fails
+    }
+  }
+
   useEffect(() => {
     fetchDefaultTopics()
+    fetchConfig()
   }, [])
 
   useEffect(() => {
@@ -542,9 +565,9 @@ export default function Home() {
       return
     }
 
-    // Check if we exceed the server limit (5 URLs max)
-    if (validUrls.length > 5) {
-      setUploadMessage(`❌ Too many URLs: Maximum 5 URLs allowed per request, you provided ${validUrls.length}`)
+    // Check if we exceed the server limit (dynamic from backend)
+    if (validUrls.length > appConfig.max_urls_per_request) {
+      setUploadMessage(`❌ Too many URLs: Maximum ${appConfig.max_urls_per_request} URLs allowed per request, you provided ${validUrls.length}`)
       setTimeout(() => setUploadMessage(''), 4000)
       return
     }
@@ -1004,7 +1027,7 @@ export default function Home() {
             /* Smart Processing Mode - URL Input */
             <div className="space-y-4">
               <div className="text-sm text-gray-700 mb-4">
-                🔗 Add one or more URLs (separated by commas, max 5) and we'll automatically extract the content, create smart summaries, and organize them for you!
+                🔗 Add one or more URLs (separated by commas, max {appConfig.max_urls_per_request}) and we'll automatically extract the content, create smart summaries, and organize them for you!
               </div>
               <div className="flex gap-2">
                 <input

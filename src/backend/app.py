@@ -30,6 +30,7 @@ from .schema import (
     UserLoginRequest,
     AuthResponse,
     UserResponse,
+    ConfigResponse,
 )
 from .utils import (
     generate_summary_from_link,
@@ -196,6 +197,16 @@ async def health_check():
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         raise HTTPException(status_code=503, detail="Service unhealthy")
+
+
+@app.get("/api/config", response_model=ConfigResponse)
+async def get_config():
+    """Get application configuration values"""
+    return ConfigResponse(
+        max_urls_per_request=MAX_URLS_PER_REQUEST,
+        user_content_daily_limit=USER_CONTENT_DAILY_LIMIT,
+        guest_daily_limit=GUEST_DAILY_LIMIT,
+    )
 
 
 @lru_cache(maxsize=1)
@@ -692,13 +703,13 @@ async def create_content(
         # Security check 1: URL count validation (max 5 URLs per request)
         if len(request.urls) > MAX_URLS_PER_REQUEST:
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail={
                     "error": "validation_error",
                     "message": f"Maximum {MAX_URLS_PER_REQUEST} URLs allowed per request",
                     "provided": len(request.urls),
-                    "limit": MAX_URLS_PER_REQUEST
-                }
+                    "limit": MAX_URLS_PER_REQUEST,
+                },
             )
 
         # Security check 2: Rate limiting (10 requests per 24h for authenticated users)
@@ -714,10 +725,12 @@ async def create_content(
                     "reset_in_hours": round(remaining_hours / 3600, 1),
                     "current_usage": user_content_rate_limits[current_user]["count"],
                     "daily_limit": USER_CONTENT_DAILY_LIMIT,
-                }
+                },
             )
 
-        logger.info(f"Processing {len(request.urls)} uploaded links for user {current_user}")
+        logger.info(
+            f"Processing {len(request.urls)} uploaded links for user {current_user}"
+        )
 
         results = []
         failed_urls = []
@@ -762,13 +775,15 @@ async def create_content(
                 # Also cache the summary for future reference
                 db_manager.add_summary(url, summary)
 
-                results.append({
-                    "url": url,
-                    "title": title,
-                    "summary": summary,
-                    "source_tag": source_tag,
-                    "bookmark_id": bookmark_id
-                })
+                results.append(
+                    {
+                        "url": url,
+                        "title": title,
+                        "summary": summary,
+                        "source_tag": source_tag,
+                        "bookmark_id": bookmark_id,
+                    }
+                )
                 success_count += 1
 
                 logger.info(f"Successfully processed: {title} (Category: {source_tag})")
@@ -783,28 +798,30 @@ async def create_content(
                 success=False,
                 message="Failed to process any URLs",
                 results=[],
-                failed_urls=failed_urls
+                failed_urls=failed_urls,
             )
         elif len(failed_urls) > 0:
             return UploadLinkResponse(
                 success=True,
                 message=f"Processed {success_count} URLs successfully, {len(failed_urls)} failed",
                 results=results,
-                failed_urls=failed_urls
+                failed_urls=failed_urls,
             )
         else:
             return UploadLinkResponse(
                 success=True,
                 message=f"Successfully processed all {success_count} URLs",
                 results=results,
-                failed_urls=[]
+                failed_urls=[],
             )
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Failed to process uploaded links: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to process links: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to process links: {str(e)}"
+        )
 
 
 @app.get("/api/bookmarks/export")
