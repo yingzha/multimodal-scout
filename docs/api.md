@@ -89,6 +89,19 @@ You can obtain a session token by using the `/api/auth/login` or `/api/auth/regi
 - **Response**: `{"status": "healthy", "database": "connected"}`
 - **Error Response** (503): `{"detail": "Service unhealthy"}` when database is unreachable
 
+**GET /api/config**
+- **Description**: Get application configuration values for client-side validation
+- **Authentication**: Not required
+- **Response**:
+  ```json
+  {
+    "max_urls_per_request": 5,
+    "user_content_daily_limit": 10,
+    "guest_daily_limit": 3
+  }
+  ```
+- **Purpose**: Allows frontend to dynamically adapt to backend configuration changes
+
 ### Topics Management
 
 **GET /api/topics**
@@ -171,30 +184,65 @@ You can obtain a session token by using the `/api/auth/login` or `/api/auth/regi
   ```
 
 **POST /api/content**
-- **Description**: Create content item from user-provided link with automatic processing
+- **Description**: Create content items from user-provided URLs with automatic processing
 - **Authentication**: Required
+- **Rate Limiting**: 10 requests per day per authenticated user
 - **Request Body**:
   ```json
   {
-    "url": "https://example.com/article"
+    "urls": [
+      "https://example.com/article1",
+      "https://example.com/article2"
+    ]
   }
   ```
+- **Constraints**:
+  - Maximum 5 URLs per request (configurable via `/api/config`)
+  - URLs must be valid HTTP/HTTPS links
 - **Response**:
   ```json
   {
     "success": true,
-    "message": "Link processed and added to bookmarks as 'Research' content",
-    "bookmark_id": "uuid-here",
-    "title": "Extracted Article Title",
-    "summary": "AI-generated summary...",
-    "source_tag": "Research"
+    "message": "Successfully processed all 2 URLs",
+    "results": [
+      {
+        "url": "https://example.com/article1",
+        "title": "Extracted Article Title",
+        "summary": "AI-generated summary...",
+        "source_tag": "Research",
+        "bookmark_id": "uuid-here"
+      }
+    ],
+    "failed_urls": []
   }
   ```
+- **Error Responses**:
+  - **400**: URL count exceeds limit
+    ```json
+    {
+      "error": "validation_error",
+      "message": "Maximum 5 URLs allowed per request",
+      "provided": 8,
+      "limit": 5
+    }
+    ```
+  - **429**: Rate limit exceeded
+    ```json
+    {
+      "error": "rate_limit_exceeded",
+      "message": "Daily content processing limit exceeded (10 requests/day)",
+      "reset_in_hours": 12.5,
+      "current_usage": 10,
+      "daily_limit": 10
+    }
+    ```
 - **Features**:
-  - Automatic title extraction from webpage
+  - Batch processing of multiple URLs
+  - Automatic title extraction from webpages
   - AI-powered content summarization using Google Gemini
   - Smart categorization as Research, Industry, or General
   - Automatic bookmark creation for processed content
+  - Partial success handling (some URLs may fail while others succeed)
 
 ### Bookmark Management
 
@@ -339,11 +387,19 @@ Error responses include details:
 
 ## Rate Limiting
 
-The API implements rate limiting for guest users to ensure fair usage:
+The API implements rate limiting to ensure fair usage and prevent abuse:
 
+### Search Endpoints
 - **Authenticated Users**: Unlimited access to all endpoints
 - **Guest Users**: 3 searches per day for `/api/content/search` and `/api/content/search/stream` (rate limited by IP address)
-- **Window**: 24-hour rolling window
+
+### Content Processing Endpoints  
+- **Authenticated Users**: 10 requests per day for `/api/content` (rate limited per user)
+- **Guest Users**: No access to `/api/content` (authentication required)
+
+### Configuration
+- **Window**: 24-hour rolling window for all rate limits
+- **Limits**: Configurable via backend constants, exposed through `/api/config`
 
 ### Rate Limit Response
 
