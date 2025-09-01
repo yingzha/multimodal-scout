@@ -1004,8 +1004,11 @@ export default function Home() {
           <h1 className="text-5xl font-bold text-gray-900 mb-4">
             Multimodal Scout
           </h1>
-          <p className="text-xl text-gray-600">
+          <p className="text-xl text-gray-600 mb-2">
             Find top stories and papers related to multimodal AI and AI agents.
+          </p>
+          <p className="text-sm text-gray-600">
+            An open source project • <a href="https://github.com/yingzha/multimodal-scout/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline">View on GitHub</a>
           </p>
         </div>
 
