@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /_next/
+Disallow: /admin/
+Crawl-delay: 10
+
+# Allow search engines to find the main site
+# But keep them away from internal Next.js files and API routes
+
+# Sitemap: https://multimodal-scout.app/sitemap.xml
