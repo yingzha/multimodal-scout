@@ -141,3 +141,19 @@ class UpdateUserPreferencesRequest(BaseModel):
     """Request model for updating user preferences"""
 
     custom_topics: List[str]
+
+
+class CommentInsight(BaseModel):
+    """Response model for Hacker News comment insights"""
+
+    title: str
+    link: HttpUrl
+    comment_count: int
+    insights: Optional[str] = None
+    generated_at: Optional[str] = None
+
+
+class CommentInsightRequest(BaseModel):
+    """Request model for generating comment insights"""
+
+    link: HttpUrl

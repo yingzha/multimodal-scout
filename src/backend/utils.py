@@ -6,7 +6,7 @@ import requests
 from bs4 import BeautifulSoup
 from pydantic import HttpUrl
 
-from .constants import GEMINI_MODEL_NAME, USER_AGENT
+from .constants import GEMINI_MODEL_NAME, USER_AGENT, MIN_COMMENTS_FOR_INSIGHTS
 from .logger import logger
 from .client import genai_client, is_genai_enabled
 
@@ -363,3 +363,136 @@ Respond with only one word: Research, Industry, or General"""
     except Exception as e:
         logger.error(f"Error categorizing content: {e}")
         return "General"
+
+
+def fetch_hackernews_comments(hn_comment_link: str, max_comments: int = 15) -> dict:
+    """
+    Fetch comments for a Hacker News item using the existing comment link.
+    Returns comment data only if there are 10+ total comments.
+    """
+    try:
+        # Extract item ID from the existing comment link
+        match = re.search(r"item\?id=(\d+)", hn_comment_link)
+        if not match:
+            logger.warning(f"Could not extract item ID from HN link: {hn_comment_link}")
+            return {"comments": [], "comment_count": 0}
+
+        item_id = match.group(1)
+
+        # Get the item details from HN API
+        item_url = f"https://hacker-news.firebaseio.com/v0/item/{item_id}.json"
+        response = requests.get(
+            item_url, timeout=10, headers={"User-Agent": USER_AGENT}
+        )
+        response.raise_for_status()
+
+        item_data = response.json()
+        if not item_data:
+            return {"comments": [], "comment_count": 0}
+
+        total_comments = item_data.get("descendants", 0)
+
+        # Only process if there are enough comments
+        if total_comments < MIN_COMMENTS_FOR_INSIGHTS:
+            logger.info(
+                f"HN post has {total_comments} comments, need {MIN_COMMENTS_FOR_INSIGHTS}+ for insights"
+            )
+            return {"comments": [], "comment_count": total_comments}
+
+        comment_ids = item_data.get("kids", [])[:max_comments]
+        comments = []
+
+        for comment_id in comment_ids:
+            try:
+                comment_url = (
+                    f"https://hacker-news.firebaseio.com/v0/item/{comment_id}.json"
+                )
+                comment_response = requests.get(
+                    comment_url, timeout=5, headers={"User-Agent": USER_AGENT}
+                )
+                comment_response.raise_for_status()
+
+                comment_data = comment_response.json()
+                if (
+                    comment_data
+                    and comment_data.get("text")
+                    and not comment_data.get("deleted")
+                ):
+                    # Clean up HTML entities and tags
+                    soup = BeautifulSoup(comment_data["text"], "html.parser")
+                    clean_text = soup.get_text().strip()
+
+                    if len(clean_text) > 50:  # Only substantial comments
+                        comments.append(
+                            {
+                                "text": clean_text,
+                                "author": comment_data.get("by", "Anonymous"),
+                                "score": comment_data.get("score", 0),
+                            }
+                        )
+
+            except Exception as e:
+                logger.warning(f"Failed to fetch comment {comment_id}: {e}")
+                continue
+
+        return {"comments": comments, "comment_count": total_comments}
+
+    except Exception as e:
+        logger.error(f"Error fetching HN comments from {hn_comment_link}: {e}")
+        return {"comments": [], "comment_count": 0}
+
+
+def generate_comment_insights(comments: list, title: str) -> Optional[str]:
+    """Generate key insights from HN comments using Gemini API."""
+    if not comments:
+        return None
+
+    if not is_genai_enabled():
+        logger.warning("GenAI not enabled, skipping comment insights generation")
+        return None
+
+    try:
+        # Prepare comment text for analysis
+        comment_texts = []
+        for comment in comments:
+            if len(comment["text"]) > 50:  # Focus on substantial comments
+                comment_texts.append(f"• {comment['text']}")
+
+        if len(comment_texts) < MIN_COMMENTS_FOR_INSIGHTS:
+            return None
+
+        combined_comments = "\n".join(comment_texts)
+
+        prompt = f"""Analyze these Hacker News comments for "{title}" (total: {len(comment_texts)} comments) and extract 3-4 key insights about the community discussion.
+
+Focus on:
+- Main themes and technical concerns
+- Expert insights and real-world experiences  
+- Different perspectives or debates
+- Practical takeaways
+
+Format as concise bullet points (max 4 points).
+
+Comments:
+{combined_comments}
+
+Key Insights:"""
+
+        def generate_insights():
+            response = genai_client.models.generate_content(
+                model=GEMINI_MODEL_NAME, contents=[prompt]
+            )
+            summary = response.text.strip()
+            return summary
+
+        insights = _retry_with_backoff(generate_insights)
+
+        if insights and len(insights) > 50:
+            return insights
+        else:
+            logger.warning("Generated insights were too short or empty")
+            return None
+
+    except Exception as e:
+        logger.error(f"Error generating comment insights: {e}")
+        return None

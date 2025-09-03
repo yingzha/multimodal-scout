@@ -11,6 +11,7 @@ from sqlalchemy import (
     Text,
     Float,
     Boolean,
+    Integer,
     desc,
     ForeignKey,
 )
@@ -140,6 +141,26 @@ class Bookmark(Base):
     summary = Column(Text, nullable=True)
     summary_edited = Column(String, nullable=True)
     bookmarked_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
+
+
+class CommentInsight(Base):
+    __tablename__ = "comment_insights"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    source_id = Column(
+        UUID(as_uuid=True), ForeignKey("sources.id"), nullable=False, index=True
+    )
+    link = Column(
+        String, nullable=False, index=True
+    )  # Same as sources.link for HN posts
+    title = Column(String, nullable=False)
+    comment_count = Column(Integer, nullable=False)  # Total number of comments
+    insights = Column(Text, nullable=True)  # AI-generated insights in bullet points
+    generated_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(
+        DateTime, default=datetime.now, onupdate=datetime.now, nullable=False
+    )
 
 
 class DatabaseManager:
@@ -986,6 +1007,45 @@ class DatabaseManager:
         """Adds a new text-embedding pair to the cache."""
         text_hash = self._get_text_hash(text)
         self.add_embedding_to_cache(text, text_hash, embedding, model_name)
+
+    # --- Comment Insight Methods ---
+
+    def save_comment_insight(
+        self, source_id: str, link: str, title: str, comment_count: int, insights: str
+    ) -> str:
+        """Save or update comment insights for a HN source."""
+        with self.get_session() as session:
+            existing = (
+                session.query(CommentInsight)
+                .filter(CommentInsight.source_id == source_id)
+                .first()
+            )
+
+            if existing:
+                existing.comment_count = comment_count
+                existing.insights = insights
+                existing.updated_at = datetime.now()
+            else:
+                existing = CommentInsight(
+                    source_id=source_id,
+                    link=link,
+                    title=title,
+                    comment_count=comment_count,
+                    insights=insights,
+                )
+                session.add(existing)
+
+            session.commit()
+            return str(existing.id)
+
+    def get_comment_insights(self, link: str) -> Optional[CommentInsight]:
+        """Get comment insights by HN link."""
+        with self.get_session() as session:
+            return (
+                session.query(CommentInsight)
+                .filter(CommentInsight.link == link)
+                .first()
+            )
 
     # --- Simple Card Tracking Methods ---
 

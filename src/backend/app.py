@@ -997,25 +997,27 @@ async def pipeline_cron_job(authorization: Optional[str] = Header(None)):
     Local: No authentication required for development
     """
     from .config import config
-    
+
     # In cloud environment, require pipeline secret
     if config.is_cloud_environment:
         pipeline_secret = config.get_secret("pipeline-secret")
         if not pipeline_secret:
             logger.error("Pipeline endpoint disabled - pipeline-secret not configured")
-            raise HTTPException(status_code=503, detail="Pipeline endpoint not configured")
-        
+            raise HTTPException(
+                status_code=503, detail="Pipeline endpoint not configured"
+            )
+
         # Verify authorization header
         if not authorization or not authorization.startswith("Bearer "):
             logger.warning("Pipeline endpoint accessed without valid authorization")
             raise HTTPException(status_code=401, detail="Authorization required")
-        
+
         # Extract and validate token
         token = authorization.split(" ", 1)[1] if " " in authorization else ""
         if token != pipeline_secret:
             logger.warning("Pipeline endpoint accessed with invalid secret")
             raise HTTPException(status_code=403, detail="Access denied")
-        
+
         logger.info("🔓 Pipeline authenticated via Secret Manager")
     else:
         # Local development - no authentication required
