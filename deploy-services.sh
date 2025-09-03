@@ -105,8 +105,9 @@ if gcloud scheduler jobs describe pipeline-job --location=$REGION &>/dev/null; t
     --schedule="*/30 * * * *" \
     --uri="$BACKEND_URL/pipeline" \
     --http-method=POST \
-    --headers="Authorization: Bearer $PIPELINE_SECRET" \
-    --time-zone="UTC" >/dev/null 2>&1
+    --update-headers="Authorization=Bearer $PIPELINE_SECRET" \
+    --clear-auth-token \
+    --time-zone="UTC"
   echo "✅ Scheduler job updated successfully"
 else
   echo "➕ Creating new scheduler job with pipeline authentication..."
@@ -115,8 +116,8 @@ else
     --schedule="*/30 * * * *" \
     --uri="$BACKEND_URL/pipeline" \
     --http-method=POST \
-    --headers="Authorization: Bearer $PIPELINE_SECRET" \
-    --time-zone="UTC" >/dev/null 2>&1
+    --headers="Authorization=Bearer $PIPELINE_SECRET" \
+    --time-zone="UTC"
   echo "✅ Scheduler job created successfully"
 fi
 
