@@ -688,14 +688,35 @@ async def get_bookmarks(
             )
             is_edited = bool(summary_edited)
 
+            # Check for HN comment insights and create combined summary
+            comment_insights = None
+            comment_count = None
+            final_display_summary = display_summary
+
+            if "news.ycombinator.com" in bookmark.link.lower():
+                insights_data = db_manager.get_comment_insights(bookmark.link)
+                if insights_data:
+                    comment_insights = insights_data.insights
+                    comment_count = insights_data.comment_count
+
+                    # Create two-section summary for HN bookmarks with comment insights
+                    if comment_insights:
+                        final_display_summary = f"""**Content Summary:**
+{display_summary}
+
+**Community Discussion ({comment_count} comments):**
+{comment_insights}"""
+
             bookmark_items.append(
                 ItemResponse(
                     title=bookmark.title,
                     link=bookmark.link,
-                    summary=display_summary,
+                    summary=final_display_summary,
                     source=bookmark.source_tag,
                     created_at=bookmark.bookmarked_at.isoformat(),
                     summary_edited=is_edited,
+                    comment_insights=comment_insights,
+                    comment_count=comment_count,
                 )
             )
         return FetchResponse(

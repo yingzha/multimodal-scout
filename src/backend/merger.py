@@ -3,7 +3,14 @@ from typing import List
 
 from .schema import SourceSchema
 from .logger import logger
-from .utils import generate_summary_from_link
+from .utils import (
+    generate_summary_from_link,
+    fetch_hackernews_comments,
+    generate_comment_insights,
+)
+from .constants import MIN_COMMENTS_FOR_INSIGHTS
+from .database import db_manager, Source
+from .search import _get_embedding
 
 
 def enrich_sources_with_summaries(sources: List[SourceSchema]) -> List[SourceSchema]:
@@ -64,6 +71,73 @@ def enrich_sources_with_summaries(sources: List[SourceSchema]) -> List[SourceSch
     return sources
 
 
+def _enrich_hackernews_comments(sources: List[SourceSchema]) -> None:
+    """
+    Enrich HN sources with comment insights. Only updates if there are enough new comments.
+    Modifies the database directly, doesn't change the source objects.
+    """
+    hn_sources = [s for s in sources if "news.ycombinator.com" in str(s.link).lower()]
+
+    if not hn_sources:
+        return
+
+    logger.info(f"Processing {len(hn_sources)} HN sources for comment insights")
+
+    for i, source in enumerate(hn_sources):
+        if i > 0:
+            time.sleep(1.0)  # Rate limiting
+
+        try:
+            link_str = str(source.link)
+
+            # Check existing insights
+            existing_insights = db_manager.get_comment_insights(link_str)
+
+            # Fetch current comments
+            comment_data = fetch_hackernews_comments(link_str)
+            current_count = comment_data.get("comment_count", 0)
+
+            # Skip if not enough comments
+            if current_count < MIN_COMMENTS_FOR_INSIGHTS:
+                continue
+
+            # Skip if not enough new comments since last update
+            if existing_insights:
+                new_comments = current_count - existing_insights.comment_count
+                if new_comments < MIN_COMMENTS_FOR_INSIGHTS:
+                    continue
+
+            # Generate insights
+            comments = comment_data.get("comments", [])
+            if not comments:
+                continue
+
+            insights = generate_comment_insights(comments, source.title)
+            if not insights:
+                continue
+
+            # Find source in DB and save insights
+            with db_manager.get_session() as session:
+                db_source = (
+                    session.query(Source).filter(Source.link == link_str).first()
+                )
+
+                if db_source:
+                    db_manager.save_comment_insight(
+                        source_id=str(db_source.id),
+                        link=link_str,
+                        title=source.title,
+                        comment_count=current_count,
+                        insights=insights,
+                    )
+                    logger.info(
+                        f"Updated HN comment insights ({current_count} comments): {source.title[:50]}"
+                    )
+
+        except Exception as e:
+            logger.error(f"Error processing HN comments for {source.title[:50]}: {e}")
+
+
 def enrich_sources_with_summaries_and_embeddings(
     sources: List[SourceSchema],
 ) -> List[SourceSchema]:
@@ -82,8 +156,8 @@ def enrich_sources_with_summaries_and_embeddings(
     # First, generate summaries
     enriched_sources = enrich_sources_with_summaries(sources)
 
-    # Import here to avoid circular imports
-    from .search import _get_embedding
+    # Then, enrich HN sources with comment insights
+    _enrich_hackernews_comments(enriched_sources)
 
     # Then Generate embeddings for the text that will be searched
     for source in enriched_sources:

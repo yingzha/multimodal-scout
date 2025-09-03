@@ -501,11 +501,31 @@ async def process_content_pipeline(
         is_new = link_str in new_links if session_id else False
 
         matched_keywords = source_keywords_map.get(link_str, [])
+
+        # Check for HN comment insights and create combined summary
+        comment_insights = None
+        comment_count = None
+        display_summary = source.summary or "No summary available"
+
+        if "news.ycombinator.com" in link_str.lower():
+            insights_data = db_manager.get_comment_insights(link_str)
+            if insights_data:
+                comment_insights = insights_data.insights
+                comment_count = insights_data.comment_count
+
+                # Create two-section summary for HN posts with comment insights
+                if comment_insights:
+                    display_summary = f"""**Content Summary:**
+{display_summary}
+
+**Community Discussion ({comment_count} comments):**
+{comment_insights}"""
+
         all_items.append(
             {
                 "title": source.title,
                 "link": link_str,
-                "summary": source.summary or "No summary available",
+                "summary": display_summary,
                 "source": source_tag,
                 "created_at": (
                     source.date.isoformat()
@@ -514,6 +534,8 @@ async def process_content_pipeline(
                 ),
                 "is_new": is_new,
                 "matched_keywords": matched_keywords,
+                "comment_insights": comment_insights,
+                "comment_count": comment_count,
             }
         )
 
