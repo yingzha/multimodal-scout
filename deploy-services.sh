@@ -88,24 +88,36 @@ FRONTEND_URL=$(gcloud run services describe multimodal-scout-frontend \
 
 # Deploy Cloud Scheduler job (create or update)
 echo "⏰ Setting up Cloud Scheduler job..."
+
+# Get pipeline secret from Secret Manager for scheduler
+PIPELINE_SECRET=$(gcloud secrets versions access latest --secret="pipeline-secret" 2>/dev/null || echo "")
+if [ -z "$PIPELINE_SECRET" ]; then
+  echo "⚠️  Warning: pipeline-secret not found in Secret Manager"
+  echo "   Create it with: gcloud secrets create pipeline-secret --data-file=<(echo 'your-random-secret')"
+  echo "   Using placeholder - update after secret creation"
+  PIPELINE_SECRET="PLACEHOLDER_UPDATE_AFTER_SECRET_CREATION"
+fi
+
 if gcloud scheduler jobs describe pipeline-job --location=$REGION &>/dev/null; then
-  echo "📝 Updating existing scheduler job with new backend URL..."
+  echo "📝 Updating existing scheduler job with pipeline authentication..."
   gcloud scheduler jobs update http pipeline-job \
     --location=$REGION \
     --schedule="*/30 * * * *" \
     --uri="$BACKEND_URL/pipeline" \
     --http-method=POST \
-    --oidc-service-account-email="multimodal-scout-scheduler@$PROJECT_ID.iam.gserviceaccount.com" \
-    --time-zone="UTC"
+    --headers="Authorization: Bearer $PIPELINE_SECRET" \
+    --time-zone="UTC" >/dev/null 2>&1
+  echo "✅ Scheduler job updated successfully"
 else
-  echo "➕ Creating new scheduler job..."
+  echo "➕ Creating new scheduler job with pipeline authentication..."
   gcloud scheduler jobs create http pipeline-job \
     --location=$REGION \
     --schedule="*/30 * * * *" \
     --uri="$BACKEND_URL/pipeline" \
     --http-method=POST \
-    --oidc-service-account-email="multimodal-scout-scheduler@$PROJECT_ID.iam.gserviceaccount.com" \
-    --time-zone="UTC"
+    --headers="Authorization: Bearer $PIPELINE_SECRET" \
+    --time-zone="UTC" >/dev/null 2>&1
+  echo "✅ Scheduler job created successfully"
 fi
 
 echo ""

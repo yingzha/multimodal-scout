@@ -71,6 +71,11 @@ echo -n "$DB_PASSWORD" | gcloud secrets create database-password --data-file=-
 echo -n "$GOOGLE_API_KEY" | gcloud secrets create google-api-key --data-file=- \
   || echo "Secrets may already exist"
 
+# Generate and store pipeline secret
+PIPELINE_SECRET=$(openssl rand -base64 32)
+echo -n "$PIPELINE_SECRET" | gcloud secrets create pipeline-secret --data-file=- \
+  || echo "Pipeline secret may already exist"
+
 # Step 8: Create service accounts
 echo "🔑 Creating service accounts..."
 gcloud iam service-accounts create multimodal-scout-backend \
