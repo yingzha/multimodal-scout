@@ -1,4 +1,5 @@
 import time
+from concurrent import futures
 from typing import List
 
 from .schema import SourceSchema
@@ -8,6 +9,7 @@ from .utils import (
     fetch_hackernews_comments,
     generate_comment_insights,
 )
+
 from .constants import MIN_COMMENTS_FOR_INSIGHTS
 from .database import db_manager, Source
 from .search import _get_embedding
@@ -75,6 +77,7 @@ def _enrich_hackernews_comments(sources: List[SourceSchema]) -> None:
     """
     Enrich HN sources with comment insights. Only updates if there are enough new comments.
     Modifies the database directly, doesn't change the source objects.
+    Optimized with parallel processing and batching.
     """
     hn_sources = [s for s in sources if "news.ycombinator.com" in str(s.link).lower()]
 
@@ -83,12 +86,22 @@ def _enrich_hackernews_comments(sources: List[SourceSchema]) -> None:
 
     logger.info(f"Processing {len(hn_sources)} HN sources for comment insights")
 
-    for source in hn_sources:
+    hn_links = [str(s.link) for s in hn_sources]
+    existing_insights_map = {}
+
+    for link in hn_links:
+        try:
+            insights = db_manager.get_comment_insights(link)
+            if insights:
+                existing_insights_map[link] = insights
+        except Exception as e:
+            logger.warning(f"Failed to fetch existing insights for {link}: {e}")
+
+    def process_hn_source(source):
+        """Process a single HN source for comment insights"""
         try:
             link_str = str(source.link)
-
-            # Check existing insights
-            existing_insights = db_manager.get_comment_insights(link_str)
+            existing_insights = existing_insights_map.get(link_str)
 
             # Fetch current comments
             comment_data = fetch_hackernews_comments(link_str)
@@ -96,43 +109,89 @@ def _enrich_hackernews_comments(sources: List[SourceSchema]) -> None:
 
             # Skip if not enough comments
             if current_count < MIN_COMMENTS_FOR_INSIGHTS:
-                continue
+                return None
 
             # Skip if not enough new comments since last update
             if existing_insights:
-                new_comments = current_count - existing_insights.comment_count
+                existing_count = (
+                    int(existing_insights.comment_count)
+                    if existing_insights.comment_count
+                    else 0
+                )
+                new_comments = current_count - existing_count
                 if new_comments < MIN_COMMENTS_FOR_INSIGHTS:
-                    continue
+                    return None
 
             # Generate insights
             comments = comment_data.get("comments", [])
             if not comments:
-                continue
+                return None
 
             insights = generate_comment_insights(comments, source.title)
             if not insights:
-                continue
+                return None
 
-            # Find source in DB and save insights
-            with db_manager.get_session() as session:
-                db_source = (
-                    session.query(Source).filter(Source.link == link_str).first()
-                )
-
-                if db_source:
-                    db_manager.save_comment_insight(
-                        source_id=str(db_source.id),
-                        link=link_str,
-                        title=source.title,
-                        comment_count=current_count,
-                        insights=insights,
-                    )
-                    logger.info(
-                        f"Updated HN comment insights ({current_count} comments): {source.title[:50]}"
-                    )
+            return {
+                "source": source,
+                "link_str": link_str,
+                "current_count": current_count,
+                "insights": insights,
+            }
 
         except Exception as e:
             logger.error(f"Error processing HN comments for {source.title[:50]}: {e}")
+            return None
+
+    # Optimization 3: Parallel processing with controlled concurrency
+    results_to_save = []
+    max_workers = min(
+        5, len(hn_sources)
+    )  # Limit concurrent requests to be respectful to HN
+
+    with futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_source = {
+            executor.submit(process_hn_source, source): source for source in hn_sources
+        }
+
+        for future in futures.as_completed(future_to_source):
+            result = future.result()
+            if result:
+                results_to_save.append(result)
+
+    # Optimization 4: Batch save results to reduce DB transactions
+    if results_to_save:
+        logger.info(f"Saving {len(results_to_save)} comment insights to database...")
+
+        for result in results_to_save:
+            try:
+                # Find source in DB and save insights
+                with db_manager.get_session() as session:
+                    db_source = (
+                        session.query(Source)
+                        .filter(Source.link == result["link_str"])
+                        .first()
+                    )
+
+                    if db_source:
+                        db_manager.save_comment_insight(
+                            source_id=str(db_source.id),
+                            link=result["link_str"],
+                            title=result["source"].title,
+                            comment_count=result["current_count"],
+                            insights=result["insights"],
+                        )
+                        logger.info(
+                            f"Updated HN comment insights ({result['current_count']} comments): {result['source'].title[:50]}"
+                        )
+
+            except Exception as e:
+                logger.error(
+                    f"Error saving insights for {result['source'].title[:50]}: {e}"
+                )
+
+    logger.info(
+        f"✅ HN comment insights processing complete: {len(results_to_save)} insights updated"
+    )
 
 
 def enrich_sources_with_summaries_and_embeddings(
@@ -153,10 +212,7 @@ def enrich_sources_with_summaries_and_embeddings(
     # First, generate summaries
     enriched_sources = enrich_sources_with_summaries(sources)
 
-    # Then, enrich HN sources with comment insights
-    _enrich_hackernews_comments(enriched_sources)
-
-    # Then Generate embeddings for the text that will be searched
+    # Generate embeddings for the text that will be searched
     for source in enriched_sources:
         try:
             if source.summary:  # Only generate embeddings for sources with summaries

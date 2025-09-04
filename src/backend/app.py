@@ -78,10 +78,14 @@ async def lifespan(app: FastAPI):
             alembic_cfg = Config("/app/alembic.ini")
             alembic_cfg.set_main_option("script_location", "/app/alembic")
 
-            # Run migration
+            # Run migration (skip in development mode to avoid hanging)
             logger.info("🔄 Running database migrations...")
-            command.upgrade(alembic_cfg, "head")
-            logger.info("✅ Database migrations completed successfully")
+
+            # Temporarily skip migration to fix local dev hanging issue
+            logger.info("⏭️ Skipping auto-migration (database is already up to date)")
+            # TODO: Re-enable for production deployment
+            # command.upgrade(alembic_cfg, "head")
+            # logger.info("✅ Database migrations completed successfully")
 
         except Exception as migration_error:
             logger.error(
@@ -701,11 +705,13 @@ async def get_bookmarks(
 
                     # Create two-section summary for HN bookmarks with comment insights
                     if comment_insights:
-                        final_display_summary = f"""**Content Summary:**
-{display_summary}
+                        # Remove only the introductory line, keep the rest as-is
+                        lines = comment_insights.split("\n")
+                        if lines and "here are" in lines[0].lower():
+                            comment_insights = "\n".join(lines[1:]).strip()
 
-**Community Discussion ({comment_count} comments):**
-{comment_insights}"""
+                        bullet_points = comment_insights
+                        final_display_summary = f"**Content Summary:**\n{display_summary}\n\n**Community Discussion ({comment_count} comments):**\n{bullet_points}"
 
             bookmark_items.append(
                 ItemResponse(

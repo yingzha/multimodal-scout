@@ -335,6 +335,14 @@ async def process_content_pipeline(
         else:
             logger.info("No new sources found - all were existing or skipped")
 
+        # Always run comment insights enrichment on HN sources (both new and existing)
+        # since HN comments can grow over time
+        if fresh_sources:
+            from .merger import _enrich_hackernews_comments
+
+            logger.info("Running comment insights enrichment on all HN sources...")
+            _enrich_hackernews_comments(fresh_sources)
+
     except Exception as e:
         logger.error(f"Failed to save sources to database: {e}")
         yield {
@@ -515,11 +523,13 @@ async def process_content_pipeline(
 
                 # Create two-section summary for HN posts with comment insights (registered users only)
                 if comment_insights:
-                    display_summary = f"""**Content Summary:**
-{display_summary}
+                    # Remove only the introductory line, keep the rest as-is
+                    lines = comment_insights.split("\n")
+                    if lines and "here are" in lines[0].lower():
+                        comment_insights = "\n".join(lines[1:]).strip()
 
-**Community Discussion ({comment_count} comments):**
-{comment_insights}"""
+                    bullet_points = comment_insights
+                    display_summary = f"**Content Summary:**\n{display_summary}\n\n**Community Discussion ({comment_count} comments):**\n{bullet_points}"
 
         all_items.append(
             {

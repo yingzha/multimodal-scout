@@ -31,7 +31,7 @@ DISCOVERY_THRESHOLD = 0.65
 
 # --- RSS Sources Configuration ---
 # Maximum number of items to retrieve from each RSS feed
-RSS_FEED_LIMIT = 30
+RSS_FEED_LIMIT = 5
 
 # --- Comment Insights Configuration ---
 # Minimum number of comments required to generate insights
