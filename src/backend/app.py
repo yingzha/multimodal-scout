@@ -3,19 +3,30 @@ FastAPI backend server for Multimodal Scout application.
 Provides REST API endpoints for fetching topics and scraping content.
 """
 
+# Standard library imports
+import asyncio
+import json
+import time
+import uvicorn
+from contextlib import asynccontextmanager
+from datetime import datetime
+from functools import lru_cache
+from html import escape
+from io import BytesIO, StringIO
+from typing import Optional
+
+# Third-party imports
 from alembic.config import Config
 from alembic import command
 from fastapi import FastAPI, HTTPException, Header, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, Response
-from typing import Optional
-from contextlib import asynccontextmanager
-import asyncio
-import json
-import time
-from functools import lru_cache
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill
 from sqlalchemy import text
 
+# Local imports
+from .config import config
 from .constants import INTERESTED_KEYWORDS
 from .logger import logger
 from .database import db_manager
@@ -78,14 +89,18 @@ async def lifespan(app: FastAPI):
             alembic_cfg = Config("/app/alembic.ini")
             alembic_cfg.set_main_option("script_location", "/app/alembic")
 
-            # Run migration (skip in development mode to avoid hanging)
+            # Run migration based on environment
             logger.info("🔄 Running database migrations...")
 
-            # Temporarily skip migration to fix local dev hanging issue
-            logger.info("⏭️ Skipping auto-migration (database is already up to date)")
-            # TODO: Re-enable for production deployment
-            # command.upgrade(alembic_cfg, "head")
-            # logger.info("✅ Database migrations completed successfully")
+            if config.is_cloud_environment:
+                # Production: Run migrations automatically
+                logger.info("🌍 Production environment detected - running migrations")
+                command.upgrade(alembic_cfg, "head")
+                logger.info("✅ Database migrations completed successfully")
+            else:
+                # Local development: Skip migrations to avoid hanging with Docker
+                logger.info("💻 Local development environment detected - skipping auto-migration")
+                logger.info("💡 Database migrations should be run manually if needed")
 
         except Exception as migration_error:
             logger.error(
@@ -933,10 +948,6 @@ async def create_content(
 async def export_bookmarks(current_user: str = Depends(get_current_user)):
     """Export all bookmarks to Excel file"""
     try:
-        from openpyxl import Workbook
-        from openpyxl.styles import Font, PatternFill
-        from io import BytesIO
-        from datetime import datetime
 
         logger.info("Starting bookmark export to Excel")
 
@@ -1023,7 +1034,6 @@ async def pipeline_cron_job(authorization: Optional[str] = Header(None)):
     Cloud: Requires pipeline-secret from Secret Manager
     Local: No authentication required for development
     """
-    from .config import config
 
     # In cloud environment, require pipeline secret
     if config.is_cloud_environment:
@@ -1106,9 +1116,6 @@ async def export_chrome_bookmarks(
 ):
     """Export bookmarks in Chrome-compatible HTML format with optional filtering"""
     try:
-        from datetime import datetime
-        from html import escape
-        from io import StringIO
 
         logger.info(f"Starting bookmark export in {export_format} format")
 
@@ -1301,6 +1308,4 @@ async def export_chrome_bookmarks(
 
 
 if __name__ == "__main__":
-    import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
