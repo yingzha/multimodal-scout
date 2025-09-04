@@ -1,5 +1,6 @@
 import os
 import hashlib
+import time
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 
@@ -177,6 +178,10 @@ class DatabaseManager:
         # This helps avoid reprocessing the same sources across method calls
         self._processed_sources_cache = set()
         self._cache_max_size = 10000  # Limit cache size to prevent memory issues
+
+        # In-memory cache for comment insights with 5-minute expiration
+        self._comment_insights_cache = {}  # link -> (insights, timestamp)
+        self._comment_insights_cache_ttl = 300  # 5 minutes in seconds
 
     def get_session(self) -> Session:
         return self.SessionLocal()
@@ -1038,14 +1043,77 @@ class DatabaseManager:
             session.commit()
             return str(existing.id)
 
-    def get_comment_insights(self, link: str) -> Optional[CommentInsight]:
-        """Get comment insights by HN link."""
-        with self.get_session() as session:
-            return (
-                session.query(CommentInsight)
-                .filter(CommentInsight.link == link)
-                .first()
-            )
+    def _get_cached_comment_insights(
+        self, links: List[str]
+    ) -> Dict[str, CommentInsight]:
+        """Get cached comment insights that are still valid (within 5 minutes)."""
+        cached_results = {}
+        current_time = time.time()
+        expired_links = []
+
+        for link in links:
+            if link in self._comment_insights_cache:
+                insight_data, timestamp = self._comment_insights_cache[link]
+
+                # Check if cache is still valid (within TTL)
+                if current_time - timestamp <= self._comment_insights_cache_ttl:
+                    cached_results[link] = insight_data
+                else:
+                    expired_links.append(link)
+
+        # Clean up expired entries
+        for link in expired_links:
+            del self._comment_insights_cache[link]
+
+        if cached_results:
+            logger.info(f"Comment insight cache hits for {len(cached_results)} links")
+
+        return cached_results
+
+    def _cache_comment_insights(self, insights: List[CommentInsight]) -> None:
+        """Cache multiple comment insights with timestamp."""
+        current_time = time.time()
+        for insight in insights:
+            self._comment_insights_cache[insight.link] = (insight, current_time)
+
+        if insights:
+            logger.info(f"Cached comment insights for {len(insights)} links")
+
+    def get_comment_insights(self, links: List[str]) -> Dict[str, CommentInsight]:
+        """Get comment insights by HN links, using cache and batch database query."""
+        if not links:
+            return {}
+
+        # Check cache first
+        cached_insights = self._get_cached_comment_insights(links)
+
+        # Find links that need database lookup
+        uncached_links = [link for link in links if link not in cached_insights]
+
+        # Get uncached insights from database in a single query
+        db_insights = {}
+        if uncached_links:
+            with self.get_session() as session:
+                db_results = (
+                    session.query(CommentInsight)
+                    .filter(CommentInsight.link.in_(uncached_links))
+                    .all()
+                )
+
+                # Cache the database results
+                if db_results:
+                    self._cache_comment_insights(db_results)
+
+                # Convert to dict
+                db_insights = {insight.link: insight for insight in db_results}
+
+        # Combine cached and database results
+        all_insights = {**cached_insights, **db_insights}
+
+        logger.info(
+            f"Retrieved comment insights: {len(cached_insights)} from cache, {len(db_insights)} from database"
+        )
+        return all_insights
 
     # --- Simple Card Tracking Methods ---
 

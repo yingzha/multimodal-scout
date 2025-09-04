@@ -1,6 +1,6 @@
 import re
 import time
-from typing import Optional
+from typing import Optional, Tuple, List, Dict
 
 import requests
 from bs4 import BeautifulSoup
@@ -9,6 +9,7 @@ from pydantic import HttpUrl
 from .constants import GEMINI_MODEL_NAME, USER_AGENT, MIN_COMMENTS_FOR_INSIGHTS
 from .logger import logger
 from .client import genai_client, is_genai_enabled
+from .database import db_manager
 
 
 def _retry_with_backoff(func, max_retries=3, base_delay=1.0):
@@ -496,3 +497,66 @@ Key Insights:"""
     except Exception as e:
         logger.error(f"Error generating comment insights: {e}")
         return None
+
+
+def get_hn_comment_insights_with_summaries(
+    links: List[str], original_summaries: Dict[str, str], user_id: str = None
+) -> Dict[str, Tuple[str, Optional[str], Optional[int]]]:
+    """
+    Get HN comment insights and create combined summaries for multiple links (batch processing).
+
+    Args:
+        links: List of links to process
+        original_summaries: Dict mapping link -> original summary
+        user_id: User ID (insights only shown to registered users)
+
+    Returns:
+        Dict mapping link -> (final_summary, comment_insights, comment_count)
+    """
+    results = {}
+
+    # Filter to only HN links
+    hn_links = [link for link in links if "news.ycombinator.com" in link.lower()]
+
+    # If no user_id or no HN links, return original summaries
+    if not user_id or not hn_links:
+        for link in links:
+            original_summary = original_summaries.get(link, "No summary available")
+            results[link] = (original_summary, None, None)
+        return results
+
+    # Batch get insights for all HN links
+    insights_map = db_manager.get_comment_insights(hn_links)
+
+    # Process each link
+    for link in links:
+        original_summary = original_summaries.get(link, "No summary available")
+
+        if "news.ycombinator.com" not in link.lower():
+            results[link] = (original_summary, None, None)
+            continue
+
+        insights_data = insights_map.get(link)
+        if not insights_data:
+            results[link] = (original_summary, None, None)
+            continue
+
+        comment_insights = insights_data.insights
+        comment_count = insights_data.comment_count
+
+        if not comment_insights:
+            results[link] = (original_summary, comment_insights, comment_count)
+            continue
+
+        # Clean up insights by removing introductory line
+        lines = comment_insights.split("\n")
+        if lines and "here are" in lines[0].lower():
+            comment_insights = "\n".join(lines[1:]).strip()
+
+        # Create two-section summary
+        bullet_points = comment_insights
+        final_summary = f"**Content Summary:**\n{original_summary}\n\n**Community Discussion ({comment_count} comments):**\n{bullet_points}"
+
+        results[link] = (final_summary, comment_insights, comment_count)
+
+    return results

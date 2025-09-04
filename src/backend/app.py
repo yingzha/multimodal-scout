@@ -31,6 +31,7 @@ from .constants import INTERESTED_KEYWORDS
 from .logger import logger
 from .database import db_manager
 from .pipeline import process_content_pipeline
+from .utils import get_hn_comment_insights_with_summaries
 from .schema import (
     FetchRequest,
     TopicResponse,
@@ -99,7 +100,9 @@ async def lifespan(app: FastAPI):
                 logger.info("✅ Database migrations completed successfully")
             else:
                 # Local development: Skip migrations to avoid hanging with Docker
-                logger.info("💻 Local development environment detected - skipping auto-migration")
+                logger.info(
+                    "💻 Local development environment detected - skipping auto-migration"
+                )
                 logger.info("💡 Database migrations should be run manually if needed")
 
         except Exception as migration_error:
@@ -698,6 +701,23 @@ async def get_bookmarks(
     """Get bookmarks with optional filtering by days back and result limit"""
     try:
         bookmarks = db_manager.get_bookmarks(current_user, limit=limit, days_back=days)
+
+        # Prepare batch processing for HN comment insights
+        bookmark_links = []
+        original_summaries = {}
+        for bookmark in bookmarks:
+            summary_edited = getattr(bookmark, "summary_edited", None)
+            display_summary = (
+                summary_edited or bookmark.summary or "No summary available"
+            )
+            bookmark_links.append(bookmark.link)
+            original_summaries[bookmark.link] = display_summary
+
+        # Batch process all HN comment insights at once
+        insights_results = get_hn_comment_insights_with_summaries(
+            bookmark_links, original_summaries, user_id
+        )
+
         bookmark_items = []
         for bookmark in bookmarks:
             # Handle both old and new schema gracefully
@@ -707,26 +727,10 @@ async def get_bookmarks(
             )
             is_edited = bool(summary_edited)
 
-            # Check for HN comment insights and create combined summary
-            comment_insights = None
-            comment_count = None
-            final_display_summary = display_summary
-
-            if "news.ycombinator.com" in bookmark.link.lower():
-                insights_data = db_manager.get_comment_insights(bookmark.link)
-                if insights_data:
-                    comment_insights = insights_data.insights
-                    comment_count = insights_data.comment_count
-
-                    # Create two-section summary for HN bookmarks with comment insights
-                    if comment_insights:
-                        # Remove only the introductory line, keep the rest as-is
-                        lines = comment_insights.split("\n")
-                        if lines and "here are" in lines[0].lower():
-                            comment_insights = "\n".join(lines[1:]).strip()
-
-                        bullet_points = comment_insights
-                        final_display_summary = f"**Content Summary:**\n{display_summary}\n\n**Community Discussion ({comment_count} comments):**\n{bullet_points}"
+            # Get processed summary and insights from batch results
+            final_display_summary, comment_insights, comment_count = insights_results[
+                bookmark.link
+            ]
 
             bookmark_items.append(
                 ItemResponse(

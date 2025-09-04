@@ -18,6 +18,7 @@ import random
 from .scraper import scrape_all_sources_concurrent
 from .logger import logger
 from .schema import SourceSchema
+from .utils import get_hn_comment_insights_with_summaries
 from .database import db_manager, Source
 from .search import keyword_search, semantic_search_with_scores
 from .constants import RESEARCH_THRESHOLD, INDUSTRY_THRESHOLD
@@ -498,6 +499,18 @@ async def process_content_pipeline(
         # Mark all cards as seen now that they're being shown
         db_manager.mark_cards_seen(session_id, all_links)
 
+    # Prepare batch processing for HN comment insights
+    all_links = [str(source.link) for source in filtered_sources]
+    original_summaries = {
+        str(source.link): source.summary or "No summary available"
+        for source in filtered_sources
+    }
+
+    # Batch process all HN comment insights at once
+    insights_results = get_hn_comment_insights_with_summaries(
+        all_links, original_summaries, user_id
+    )
+
     # Build items with new status
     all_items = []
     for source in filtered_sources:
@@ -510,26 +523,8 @@ async def process_content_pipeline(
 
         matched_keywords = source_keywords_map.get(link_str, [])
 
-        # Check for HN comment insights and create combined summary
-        comment_insights = None
-        comment_count = None
-        display_summary = source.summary or "No summary available"
-
-        if user_id and "news.ycombinator.com" in link_str.lower():
-            insights_data = db_manager.get_comment_insights(link_str)
-            if insights_data:
-                comment_insights = insights_data.insights
-                comment_count = insights_data.comment_count
-
-                # Create two-section summary for HN posts with comment insights (registered users only)
-                if comment_insights:
-                    # Remove only the introductory line, keep the rest as-is
-                    lines = comment_insights.split("\n")
-                    if lines and "here are" in lines[0].lower():
-                        comment_insights = "\n".join(lines[1:]).strip()
-
-                    bullet_points = comment_insights
-                    display_summary = f"**Content Summary:**\n{display_summary}\n\n**Community Discussion ({comment_count} comments):**\n{bullet_points}"
+        # Get processed summary and insights from batch results
+        display_summary, comment_insights, comment_count = insights_results[link_str]
 
         all_items.append(
             {

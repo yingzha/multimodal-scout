@@ -87,15 +87,12 @@ def _enrich_hackernews_comments(sources: List[SourceSchema]) -> None:
     logger.info(f"Processing {len(hn_sources)} HN sources for comment insights")
 
     hn_links = [str(s.link) for s in hn_sources]
-    existing_insights_map = {}
 
-    for link in hn_links:
-        try:
-            insights = db_manager.get_comment_insights(link)
-            if insights:
-                existing_insights_map[link] = insights
-        except Exception as e:
-            logger.warning(f"Failed to fetch existing insights for {link}: {e}")
+    try:
+        existing_insights_map = db_manager.get_comment_insights(hn_links)
+    except Exception as e:
+        logger.warning(f"Failed to fetch existing insights: {e}")
+        existing_insights_map = {}
 
     def process_hn_source(source):
         """Process a single HN source for comment insights"""
