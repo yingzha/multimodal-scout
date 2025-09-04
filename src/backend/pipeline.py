@@ -507,13 +507,13 @@ async def process_content_pipeline(
         comment_count = None
         display_summary = source.summary or "No summary available"
 
-        if "news.ycombinator.com" in link_str.lower():
+        if user_id and "news.ycombinator.com" in link_str.lower():
             insights_data = db_manager.get_comment_insights(link_str)
             if insights_data:
                 comment_insights = insights_data.insights
                 comment_count = insights_data.comment_count
 
-                # Create two-section summary for HN posts with comment insights
+                # Create two-section summary for HN posts with comment insights (registered users only)
                 if comment_insights:
                     display_summary = f"""**Content Summary:**
 {display_summary}

@@ -83,10 +83,7 @@ def _enrich_hackernews_comments(sources: List[SourceSchema]) -> None:
 
     logger.info(f"Processing {len(hn_sources)} HN sources for comment insights")
 
-    for i, source in enumerate(hn_sources):
-        if i > 0:
-            time.sleep(1.0)  # Rate limiting
-
+    for source in hn_sources:
         try:
             link_str = str(source.link)
 
