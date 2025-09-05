@@ -1,6 +1,6 @@
 import time
 from concurrent import futures
-from typing import List
+from typing import List, Dict
 
 from .schema import SourceSchema
 from .logger import logger
@@ -11,8 +11,11 @@ from .utils import (
 )
 
 from .constants import MIN_COMMENTS_FOR_INSIGHTS
-from .database import db_manager, Source
+from .database import db_manager, Source, CommentInsight
 from .search import _get_embedding
+
+# Module-level cache for recently processed comment insights (simple like summaries)
+_processed_comment_insights = set()  # Set of links that were recently processed
 
 
 def enrich_sources_with_summaries(sources: List[SourceSchema]) -> List[SourceSchema]:
@@ -76,6 +79,7 @@ def enrich_sources_with_summaries(sources: List[SourceSchema]) -> List[SourceSch
 def enrich_hackernews_comments(sources: List[SourceSchema]) -> None:
     """
     Enrich HN sources with comment insights. Only updates if there are enough new comments.
+    Uses simple caching like summaries to avoid reprocessing.
     Modifies the database directly, doesn't change the source objects.
     Optimized with parallel processing and batching.
     """
@@ -86,8 +90,27 @@ def enrich_hackernews_comments(sources: List[SourceSchema]) -> None:
 
     logger.info(f"Processing {len(hn_sources)} HN sources for comment insights")
 
-    hn_links = [str(s.link) for s in hn_sources]
+    # Filter out recently processed sources using simple cache like summaries
+    sources_to_process = []
+    cache_hits = 0
+    
+    for source in hn_sources:
+        link_str = str(source.link)
+        if link_str not in _processed_comment_insights:
+            sources_to_process.append(source)
+        else:
+            cache_hits += 1
+    
+    if cache_hits > 0:
+        logger.info(f"Cache optimization: Skipped {cache_hits} recently processed comment insights")
+    
+    if not sources_to_process:
+        logger.info("All HN sources were recently processed, skipping")
+        return
 
+    hn_links = [str(s.link) for s in sources_to_process]
+
+    # Get existing insights from database
     try:
         existing_insights_map = db_manager.get_comment_insights(hn_links)
     except Exception as e:
@@ -142,12 +165,12 @@ def enrich_hackernews_comments(sources: List[SourceSchema]) -> None:
     # Optimization 3: Parallel processing with controlled concurrency
     results_to_save = []
     max_workers = min(
-        5, len(hn_sources)
+        5, len(sources_to_process)
     )  # Limit concurrent requests to be respectful to HN
 
     with futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_source = {
-            executor.submit(process_hn_source, source): source for source in hn_sources
+            executor.submit(process_hn_source, source): source for source in sources_to_process
         }
 
         for future in futures.as_completed(future_to_source):
@@ -159,10 +182,13 @@ def enrich_hackernews_comments(sources: List[SourceSchema]) -> None:
     if results_to_save:
         logger.info(f"Saving {len(results_to_save)} comment insights to database...")
 
-        for result in results_to_save:
-            try:
-                # Find source in DB and save insights
-                with db_manager.get_session() as session:
+        # Collect all insights data for batch processing
+        insights_to_save = []
+        
+        with db_manager.get_session() as session:
+            for result in results_to_save:
+                try:
+                    # Find source in DB
                     db_source = (
                         session.query(Source)
                         .filter(Source.link == result["link_str"])
@@ -170,21 +196,30 @@ def enrich_hackernews_comments(sources: List[SourceSchema]) -> None:
                     )
 
                     if db_source:
-                        db_manager.save_comment_insight(
-                            source_id=str(db_source.id),
-                            link=result["link_str"],
-                            title=result["source"].title,
-                            comment_count=result["current_count"],
-                            insights=result["insights"],
-                        )
-                        logger.info(
-                            f"Updated HN comment insights ({result['current_count']} comments): {result['source'].title[:50]}"
-                        )
+                        insights_to_save.append({
+                            "source_id": str(db_source.id),
+                            "link": result["link_str"],
+                            "title": result["source"].title,
+                            "comment_count": result["current_count"],
+                            "insights": result["insights"],
+                        })
 
+                except Exception as e:
+                    logger.error(
+                        f"Error preparing insights for {result['source'].title[:50]}: {e}"
+                    )
+        
+        # Batch save all insights
+        if insights_to_save:
+            try:
+                saved_count = db_manager.save_comment_insights(insights_to_save)
+                logger.info(f"Updated {saved_count} HN comment insights in batch")
             except Exception as e:
-                logger.error(
-                    f"Error saving insights for {result['source'].title[:50]}: {e}"
-                )
+                logger.error(f"Error batch saving comment insights: {e}")
+
+    # Mark all processed sources as cached to avoid reprocessing (like summaries)
+    for source in sources_to_process:
+        _processed_comment_insights.add(str(source.link))
 
     logger.info(
         f"✅ HN comment insights processing complete: {len(results_to_save)} insights updated"
