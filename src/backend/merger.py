@@ -17,7 +17,6 @@ from .database import db_manager, Source
 from .search import _get_embedding
 
 
-
 def enrich_sources_with_summaries(sources: List[SourceSchema]) -> List[SourceSchema]:
     """
     Generates summaries for sources using batch operations to avoid N+1 query problems.

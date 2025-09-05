@@ -21,7 +21,7 @@ from .schema import SourceSchema
 from .utils import get_hn_comment_insights_with_summaries
 from .database import db_manager, Source
 from .search import keyword_search, semantic_search_with_scores
-from .constants import RESEARCH_THRESHOLD, INDUSTRY_THRESHOLD
+from .constants import RESEARCH_THRESHOLD, INDUSTRY_THRESHOLD, DISCOVERY_THRESHOLD
 from .merger import (
     enrich_sources_with_summaries_and_embeddings,
     enrich_hackernews_comments,

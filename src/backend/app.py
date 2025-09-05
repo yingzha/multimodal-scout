@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from functools import lru_cache
 from html import escape
-from io import BytesIO, StringIO
+from io import BytesIO
 from typing import Optional
 
 # Third-party imports
@@ -31,7 +31,13 @@ from .constants import INTERESTED_KEYWORDS
 from .logger import logger
 from .database import db_manager
 from .pipeline import process_content_pipeline
-from .utils import get_hn_comment_insights_with_summaries
+from .utils import (
+    get_hn_comment_insights_with_summaries,
+    generate_summary_from_link,
+    extract_title_from_url,
+    categorize_content,
+    _fetch_article_text,
+)
 from .schema import (
     FetchRequest,
     TopicResponse,
@@ -48,12 +54,6 @@ from .schema import (
     ConfigResponse,
     UserPreferencesResponse,
     UpdateUserPreferencesRequest,
-)
-from .utils import (
-    generate_summary_from_link,
-    extract_title_from_url,
-    categorize_content,
-    _fetch_article_text,
 )
 
 

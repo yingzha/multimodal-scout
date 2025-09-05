@@ -20,10 +20,10 @@ def is_comment_insight_recently_processed(link: str) -> bool:
     """Check if comment insights were processed within the last 5 minutes."""
     if link not in _processed_comment_insights:
         return False
-    
+
     current_time = time.time()
     processed_time = _processed_comment_insights[link]
-    
+
     # Check if within TTL
     if current_time - processed_time <= _comment_insights_ttl:
         return True
