@@ -33,4 +33,4 @@ RSS_FEED_LIMIT = 5
 
 # --- Comment Insights Configuration ---
 # Minimum number of comments required to generate insights
-MIN_COMMENTS_FOR_INSIGHTS = 10
+MIN_COMMENTS_FOR_INSIGHTS = 30

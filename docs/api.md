@@ -126,6 +126,7 @@ You can obtain a session token by using the `/api/auth/login` or `/api/auth/regi
 **POST /api/content/search**
 - **Description**: Search for content from various sources based on topics and time range
 - **Authentication**: Optional (guest users: 3 searches/day, authenticated: unlimited)
+- **HN Comment Insights**: Only available for authenticated users
 - **Request Body**:
   ```json
   {
@@ -153,13 +154,16 @@ You can obtain a session token by using the `/api/auth/login` or `/api/auth/regi
         "link": "https://example.com/paper",
         "summary": "AI-generated summary of the content...",
         "source": "Research",
-        "created_at": "2025-01-08T10:30:00Z"
+        "created_at": "2025-01-08T10:30:00Z",
+        "comment_insights": "• Main technical concerns about memory efficiency\n• Community discussion on real-world applications\n• Comparison with existing agent frameworks",
+        "comment_count": 42
       }
     ],
     "total_count": 15,
     "sources": ["Hugging Face", "Hacker News"]
   }
   ```
+- **Note**: `comment_insights` and `comment_count` fields are only included for Hacker News sources and when accessed by registered users. Guest users will not see these fields.
 
 **POST /api/content/search/stream**
 - **Description**: Streaming version of content search with real-time progress updates via Server-Sent Events (SSE)
@@ -257,11 +261,22 @@ You can obtain a session token by using the `/api/auth/login` or `/api/auth/regi
 - **Response**: Same format as content search but only bookmarked items
   ```json
   {
-    "items": [...],
+    "items": [
+      {
+        "title": "Advanced AI Discussion",
+        "link": "https://news.ycombinator.com/item?id=123456",
+        "summary": "**Content Summary:**\nOriginal article summary...\n\n**Community Discussion (25 comments):**\n• Key technical insights from practitioners\n• Industry adoption challenges discussed\n• Performance benchmarks shared",
+        "source": "Industry",
+        "created_at": "2025-01-08T10:30:00Z",
+        "comment_insights": "• Key technical insights from practitioners\n• Industry adoption challenges discussed\n• Performance benchmarks shared",
+        "comment_count": 25
+      }
+    ],
     "total_count": 25,
     "sources": ["Bookmarks"]
   }
   ```
+- **Note**: For HN bookmarks, the API returns two-section summaries combining original content with community insights. Authentication is required, so comment insights are always included for eligible sources.
 
 **POST /api/bookmarks**
 - **Description**: Add a new bookmark
@@ -296,13 +311,16 @@ You can obtain a session token by using the `/api/auth/login` or `/api/auth/regi
   {
     "id": "uuid-here",
     "title": "Article Title",
-    "link": "https://example.com/article",
-    "summary": "Article summary...",
+    "link": "https://news.ycombinator.com/item?id=123456",
+    "summary": "**Content Summary:**\nOriginal article summary...\n\n**Community Discussion (18 comments):**\n• Technical implementation details discussed\n• Community feedback on performance\n• Alternative approaches suggested",
     "source": "Research",
     "created_at": "2025-01-08T10:30:00Z",
-    "summary_edited": false
+    "summary_edited": false,
+    "comment_insights": "• Technical implementation details discussed\n• Community feedback on performance\n• Alternative approaches suggested",
+    "comment_count": 18
   }
   ```
+- **Note**: For Hacker News bookmarks, `comment_insights` and `comment_count` are included. The `summary` field contains the two-section format combining content summary and community discussion.
 - **Error Response** (404): `{"detail": "Bookmark not found"}`
 
 **DELETE /api/bookmarks/{bookmark_id}**
@@ -421,5 +439,39 @@ When rate limit is exceeded, the API returns:
 ### Hybrid Access Model
 
 The API supports both authenticated and guest access:
-- **Guest Access**: Limited searches per day, no bookmark management
-- **Authenticated Access**: Unlimited searches, full bookmark management, export capabilities
+- **Guest Access**: Limited searches per day, no bookmark management, no HN comment insights
+- **Authenticated Access**: Unlimited searches, full bookmark management, HN comment insights, export capabilities
+
+## Hacker News Comment Insights
+
+The API automatically generates AI-powered insights from Hacker News discussions for registered users.
+
+### Features
+- **Smart Caching**: 5-minute TTL prevents redundant processing of recently updated sources
+- **Minimum Threshold**: Only posts with 10+ comments receive insights
+- **Batch Processing**: Efficient database operations for multiple HN sources
+- **Two-Section Display**: Combined content summary and community discussion format
+- **User Restriction**: Only registered users see comment insights (incentivizes registration)
+
+### Response Fields
+- `comment_insights` (string, optional): AI-generated bullet points of key community discussion themes
+- `comment_count` (integer, optional): Total number of comments on the HN post
+- Enhanced `summary` field: For HN sources, includes both content and community sections
+
+### Processing Logic
+- Comments are fetched from HN Firebase API during automated pipeline runs
+- AI analysis identifies main themes, technical concerns, and expert insights
+- Results are cached with 5-minute TTL to optimize performance
+- Only meaningful updates (10+ new comments) trigger reprocessing
+
+### Example Enhanced Summary Format
+```
+**Content Summary:**
+[Original article summary from AI analysis]
+
+**Community Discussion (42 comments):**
+• Main technical concerns about implementation complexity
+• Community sharing real-world deployment experiences  
+• Debate over performance vs. accuracy tradeoffs
+• Suggestions for alternative approaches and frameworks
+```

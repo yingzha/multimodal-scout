@@ -89,7 +89,7 @@ def enrich_hackernews_comments(sources: List[SourceSchema]) -> None:
 
     logger.info(f"Processing {len(hn_sources)} HN sources for comment insights")
 
-    # Filter out recently processed sources using 5-minute TTL cache
+    # Filter out recently processed sources using 10-minute TTL cache
     sources_to_process = []
     cache_hits = 0
 

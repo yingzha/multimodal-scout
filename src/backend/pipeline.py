@@ -21,7 +21,7 @@ from .schema import SourceSchema
 from .utils import get_hn_comment_insights_with_summaries
 from .database import db_manager, Source
 from .search import keyword_search, semantic_search_with_scores
-from .constants import RESEARCH_THRESHOLD, INDUSTRY_THRESHOLD, DISCOVERY_THRESHOLD
+from .constants import RESEARCH_THRESHOLD, INDUSTRY_THRESHOLD
 from .merger import (
     enrich_sources_with_summaries_and_embeddings,
     enrich_hackernews_comments,
@@ -263,10 +263,6 @@ async def process_content_pipeline(
         logger.info(
             f"Processed {total_input} sources: {len(new_sources)} new, {len(updated_sources)} updated, {skipped_sources} skipped (recent cache), {save_result['total_processed'] - total_operated} unchanged"
         )
-        yield {
-            "type": "status",
-            "message": f'Saved {save_result["total_processed"]} sources ({len(new_sources)} new)',
-        }
 
         # Step 2b: Generate summaries for sources that don't have them (both new and updated)
         all_processed_sources = new_sources + updated_sources
@@ -287,7 +283,7 @@ async def process_content_pipeline(
                 initial_progress = current_progress + (summary_weight * 0.1)
                 yield {
                     "type": "progress",
-                    "message": f"Starting AI processing for {len(sources_needing_summaries)} sources...",
+                    "message": f"Starting GenAI processing...",
                     "processed": int((initial_progress / total_weight) * 100),
                     "total": 100,
                 }
@@ -296,7 +292,7 @@ async def process_content_pipeline(
                 summary_progress = current_progress + (summary_weight * 0.5)
                 yield {
                     "type": "progress",
-                    "message": "Generating AI summaries...",
+                    "message": "Generating summaries...",
                     "processed": int((summary_progress / total_weight) * 100),
                     "total": 100,
                 }
@@ -310,7 +306,7 @@ async def process_content_pipeline(
                 final_progress = current_progress + (summary_weight * 0.9)
                 yield {
                     "type": "progress",
-                    "message": "AI processing complete",
+                    "message": "GenAI processing complete...",
                     "processed": int((final_progress / total_weight) * 100),
                     "total": 100,
                 }
@@ -331,7 +327,7 @@ async def process_content_pipeline(
                     )
                     yield {
                         "type": "status",
-                        "message": f"Updated {successful_updates} sources with AI summaries",
+                        "message": f"Updated with GenAI summaries...",
                     }
             else:
                 logger.info("All new sources already have summaries")
@@ -354,7 +350,7 @@ async def process_content_pipeline(
     current_progress += summary_weight
     yield {
         "type": "progress",
-        "message": "Summary generation complete",
+        "message": "Summary generation complete...",
         "processed": int((current_progress / total_weight) * 100),
         "total": 100,
     }

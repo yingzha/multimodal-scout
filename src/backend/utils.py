@@ -13,11 +13,11 @@ from .database import db_manager
 
 # Module-level cache for recently processed comment insights with 5-minute TTL
 _processed_comment_insights = {}  # link -> timestamp (when processed)
-_comment_insights_ttl = 300  # 5 minutes in seconds
+_comment_insights_ttl = 600  # 10 minutes in seconds
 
 
 def is_comment_insight_recently_processed(link: str) -> bool:
-    """Check if comment insights were processed within the last 5 minutes."""
+    """Check if comment insights were processed within the last 10 minutes."""
     if link not in _processed_comment_insights:
         return False
 
