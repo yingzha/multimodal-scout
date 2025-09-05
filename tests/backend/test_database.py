@@ -1,9 +1,9 @@
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from datetime import datetime, timedelta
 import hashlib
 
-from src.backend.database import DatabaseManager, EmbeddingCache, Source, Base
+from src.backend.database import DatabaseManager, Source, Base
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -66,7 +66,7 @@ class TestDatabaseManager(unittest.TestCase):
             session.commit()
         
         # Now add the summary
-        self.mock_db_manager.add_summary(url, summary)
+        self.mock_db_manager.add_summaries({url: summary})
         
         # Verify summary was added by querying the source directly
         with self.mock_db_manager.get_session() as session:
@@ -109,7 +109,7 @@ class TestDatabaseManager(unittest.TestCase):
             session.add(new_source)
             session.commit()
         
-        self.mock_db_manager.add_summary(new_summary_url, new_summary_content)
+        self.mock_db_manager.add_summaries({new_summary_url: new_summary_content})
 
         # Test cleanup using the current method
         result = self.mock_db_manager.cleanup_summaries_and_embeddings(days_to_keep=30)
@@ -194,8 +194,10 @@ class TestDatabaseManager(unittest.TestCase):
             session.add_all([source1, source2])
             session.commit()
         
-        self.mock_db_manager.add_summary("http://s1.com", "s1")
-        self.mock_db_manager.add_summary("http://s2.com", "s2")
+        self.mock_db_manager.add_summaries({
+            "http://s1.com": "s1",
+            "http://s2.com": "s2"
+        })
         
         # Add an old source with summary for recent stats
         with self.mock_db_manager.get_session() as session:
@@ -255,9 +257,11 @@ class TestDatabaseManager(unittest.TestCase):
             session.add_all(sources)
             session.commit()
         
-        self.mock_db_manager.add_summary("http://ai.com", "Summary about AI.")
-        self.mock_db_manager.add_summary("http://ml.com", "Machine learning is great.")
-        self.mock_db_manager.add_summary("http://data.com", "Data science is cool.")
+        self.mock_db_manager.add_summaries({
+            "http://ai.com": "Summary about AI.",
+            "http://ml.com": "Machine learning is great.",
+            "http://data.com": "Data science is cool."
+        })
 
         results = self.mock_db_manager.search_summaries("AI")
         self.assertEqual(len(results), 1)

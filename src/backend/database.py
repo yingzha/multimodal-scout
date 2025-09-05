@@ -210,21 +210,7 @@ class DatabaseManager:
         if len(self._processed_sources_cache) % 1000 == 0:  # Check periodically
             self._manage_cache_size()
 
-    def add_summary(self, url: str, summary: str) -> None:
-        """Add summary to sources table (consolidated approach)."""
-        with self.get_session() as session:
-            source = session.query(Source).filter(Source.link == url).first()
-            if source:
-                source.summary = summary
-                source.updated_at = datetime.now()
-                session.commit()
-                logger.info(f"Updated summary for existing source: {url}")
-            else:
-                logger.warning(f"Cannot add summary - source not found for URL: {url}")
-                # Note: We no longer create orphaned summary entries
-                # Summaries should only exist for sources that exist in sources table
-
-    def add_summaries_batch(self, url_summary_pairs: Dict[str, str]) -> Dict[str, bool]:
+    def add_summaries(self, url_summary_pairs: Dict[str, str]) -> Dict[str, bool]:
         """Add summaries for multiple URLs in a single transaction (batch operation)."""
         if not url_summary_pairs:
             return {}

@@ -7,7 +7,7 @@ This feature automatically generates AI-powered insights from Hacker News discus
 ## Architecture
 
 ### Content Enrichment Pipeline
-- **Location**: `src/backend/merger.py` - `_enrich_hackernews_comments()`
+- **Location**: `src/backend/merger.py` - `enrich_hackernews_comments()`
 - **Trigger**: During cron jobs via `enrich_sources_with_summaries_and_embeddings()`
 - **Smart Updates**: Only regenerates insights when ≥10 new comments since last update
 - **Rate Limiting**: No artificial delays (HN API has no rate limits)

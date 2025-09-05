@@ -3,8 +3,6 @@ from unittest.mock import patch, MagicMock
 import numpy as np
 
 from src.backend.search import _get_embedding
-from src.backend.client import genai_client
-from src.backend.database import db_manager
 
 class TestSearch(unittest.TestCase):
 

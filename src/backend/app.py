@@ -859,6 +859,7 @@ async def create_content(
         results = []
         failed_urls = []
         success_count = 0
+        url_summary_pairs = {}  # Collect summaries for batch operation
 
         for url_obj in request.urls:
             try:
@@ -896,8 +897,9 @@ async def create_content(
                     summary=summary,
                 )
 
-                # Also cache the summary for future reference
-                db_manager.add_summary(url, summary)
+                # Collect summary for batch caching
+                if summary:
+                    url_summary_pairs[url] = summary
 
                 results.append(
                     {
@@ -915,6 +917,11 @@ async def create_content(
             except Exception as url_error:
                 logger.error(f"Failed to process URL {url}: {url_error}")
                 failed_urls.append(str(url_obj))
+
+        # Batch cache all summaries at once
+        if url_summary_pairs:
+            db_manager.add_summaries(url_summary_pairs)
+            logger.info(f"Batch cached summaries for {len(url_summary_pairs)} URLs")
 
         # Determine response
         if success_count == 0:

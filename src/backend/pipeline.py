@@ -22,6 +22,10 @@ from .utils import get_hn_comment_insights_with_summaries
 from .database import db_manager, Source
 from .search import keyword_search, semantic_search_with_scores
 from .constants import RESEARCH_THRESHOLD, INDUSTRY_THRESHOLD
+from .merger import (
+    enrich_sources_with_summaries_and_embeddings,
+    enrich_hackernews_comments,
+)
 
 
 def _apply_balanced_filtering(
@@ -275,8 +279,6 @@ async def process_content_pipeline(
             ]
 
             if sources_needing_summaries:
-                from .merger import enrich_sources_with_summaries_and_embeddings
-
                 logger.info(
                     f"Generating summaries and embeddings for {len(sources_needing_summaries)} new sources..."
                 )
@@ -320,7 +322,7 @@ async def process_content_pipeline(
                     if source.summary
                 }
                 if url_summary_pairs:
-                    update_results = db_manager.add_summaries_batch(url_summary_pairs)
+                    update_results = db_manager.add_summaries(url_summary_pairs)
                     successful_updates = sum(
                         1 for success in update_results.values() if success
                     )
@@ -339,10 +341,8 @@ async def process_content_pipeline(
         # Always run comment insights enrichment on HN sources (both new and existing)
         # since HN comments can grow over time
         if fresh_sources:
-            from .merger import _enrich_hackernews_comments
-
             logger.info("Running comment insights enrichment on all HN sources...")
-            _enrich_hackernews_comments(fresh_sources)
+            enrich_hackernews_comments(fresh_sources)
 
     except Exception as e:
         logger.error(f"Failed to save sources to database: {e}")

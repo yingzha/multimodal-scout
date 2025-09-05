@@ -10,14 +10,8 @@ import asyncio
 import time
 from datetime import datetime
 
-# Add the project root directory to Python path
-project_root = os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-)
-sys.path.insert(0, project_root)
-
-from src.backend.logger import logger
-from src.backend.pipeline import process_content_pipeline
+from .logger import logger
+from .pipeline import process_content_pipeline
 
 
 async def main():

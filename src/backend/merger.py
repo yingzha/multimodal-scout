@@ -62,7 +62,7 @@ def enrich_sources_with_summaries(sources: List[SourceSchema]) -> List[SourceSch
                 f"Failed to generate summary for: {source.title} ({source.link})"
             )
 
-    # Note: Sources are saved by the caller using add_summaries_batch for better efficiency
+    # Note: Sources are saved by the caller using add_summaries for better efficiency
     logger.info(
         f"Generated summaries for {len(newly_generated)} out of {len(sources_needing_summaries)} sources that needed them"
     )
@@ -73,7 +73,7 @@ def enrich_sources_with_summaries(sources: List[SourceSchema]) -> List[SourceSch
     return sources
 
 
-def _enrich_hackernews_comments(sources: List[SourceSchema]) -> None:
+def enrich_hackernews_comments(sources: List[SourceSchema]) -> None:
     """
     Enrich HN sources with comment insights. Only updates if there are enough new comments.
     Modifies the database directly, doesn't change the source objects.
