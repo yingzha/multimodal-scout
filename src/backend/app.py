@@ -715,7 +715,7 @@ async def get_bookmarks(
 
         # Batch process all HN comment insights at once
         insights_results = get_hn_comment_insights_with_summaries(
-            bookmark_links, original_summaries, user_id
+            bookmark_links, original_summaries, current_user
         )
 
         bookmark_items = []
