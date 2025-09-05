@@ -66,58 +66,28 @@ async def lifespan(app: FastAPI):
         db_manager.create_tables()
 
         # Check if we need to run migrations automatically
+        logger.info(
+            "🔄 Checking database schema and running migrations if needed..."
+        )
+
+        # Test database connection first
         try:
-            logger.info(
-                "🔄 Checking database schema and running migrations if needed..."
-            )
-
-            # Test database connection first
-
-            try:
-                with db_manager.engine.connect() as conn:
-                    conn.execute(text("SELECT 1"))
-                    logger.info("✅ Database connection verified")
-            except Exception as conn_error:
-                logger.warning(
-                    f"⚠️ Database connection failed: {conn_error} - migration skipped"
-                )
-                logger.warning(
-                    "💡 Manual migration may be needed using Cloud SQL Proxy"
-                )
-                return
-
-            # Set up alembic configuration
-            alembic_cfg = Config("/app/alembic.ini")
-            alembic_cfg.set_main_option("script_location", "/app/alembic")
-
-            # Run migration based on environment
-            logger.info("🔄 Running database migrations...")
-
-            if config.is_cloud_environment:
-                # Production: Run migrations automatically
-                logger.info("🌍 Production environment detected - running migrations")
-                command.upgrade(alembic_cfg, "head")
-                logger.info("✅ Database migrations completed successfully")
-            else:
-                # Local development: Skip migrations to avoid hanging with Docker
-                logger.info(
-                    "💻 Local development environment detected - skipping auto-migration"
-                )
-                logger.info("💡 Database migrations should be run manually if needed")
-
-        except Exception as migration_error:
-            logger.error(
-                f"❌ Failed to run migrations: {migration_error}", exc_info=True
+            with db_manager.engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+                logger.info("✅ Database connection verified")
+        except Exception as conn_error:
+            logger.warning(
+                f"⚠️ Database connection failed: {conn_error} - migration skipped"
             )
             logger.warning(
-                "⚠️ Migration failed - manual intervention may be needed. Service will continue to start."
+                "💡 Manual migration may be needed using Cloud SQL Proxy"
             )
-            logger.warning(
-                "💡 Use Cloud SQL Proxy method for manual migration if needed"
-            )
-            # Don't fail startup if migrations fail - allow manual intervention
+            return
 
-        logger.info("✅ Database initialization completed")
+        # Set up alembic configuration
+        alembic_cfg = Config("/app/alembic.ini")
+        alembic_cfg.set_main_option("script_location", "/app/alembic")
+
     except Exception as e:
         logger.error(f"❌ Failed to initialize database: {e}", exc_info=True)
         # Don't raise here to allow the app to start even if DB init fails
