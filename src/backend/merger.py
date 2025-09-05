@@ -1,6 +1,6 @@
 import time
 from concurrent import futures
-from typing import List, Dict
+from typing import List
 
 from .schema import SourceSchema
 from .logger import logger
@@ -8,14 +8,14 @@ from .utils import (
     generate_summary_from_link,
     fetch_hackernews_comments,
     generate_comment_insights,
+    is_comment_insight_recently_processed,
+    mark_comment_insight_as_processed,
 )
 
 from .constants import MIN_COMMENTS_FOR_INSIGHTS
-from .database import db_manager, Source, CommentInsight
+from .database import db_manager, Source
 from .search import _get_embedding
 
-# Module-level cache for recently processed comment insights (simple like summaries)
-_processed_comment_insights = set()  # Set of links that were recently processed
 
 
 def enrich_sources_with_summaries(sources: List[SourceSchema]) -> List[SourceSchema]:
@@ -90,20 +90,22 @@ def enrich_hackernews_comments(sources: List[SourceSchema]) -> None:
 
     logger.info(f"Processing {len(hn_sources)} HN sources for comment insights")
 
-    # Filter out recently processed sources using simple cache like summaries
+    # Filter out recently processed sources using 5-minute TTL cache
     sources_to_process = []
     cache_hits = 0
-    
+
     for source in hn_sources:
         link_str = str(source.link)
-        if link_str not in _processed_comment_insights:
+        if not is_comment_insight_recently_processed(link_str):
             sources_to_process.append(source)
         else:
             cache_hits += 1
-    
+
     if cache_hits > 0:
-        logger.info(f"Cache optimization: Skipped {cache_hits} recently processed comment insights")
-    
+        logger.info(
+            f"Cache optimization: Skipped {cache_hits} recently processed comment insights"
+        )
+
     if not sources_to_process:
         logger.info("All HN sources were recently processed, skipping")
         return
@@ -170,7 +172,8 @@ def enrich_hackernews_comments(sources: List[SourceSchema]) -> None:
 
     with futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_source = {
-            executor.submit(process_hn_source, source): source for source in sources_to_process
+            executor.submit(process_hn_source, source): source
+            for source in sources_to_process
         }
 
         for future in futures.as_completed(future_to_source):
@@ -184,7 +187,7 @@ def enrich_hackernews_comments(sources: List[SourceSchema]) -> None:
 
         # Collect all insights data for batch processing
         insights_to_save = []
-        
+
         with db_manager.get_session() as session:
             for result in results_to_save:
                 try:
@@ -196,19 +199,21 @@ def enrich_hackernews_comments(sources: List[SourceSchema]) -> None:
                     )
 
                     if db_source:
-                        insights_to_save.append({
-                            "source_id": str(db_source.id),
-                            "link": result["link_str"],
-                            "title": result["source"].title,
-                            "comment_count": result["current_count"],
-                            "insights": result["insights"],
-                        })
+                        insights_to_save.append(
+                            {
+                                "source_id": str(db_source.id),
+                                "link": result["link_str"],
+                                "title": result["source"].title,
+                                "comment_count": result["current_count"],
+                                "insights": result["insights"],
+                            }
+                        )
 
                 except Exception as e:
                     logger.error(
                         f"Error preparing insights for {result['source'].title[:50]}: {e}"
                     )
-        
+
         # Batch save all insights
         if insights_to_save:
             try:
@@ -217,9 +222,9 @@ def enrich_hackernews_comments(sources: List[SourceSchema]) -> None:
             except Exception as e:
                 logger.error(f"Error batch saving comment insights: {e}")
 
-    # Mark all processed sources as cached to avoid reprocessing (like summaries)
+    # Mark all processed sources as cached with 5-minute TTL
     for source in sources_to_process:
-        _processed_comment_insights.add(str(source.link))
+        mark_comment_insight_as_processed(str(source.link))
 
     logger.info(
         f"✅ HN comment insights processing complete: {len(results_to_save)} insights updated"

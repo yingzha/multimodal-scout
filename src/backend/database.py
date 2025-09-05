@@ -999,16 +999,16 @@ class DatabaseManager:
 
     def save_comment_insights(self, insights_data: List[Dict]) -> int:
         """Save or update comment insights for multiple sources in batch.
-        
+
         Args:
             insights_data: List of dicts with keys: source_id, link, title, comment_count, insights
-            
+
         Returns:
             Number of insights saved/updated
         """
         if not insights_data:
             return 0
-            
+
         saved_count = 0
         with self.get_session() as session:
             for data in insights_data:
@@ -1031,11 +1031,11 @@ class DatabaseManager:
                         insights=data["insights"],
                     )
                     session.add(existing)
-                
+
                 saved_count += 1
 
             session.commit()
-        
+
         return saved_count
 
     def get_comment_insights(self, links: List[str]) -> Dict[str, CommentInsight]:

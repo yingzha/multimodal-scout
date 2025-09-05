@@ -11,6 +11,32 @@ from .logger import logger
 from .client import genai_client, is_genai_enabled
 from .database import db_manager
 
+# Module-level cache for recently processed comment insights with 5-minute TTL
+_processed_comment_insights = {}  # link -> timestamp (when processed)
+_comment_insights_ttl = 300  # 5 minutes in seconds
+
+
+def is_comment_insight_recently_processed(link: str) -> bool:
+    """Check if comment insights were processed within the last 5 minutes."""
+    if link not in _processed_comment_insights:
+        return False
+    
+    current_time = time.time()
+    processed_time = _processed_comment_insights[link]
+    
+    # Check if within TTL
+    if current_time - processed_time <= _comment_insights_ttl:
+        return True
+    else:
+        # Clean up expired entry
+        del _processed_comment_insights[link]
+        return False
+
+
+def mark_comment_insight_as_processed(link: str) -> None:
+    """Mark a comment insight as recently processed."""
+    _processed_comment_insights[link] = time.time()
+
 
 def _retry_with_backoff(func, max_retries=3, base_delay=1.0):
     """Retry a function with exponential backoff."""
