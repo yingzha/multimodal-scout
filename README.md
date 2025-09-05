@@ -9,6 +9,7 @@ A smart content discovery platform that automatically finds, curates, and helps 
 ## ✨ Features
 
 - 🤖 **AI-Powered Curation**: Auto-discovers and summarizes multimodal AI research and industry content
+- 💬 **HN Comment Insights**: Smart analysis of Hacker News discussions for registered users
 - 🔍 **Smart Search**: Advanced filtering, real-time search, and "Discovery Mode" for exploration  
 - 📚 **Personal Library**: Secure bookmarking with editing, export, and management
 - 🌙 **Modern UI**: Clean, responsive interface with dark mode support
@@ -97,8 +98,8 @@ A smart content discovery platform that automatically finds, curates, and helps 
 │              │            │                  │
 │ • Bookmarks  │            │ • Summarization  │
 │ • Content    │            │ • Categorization │
-│ • Users      │            │ • Smart Filters  │
-│ • Cache      │            └──────────────────┘
+│ • Users      │            │ • Comment Insights│
+│ • Cache      │            │ • Smart Filters  │
 └──────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -108,8 +109,9 @@ A smart content discovery platform that automatically finds, curates, and helps 
 │ Content Discovery  →  AI Processing  →  Storage & Indexing              │
 │                                                                         │
 │ • Hacker News         →  • Summarization   →  • PostgreSQL              │
-│ • Substack Feeds      →  • Categorization  →  • Search Embeddings       │
-│ • Hugging Face        →  • Quality Filter  →  • Cache Management        │
+│ • Substack Feeds      →  • Comment Insights →  • Search Embeddings       │
+│ • Hugging Face        →  • Categorization  →  • Cache Management        │
+│                       →  • Quality Filter  →  • 5-min TTL Caching       │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 

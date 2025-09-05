@@ -3,7 +3,6 @@
 Centralized LLM client initialization for Google Gemini.
 """
 
-import os
 from google import genai
 from .config import config
 from .logger import logger

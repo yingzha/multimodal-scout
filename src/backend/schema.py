@@ -47,6 +47,8 @@ class ItemResponse(BaseModel):
     summary_edited: bool = False
     is_new: bool = False  # True if this card is new for the user session
     matched_keywords: List[str] = []  # Keywords that matched during search
+    comment_insights: Optional[str] = None  # HN comment insights if available
+    comment_count: Optional[int] = None  # Number of comments for HN posts
 
 
 class FetchResponse(BaseModel):
@@ -141,3 +143,19 @@ class UpdateUserPreferencesRequest(BaseModel):
     """Request model for updating user preferences"""
 
     custom_topics: List[str]
+
+
+class CommentInsight(BaseModel):
+    """Response model for Hacker News comment insights"""
+
+    title: str
+    link: HttpUrl
+    comment_count: int
+    insights: Optional[str] = None
+    generated_at: Optional[str] = None
+
+
+class CommentInsightRequest(BaseModel):
+    """Request model for generating comment insights"""
+
+    link: HttpUrl

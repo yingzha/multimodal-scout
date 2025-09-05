@@ -20,8 +20,6 @@ INTERESTED_KEYWORDS = [
 ]
 
 # --- Search Configuration ---
-# Default similarity threshold for general semantic search
-SEMANTIC_SIMILARITY_THRESHOLD = 0.6
 # Higher threshold for research papers to be more selective
 RESEARCH_THRESHOLD = 0.65
 # Lower threshold for industry content to include more variety
@@ -31,4 +29,8 @@ DISCOVERY_THRESHOLD = 0.65
 
 # --- RSS Sources Configuration ---
 # Maximum number of items to retrieve from each RSS feed
-RSS_FEED_LIMIT = 30
+RSS_FEED_LIMIT = 5
+
+# --- Comment Insights Configuration ---
+# Minimum number of comments required to generate insights
+MIN_COMMENTS_FOR_INSIGHTS = 30

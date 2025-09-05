@@ -1,7 +1,7 @@
 import unittest
 import asyncio
 from datetime import datetime
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import patch
 
 from src.backend.schema import SourceSchema
 

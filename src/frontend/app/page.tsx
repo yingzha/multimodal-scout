@@ -1613,7 +1613,9 @@ export default function Home() {
                         {expandedSummaries.has(item.link) ? (
                           // Full summary
                           <div>
-                            <p>{item.summary}</p>
+                            <div>{item.summary.split('\n').map((line: string, index: number) => (
+                              <div key={index} dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') || '&nbsp;' }} />
+                            ))}</div>
                             <button
                               onClick={() => toggleSummaryExpansion(item.link)}
                               className="mt-4 text-blue-600 hover:text-blue-800 text-xs focus:outline-none"
@@ -1624,7 +1626,7 @@ export default function Home() {
                         ) : (
                           // Truncated summary
                           <div>
-                            <p
+                            <div
                               className="line-clamp-2 overflow-hidden text-ellipsis"
                               style={{
                                 display: '-webkit-box',
@@ -1635,8 +1637,10 @@ export default function Home() {
                               }}
                               data-summary-text={item.link}
                             >
-                              {item.summary}
-                            </p>
+                              {item.summary.split('\n').map((line: string, index: number) => (
+                                <div key={index} dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') || '&nbsp;' }} />
+                              ))}
+                            </div>
                             {showReadMore.has(item.link) && (
                               <button
                                 onClick={() => toggleSummaryExpansion(item.link)}
@@ -1902,7 +1906,9 @@ export default function Home() {
                             {expandedSummaries.has(item.link) ? (
                               // Full summary
                               <div>
-                                <p>{item.summary}</p>
+                                <div>{item.summary.split('\n').map((line: string, index: number) => (
+                              <div key={index} dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') || '&nbsp;' }} />
+                            ))}</div>
                                 <button
                                   onClick={() => toggleSummaryExpansion(item.link)}
                                   className="mt-2 text-blue-600 hover:text-blue-800 text-xs font-medium focus:outline-none"
@@ -1913,7 +1919,7 @@ export default function Home() {
                             ) : (
                               // Truncated summary
                               <div>
-                                <p
+                                <div
                                   className="line-clamp-2 overflow-hidden text-ellipsis"
                                   style={{
                                     display: '-webkit-box',
@@ -1924,8 +1930,10 @@ export default function Home() {
                                   }}
                                   data-summary-text={item.link}
                                 >
-                                  {item.summary}
-                                </p>
+                                  {item.summary.split('\n').map((line: string, index: number) => (
+                                    <div key={index} dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') || '&nbsp;' }} />
+                                  ))}
+                                </div>
                                 {showReadMore.has(item.link) && (
                                   <button
                                     onClick={() => toggleSummaryExpansion(item.link)}

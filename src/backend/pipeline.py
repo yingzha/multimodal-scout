@@ -18,9 +18,14 @@ import random
 from .scraper import scrape_all_sources_concurrent
 from .logger import logger
 from .schema import SourceSchema
+from .utils import get_hn_comment_insights_with_summaries
 from .database import db_manager, Source
 from .search import keyword_search, semantic_search_with_scores
 from .constants import RESEARCH_THRESHOLD, INDUSTRY_THRESHOLD
+from .merger import (
+    enrich_sources_with_summaries_and_embeddings,
+    enrich_hackernews_comments,
+)
 
 
 def _apply_balanced_filtering(
@@ -258,10 +263,6 @@ async def process_content_pipeline(
         logger.info(
             f"Processed {total_input} sources: {len(new_sources)} new, {len(updated_sources)} updated, {skipped_sources} skipped (recent cache), {save_result['total_processed'] - total_operated} unchanged"
         )
-        yield {
-            "type": "status",
-            "message": f'Saved {save_result["total_processed"]} sources ({len(new_sources)} new)',
-        }
 
         # Step 2b: Generate summaries for sources that don't have them (both new and updated)
         all_processed_sources = new_sources + updated_sources
@@ -274,8 +275,6 @@ async def process_content_pipeline(
             ]
 
             if sources_needing_summaries:
-                from .merger import enrich_sources_with_summaries_and_embeddings
-
                 logger.info(
                     f"Generating summaries and embeddings for {len(sources_needing_summaries)} new sources..."
                 )
@@ -284,7 +283,7 @@ async def process_content_pipeline(
                 initial_progress = current_progress + (summary_weight * 0.1)
                 yield {
                     "type": "progress",
-                    "message": f"Starting AI processing for {len(sources_needing_summaries)} sources...",
+                    "message": f"Starting GenAI processing...",
                     "processed": int((initial_progress / total_weight) * 100),
                     "total": 100,
                 }
@@ -293,7 +292,7 @@ async def process_content_pipeline(
                 summary_progress = current_progress + (summary_weight * 0.5)
                 yield {
                     "type": "progress",
-                    "message": "Generating AI summaries...",
+                    "message": "Generating summaries...",
                     "processed": int((summary_progress / total_weight) * 100),
                     "total": 100,
                 }
@@ -307,7 +306,7 @@ async def process_content_pipeline(
                 final_progress = current_progress + (summary_weight * 0.9)
                 yield {
                     "type": "progress",
-                    "message": "AI processing complete",
+                    "message": "GenAI processing complete...",
                     "processed": int((final_progress / total_weight) * 100),
                     "total": 100,
                 }
@@ -319,7 +318,7 @@ async def process_content_pipeline(
                     if source.summary
                 }
                 if url_summary_pairs:
-                    update_results = db_manager.add_summaries_batch(url_summary_pairs)
+                    update_results = db_manager.add_summaries(url_summary_pairs)
                     successful_updates = sum(
                         1 for success in update_results.values() if success
                     )
@@ -328,12 +327,18 @@ async def process_content_pipeline(
                     )
                     yield {
                         "type": "status",
-                        "message": f"Updated {successful_updates} sources with AI summaries",
+                        "message": f"Updated with GenAI summaries...",
                     }
             else:
                 logger.info("All new sources already have summaries")
         else:
             logger.info("No new sources found - all were existing or skipped")
+
+        # Always run comment insights enrichment on HN sources (both new and existing)
+        # since HN comments can grow over time
+        if fresh_sources:
+            logger.info("Running comment insights enrichment on all HN sources...")
+            enrich_hackernews_comments(fresh_sources)
 
     except Exception as e:
         logger.error(f"Failed to save sources to database: {e}")
@@ -345,7 +350,7 @@ async def process_content_pipeline(
     current_progress += summary_weight
     yield {
         "type": "progress",
-        "message": "Summary generation complete",
+        "message": "Summary generation complete...",
         "processed": int((current_progress / total_weight) * 100),
         "total": 100,
     }
@@ -490,6 +495,18 @@ async def process_content_pipeline(
         # Mark all cards as seen now that they're being shown
         db_manager.mark_cards_seen(session_id, all_links)
 
+    # Prepare batch processing for HN comment insights
+    all_links = [str(source.link) for source in filtered_sources]
+    original_summaries = {
+        str(source.link): source.summary or "No summary available"
+        for source in filtered_sources
+    }
+
+    # Batch process all HN comment insights at once
+    insights_results = get_hn_comment_insights_with_summaries(
+        all_links, original_summaries, user_id
+    )
+
     # Build items with new status
     all_items = []
     for source in filtered_sources:
@@ -501,11 +518,15 @@ async def process_content_pipeline(
         is_new = link_str in new_links if session_id else False
 
         matched_keywords = source_keywords_map.get(link_str, [])
+
+        # Get processed summary and insights from batch results
+        display_summary, comment_insights, comment_count = insights_results[link_str]
+
         all_items.append(
             {
                 "title": source.title,
                 "link": link_str,
-                "summary": source.summary or "No summary available",
+                "summary": display_summary,
                 "source": source_tag,
                 "created_at": (
                     source.date.isoformat()
@@ -514,6 +535,8 @@ async def process_content_pipeline(
                 ),
                 "is_new": is_new,
                 "matched_keywords": matched_keywords,
+                "comment_insights": comment_insights,
+                "comment_count": comment_count,
             }
         )
 

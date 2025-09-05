@@ -1,5 +1,6 @@
 import os
 import hashlib
+import time
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 
@@ -11,6 +12,7 @@ from sqlalchemy import (
     Text,
     Float,
     Boolean,
+    Integer,
     desc,
     ForeignKey,
 )
@@ -142,6 +144,26 @@ class Bookmark(Base):
     bookmarked_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
 
 
+class CommentInsight(Base):
+    __tablename__ = "comment_insights"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    source_id = Column(
+        UUID(as_uuid=True), ForeignKey("sources.id"), nullable=False, index=True
+    )
+    link = Column(
+        String, nullable=False, index=True
+    )  # Same as sources.link for HN posts
+    title = Column(String, nullable=False)
+    comment_count = Column(Integer, nullable=False)  # Total number of comments
+    insights = Column(Text, nullable=True)  # AI-generated insights in bullet points
+    generated_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(
+        DateTime, default=datetime.now, onupdate=datetime.now, nullable=False
+    )
+
+
 class DatabaseManager:
     def __init__(self, database_url: Optional[str] = None):
         if database_url is None:
@@ -184,21 +206,7 @@ class DatabaseManager:
         if len(self._processed_sources_cache) % 1000 == 0:  # Check periodically
             self._manage_cache_size()
 
-    def add_summary(self, url: str, summary: str) -> None:
-        """Add summary to sources table (consolidated approach)."""
-        with self.get_session() as session:
-            source = session.query(Source).filter(Source.link == url).first()
-            if source:
-                source.summary = summary
-                source.updated_at = datetime.now()
-                session.commit()
-                logger.info(f"Updated summary for existing source: {url}")
-            else:
-                logger.warning(f"Cannot add summary - source not found for URL: {url}")
-                # Note: We no longer create orphaned summary entries
-                # Summaries should only exist for sources that exist in sources table
-
-    def add_summaries_batch(self, url_summary_pairs: Dict[str, str]) -> Dict[str, bool]:
+    def add_summaries(self, url_summary_pairs: Dict[str, str]) -> Dict[str, bool]:
         """Add summaries for multiple URLs in a single transaction (batch operation)."""
         if not url_summary_pairs:
             return {}
@@ -986,6 +994,64 @@ class DatabaseManager:
         """Adds a new text-embedding pair to the cache."""
         text_hash = self._get_text_hash(text)
         self.add_embedding_to_cache(text, text_hash, embedding, model_name)
+
+    # --- Comment Insight Methods ---
+
+    def save_comment_insights(self, insights_data: List[Dict]) -> int:
+        """Save or update comment insights for multiple sources in batch.
+
+        Args:
+            insights_data: List of dicts with keys: source_id, link, title, comment_count, insights
+
+        Returns:
+            Number of insights saved/updated
+        """
+        if not insights_data:
+            return 0
+
+        saved_count = 0
+        with self.get_session() as session:
+            for data in insights_data:
+                existing = (
+                    session.query(CommentInsight)
+                    .filter(CommentInsight.source_id == data["source_id"])
+                    .first()
+                )
+
+                if existing:
+                    existing.comment_count = data["comment_count"]
+                    existing.insights = data["insights"]
+                    existing.updated_at = datetime.now()
+                else:
+                    existing = CommentInsight(
+                        source_id=data["source_id"],
+                        link=data["link"],
+                        title=data["title"],
+                        comment_count=data["comment_count"],
+                        insights=data["insights"],
+                    )
+                    session.add(existing)
+
+                saved_count += 1
+
+            session.commit()
+
+        return saved_count
+
+    def get_comment_insights(self, links: List[str]) -> Dict[str, CommentInsight]:
+        """Get comment insights by HN links using batch database query."""
+        if not links:
+            return {}
+
+        with self.get_session() as session:
+            db_results = (
+                session.query(CommentInsight)
+                .filter(CommentInsight.link.in_(links))
+                .all()
+            )
+
+            # Convert to dict
+            return {insight.link: insight for insight in db_results}
 
     # --- Simple Card Tracking Methods ---
 
