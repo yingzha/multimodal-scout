@@ -130,6 +130,7 @@ def enrich_hackernews_comments(sources: List[SourceSchema]) -> None:
 
             # Skip if not enough comments
             if current_count < MIN_COMMENTS_FOR_INSIGHTS:
+                logger.info(f"⏭️  Skipping {source.title[:50]}...: {current_count} total comments < {MIN_COMMENTS_FOR_INSIGHTS} minimum")
                 return None
 
             # Skip if not enough new comments since last update
@@ -141,17 +142,26 @@ def enrich_hackernews_comments(sources: List[SourceSchema]) -> None:
                 )
                 new_comments = current_count - existing_count
                 if new_comments < MIN_COMMENTS_FOR_INSIGHTS:
+                    logger.info(f"⏭️  Skipping {source.title[:50]}...: Only {new_comments} new comments since last update (existing: {existing_count}, current: {current_count})")
                     return None
+                else:
+                    logger.info(f"🔄 Processing {source.title[:50]}...: {new_comments} new comments since last update (existing: {existing_count}, current: {current_count})")
+            else:
+                logger.info(f"🆕 Processing new HN item {source.title[:50]}...: {current_count} total comments")
 
             # Generate insights
             comments = comment_data.get("comments", [])
             if not comments:
+                logger.warning(f"❌ No comments retrieved for {source.title[:50]}... despite API showing {current_count} total")
                 return None
 
+            logger.info(f"📝 Generating insights for {source.title[:50]}... with {len(comments)} fetched comments")
             insights = generate_comment_insights(comments, source.title)
             if not insights:
+                logger.warning(f"❌ Failed to generate insights for {source.title[:50]}... despite having {len(comments)} comments")
                 return None
-
+            
+            logger.info(f"✅ Generated insights for {source.title[:50]}... ({len(insights)} chars)")
             return {
                 "source": source,
                 "link_str": link_str,
