@@ -66,9 +66,7 @@ async def lifespan(app: FastAPI):
         db_manager.create_tables()
 
         # Check if we need to run migrations automatically
-        logger.info(
-            "🔄 Checking database schema and running migrations if needed..."
-        )
+        logger.info("🔄 Checking database schema and running migrations if needed...")
 
         # Test database connection first
         try:
@@ -79,9 +77,7 @@ async def lifespan(app: FastAPI):
             logger.warning(
                 f"⚠️ Database connection failed: {conn_error} - migration skipped"
             )
-            logger.warning(
-                "💡 Manual migration may be needed using Cloud SQL Proxy"
-            )
+            logger.warning("💡 Manual migration may be needed using Cloud SQL Proxy")
             return
 
         # Set up alembic configuration

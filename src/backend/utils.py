@@ -88,121 +88,6 @@ def _fetch_article_text(link: HttpUrl) -> Optional[str]:
         return None
 
 
-def _is_non_english_summary(text: str) -> bool:
-    """
-    Basic heuristic to detect if a summary might not be in English.
-    Checks for common non-English patterns and character sets.
-    """
-    if not text:
-        return False
-
-    # Check for common non-English character patterns
-    # Chinese/Japanese/Korean characters
-    if re.search(r"[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]", text):
-        return True
-
-    # Arabic characters
-    if re.search(r"[\u0600-\u06ff]", text):
-        return True
-
-    # Cyrillic characters
-    if re.search(r"[\u0400-\u04ff]", text):
-        return True
-
-    # Use word boundaries to avoid false positives in English text
-    # Common French words (basic check) - using word boundaries
-    french_patterns = [
-        r"\ble\b",
-        r"\bla\b",
-        r"\bles\b",
-        r"\bdu\b",
-        r"\bun\b",
-        r"\bune\b",
-        r"\bet\b",
-        r"\best\b",
-        r"\bdans\b",
-        r"\bsur\b",
-        r"\bavec\b",
-        r"\bpour\b",
-        r"\bpar\b",
-        r"\bcomme\b",
-        r"\bmais\b",
-        r"\bqui\b",
-        r"\bque\b",
-        r"\bce\b",
-        r"\bcette\b",
-        r"\bces\b",
-    ]
-    french_count = sum(
-        1 for pattern in french_patterns if re.search(pattern, text.lower())
-    )
-    if french_count > 5:  # Increased threshold to reduce false positives
-        return True
-
-    # Common German words (basic check) - using word boundaries and excluding common English words
-    german_patterns = [
-        r"\bder\b",
-        r"\bdie\b",
-        r"\bdas\b",
-        r"\bden\b",
-        r"\bdem\b",
-        r"\beine\b",
-        r"\beinen\b",
-        r"\bund\b",
-        r"\bist\b",
-        r"\bmit\b",
-        r"\bvon\b",
-        r"\bzu\b",
-        r"\bfür\b",
-        r"\bauf\b",
-        r"\bals\b",
-        r"\bbei\b",
-        r"\bnach\b",
-        r"\büber\b",
-        r"\bdurch\b",
-    ]
-    german_count = sum(
-        1 for pattern in german_patterns if re.search(pattern, text.lower())
-    )
-    if german_count > 5:  # Increased threshold to reduce false positives
-        return True
-
-    # Common Spanish words (basic check) - using word boundaries
-    spanish_patterns = [
-        r"\bel\b",
-        r"\bla\b",
-        r"\blos\b",
-        r"\blas\b",
-        r"\bdel\b",
-        r"\bun\b",
-        r"\buna\b",
-        r"\by\b",
-        r"\bes\b",
-        r"\ben\b",
-        r"\bcon\b",
-        r"\bpor\b",
-        r"\bpara\b",
-        r"\bcomo\b",
-        r"\bmás\b",
-        r"\bpero\b",
-        r"\bque\b",
-        r"\bse\b",
-        r"\bsu\b",
-        r"\bsus\b",
-        r"\beste\b",
-        r"\besta\b",
-        r"\bestos\b",
-        r"\bestas\b",
-    ]
-    spanish_count = sum(
-        1 for pattern in spanish_patterns if re.search(pattern, text.lower())
-    )
-    if spanish_count > 5:  # Increased threshold to reduce false positives
-        return True
-
-    return False
-
-
 def generate_summary_from_link(link: HttpUrl, title: str = None) -> Optional[str]:
     """Generates a summary for a given URL using the Gemini API."""
     if not is_genai_enabled():
@@ -229,43 +114,20 @@ def generate_summary_from_link(link: HttpUrl, title: str = None) -> Optional[str
         return title or "No summary available"
 
     def _generate_summary():
-        prompt = f"""Please provide a concise, one-paragraph summary of the following article text in English only.
+        prompt = f"""IMPORTANT: You must respond in English only, regardless of the source language.
 
-Regardless of the source language, always respond in English. Focus on the key points and main insights.
+Please provide a concise, one-paragraph summary of the following article text. If the source text is in another language, translate and summarize it in English. Focus on the key points and main insights.
 
 Article text:
 ---
-{article_text[:4000]}"""
+{article_text[:4000]}
+
+Provide a clear English summary:"""
 
         response = genai_client.models.generate_content(
             model=GEMINI_MODEL_NAME, contents=[prompt]
         )
-        summary = response.text.strip()
-
-        # Return the generated summary directly - if it's problematic, title fallback happens at higher level
-
-        # Validate that the summary is in English by checking for common non-English patterns
-        if _is_non_english_summary(summary):
-            logger.warning(
-                f"Generated summary appears to be non-English, regenerating..."
-            )
-            # Try again with more explicit English instruction
-            english_prompt = f"""IMPORTANT: You must respond in English only. Do not use any other language.
-
-Summarize this article in English, even if the source is in another language:
-
-{article_text[:4000]}
-
-Provide a concise English summary focusing on the main points."""
-
-            response = genai_client.models.generate_content(
-                model=GEMINI_MODEL_NAME, contents=[english_prompt]
-            )
-            summary = response.text.strip()
-
-            # Return the regenerated summary directly
-
-        return summary
+        return response.text.strip()
 
     try:
         return _retry_with_backoff(_generate_summary, max_retries=3, base_delay=2.0)
@@ -392,10 +254,11 @@ Respond with only one word: Research, Industry, or General"""
         return "General"
 
 
-def fetch_hackernews_comments(hn_comment_link: str, max_comments: int = 15) -> dict:
+def fetch_hackernews_comments(hn_comment_link: str, max_comments: int = 50) -> dict:
     """
     Fetch comments for a Hacker News item using the existing comment link.
     Returns comment data only if there are 10+ total comments.
+    Now recursively fetches nested comments to get more comprehensive insights.
     """
     try:
         # Extract item ID from the existing comment link
@@ -426,10 +289,12 @@ def fetch_hackernews_comments(hn_comment_link: str, max_comments: int = 15) -> d
             )
             return {"comments": [], "comment_count": total_comments}
 
-        comment_ids = item_data.get("kids", [])[:max_comments]
-        comments = []
+        # Recursively fetch comments up to max_comments limit
+        def fetch_comment_recursive(comment_id, depth=0, max_depth=4):
+            """Recursively fetch a comment and its nested replies"""
+            if depth > max_depth:  # Prevent infinite recursion
+                return []
 
-        for comment_id in comment_ids:
             try:
                 comment_url = (
                     f"https://hacker-news.firebaseio.com/v0/item/{comment_id}.json"
@@ -440,11 +305,13 @@ def fetch_hackernews_comments(hn_comment_link: str, max_comments: int = 15) -> d
                 comment_response.raise_for_status()
 
                 comment_data = comment_response.json()
-                if (
-                    comment_data
-                    and comment_data.get("text")
-                    and not comment_data.get("deleted")
-                ):
+                if not comment_data:
+                    return []
+
+                comments = []
+
+                # Process current comment if it has text and isn't deleted
+                if comment_data.get("text") and not comment_data.get("deleted"):
                     # Clean up HTML entities and tags
                     soup = BeautifulSoup(comment_data["text"], "html.parser")
                     clean_text = soup.get_text().strip()
@@ -458,11 +325,39 @@ def fetch_hackernews_comments(hn_comment_link: str, max_comments: int = 15) -> d
                             }
                         )
 
+                # Recursively fetch nested comments (replies)
+                if comment_data.get("kids") and len(comments) < max_comments:
+                    for kid_id in comment_data.get("kids", []):
+                        nested_comments = fetch_comment_recursive(
+                            kid_id, depth + 1, max_depth
+                        )
+                        comments.extend(nested_comments)
+                        if len(comments) >= max_comments:
+                            break
+
+                return comments
+
             except Exception as e:
                 logger.warning(f"Failed to fetch comment {comment_id}: {e}")
-                continue
+                return []
 
-        return {"comments": comments, "comment_count": total_comments}
+        # Start with top-level comments and recursively fetch nested ones
+        all_comments = []
+        top_level_ids = item_data.get("kids", [])
+
+        for comment_id in top_level_ids:
+            if len(all_comments) >= max_comments:
+                break
+            nested_comments = fetch_comment_recursive(comment_id)
+            all_comments.extend(nested_comments)
+
+        # Limit to max_comments if we got too many
+        all_comments = all_comments[:max_comments]
+
+        logger.info(
+            f"Fetched {len(all_comments)} comments from HN item {item_id} (total descendants: {total_comments})"
+        )
+        return {"comments": all_comments, "comment_count": total_comments}
 
     except Exception as e:
         logger.error(f"Error fetching HN comments from {hn_comment_link}: {e}")
