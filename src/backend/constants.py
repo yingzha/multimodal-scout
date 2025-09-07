@@ -32,5 +32,7 @@ DISCOVERY_THRESHOLD = 0.65
 RSS_FEED_LIMIT = 30
 
 # --- Comment Insights Configuration ---
+# Feature flag to enable/disable comment insights (disabled to manage API costs)
+COMMENT_INSIGHTS_ENABLED = False
 # Minimum number of comments required to generate insights
 MIN_COMMENTS_FOR_INSIGHTS = 10

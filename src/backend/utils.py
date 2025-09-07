@@ -6,7 +6,12 @@ import requests
 from bs4 import BeautifulSoup
 from pydantic import HttpUrl
 
-from .constants import GEMINI_MODEL_NAME, USER_AGENT, MIN_COMMENTS_FOR_INSIGHTS
+from .constants import (
+    GEMINI_MODEL_NAME,
+    USER_AGENT,
+    MIN_COMMENTS_FOR_INSIGHTS,
+    COMMENT_INSIGHTS_ENABLED,
+)
 from .logger import logger
 from .client import genai_client, is_genai_enabled
 from .database import db_manager
@@ -369,6 +374,10 @@ def generate_comment_insights(comments: list, title: str) -> Optional[str]:
     if not comments:
         return None
 
+    if not COMMENT_INSIGHTS_ENABLED:
+        logger.info("Comment insights disabled to manage API costs")
+        return None
+
     if not is_genai_enabled():
         logger.warning("GenAI not enabled, skipping comment insights generation")
         return None
@@ -377,17 +386,21 @@ def generate_comment_insights(comments: list, title: str) -> Optional[str]:
         # Prepare comment text for analysis
         comment_texts = []
         short_comments = 0
-        
+
         for comment in comments:
             if len(comment["text"]) > 50:  # Focus on substantial comments
                 comment_texts.append(f"• {comment['text']}")
             else:
                 short_comments += 1
 
-        logger.info(f"📊 Comment filtering for '{title[:50]}...': {len(comments)} total → {len(comment_texts)} substantial (≥50 chars), {short_comments} filtered out")
-        
+        logger.info(
+            f"📊 Comment filtering for '{title[:50]}...': {len(comments)} total → {len(comment_texts)} substantial (≥50 chars), {short_comments} filtered out"
+        )
+
         if len(comment_texts) < MIN_COMMENTS_FOR_INSIGHTS:
-            logger.warning(f"❌ Not enough substantial comments for '{title[:50]}...': {len(comment_texts)} < {MIN_COMMENTS_FOR_INSIGHTS} minimum after filtering")
+            logger.warning(
+                f"❌ Not enough substantial comments for '{title[:50]}...': {len(comment_texts)} < {MIN_COMMENTS_FOR_INSIGHTS} minimum after filtering"
+            )
             return None
 
         combined_comments = "\n".join(comment_texts)
@@ -414,14 +427,20 @@ Key Insights:"""
             summary = response.text.strip()
             return summary
 
-        logger.info(f"🤖 Calling Gemini API for insights on '{title[:50]}...' with {len(comment_texts)} substantial comments")
+        logger.info(
+            f"🤖 Calling Gemini API for insights on '{title[:50]}...' with {len(comment_texts)} substantial comments"
+        )
         insights = _retry_with_backoff(generate_insights)
 
         if insights and len(insights) > 50:
-            logger.info(f"✅ Successfully generated {len(insights)} chars of insights for '{title[:50]}...'")
+            logger.info(
+                f"✅ Successfully generated {len(insights)} chars of insights for '{title[:50]}...'"
+            )
             return insights
         else:
-            logger.warning(f"❌ Generated insights too short or empty for '{title[:50]}...': {len(insights) if insights else 0} chars (need >50)")
+            logger.warning(
+                f"❌ Generated insights too short or empty for '{title[:50]}...': {len(insights) if insights else 0} chars (need >50)"
+            )
             return None
 
     except Exception as e:
