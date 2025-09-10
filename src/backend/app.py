@@ -680,7 +680,7 @@ async def get_bookmarks(
             original_summaries[bookmark.link] = display_summary
 
         # Batch process all HN comment insights at once
-        insights_results = get_hn_comment_insights_with_summaries(
+        insights_results = await get_hn_comment_insights_with_summaries(
             bookmark_links, original_summaries, current_user
         )
 

@@ -14,6 +14,7 @@ suitable for streaming APIs.
 from typing import List, Dict, Any, AsyncGenerator
 from datetime import datetime, timedelta
 import random
+import asyncio
 
 from .scraper import scrape_all_sources_concurrent
 from .logger import logger
@@ -28,7 +29,7 @@ from .merger import (
 )
 
 
-def _apply_balanced_filtering(
+async def _apply_balanced_filtering(
     sources: List[SourceSchema],
     keywords: List[str],
     max_results: int = 10,
@@ -104,29 +105,38 @@ def _apply_balanced_filtering(
             DISCOVERY_THRESHOLD if discovery_mode else INDUSTRY_THRESHOLD
         )
 
-        # Run semantic search with research threshold
+        # Run semantic searches in parallel for better performance
+        search_tasks = []
+
         if research_candidates:
             logger.info(
                 f"Running semantic search on {len(research_candidates)} research sources with threshold {research_threshold}"
             )
-            research_results = semantic_search_with_scores(
-                research_candidates, keywords, threshold=research_threshold
+            search_tasks.append(
+                semantic_search_with_scores(
+                    research_candidates, keywords, threshold=research_threshold
+                )
             )
-            for source, score, matched_kws in research_results:
-                sources_with_scores.append((source, score))
-                matched_keywords_map[str(source.link)] = matched_kws
 
-        # Run semantic search with industry threshold
         if industry_candidates:
             logger.info(
                 f"Running semantic search on {len(industry_candidates)} industry sources with threshold {industry_threshold}"
             )
-            industry_results = semantic_search_with_scores(
-                industry_candidates, keywords, threshold=industry_threshold
+            search_tasks.append(
+                semantic_search_with_scores(
+                    industry_candidates, keywords, threshold=industry_threshold
+                )
             )
-            for source, score, matched_kws in industry_results:
-                sources_with_scores.append((source, score))
-                matched_keywords_map[str(source.link)] = matched_kws
+
+        # Execute searches in parallel
+        if search_tasks:
+            results = await asyncio.gather(*search_tasks)
+
+            # Process results
+            for search_results in results:
+                for source, score, matched_kws in search_results:
+                    sources_with_scores.append((source, score))
+                    matched_keywords_map[str(source.link)] = matched_kws
 
     # Sort by relevance score (descending), then by date (most recent first)
     sorted_sources = sorted(
@@ -159,18 +169,18 @@ def _apply_balanced_filtering(
     selected_research = research_sources[:research_count]
     selected_industry = industry_sources[:industry_count]
 
-    # If we don't have enough of one type, fill with the other
+    # If we don't have enough of one type, fill with the other (only if both ratios > 0)
     total_selected = len(selected_research) + len(selected_industry)
     if total_selected < max_results:
         remaining_slots = max_results - total_selected
-        if len(selected_research) < research_count:
-            # Need more research, take from industry
+        if len(selected_research) < research_count and industry_count > 0:
+            # Need more research, take from industry (only if industry is allowed)
             additional_industry = industry_sources[
                 len(selected_industry) : len(selected_industry) + remaining_slots
             ]
             selected_industry.extend(additional_industry)
-        elif len(selected_industry) < industry_count:
-            # Need more industry, take from research
+        elif len(selected_industry) < industry_count and research_count > 0:
+            # Need more industry, take from research (only if research is allowed)
             additional_research = research_sources[
                 len(selected_research) : len(selected_research) + remaining_slots
             ]
@@ -463,7 +473,7 @@ async def process_content_pipeline(
             "total": 100,
         }
 
-        filtered_sources, source_keywords_map = _apply_balanced_filtering(
+        filtered_sources, source_keywords_map = await _apply_balanced_filtering(
             all_sources, topics, max_results, research_ratio, discovery_mode
         )
 
@@ -503,7 +513,7 @@ async def process_content_pipeline(
     }
 
     # Batch process all HN comment insights at once
-    insights_results = get_hn_comment_insights_with_summaries(
+    insights_results = await get_hn_comment_insights_with_summaries(
         all_links, original_summaries, user_id
     )
 

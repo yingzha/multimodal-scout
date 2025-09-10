@@ -448,7 +448,7 @@ Key Insights:"""
         return None
 
 
-def get_hn_comment_insights_with_summaries(
+async def get_hn_comment_insights_with_summaries(
     links: List[str], original_summaries: Dict[str, str], user_id: str = None
 ) -> Dict[str, Tuple[str, Optional[str], Optional[int]]]:
     """

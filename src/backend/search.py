@@ -1,4 +1,5 @@
 import re
+import asyncio
 import numpy as np
 from typing import List
 
@@ -143,7 +144,7 @@ def keyword_search(
     return matches
 
 
-def semantic_search_with_scores(
+async def semantic_search_with_scores(
     sources: List[SourceSchema], keywords: List[str], threshold: float = None
 ) -> List[tuple[SourceSchema, float, List[str]]]:
     """
