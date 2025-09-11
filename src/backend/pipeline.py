@@ -247,7 +247,7 @@ async def process_content_pipeline(
 
         yield {
             "type": "status",
-            "message": f"Concurrent scraping complete: {len(hf_papers)} HF papers, {len(rss_items)} RSS items",
+            "message": f"Concurrent scraping complete!",
         }
 
     except Exception as e:

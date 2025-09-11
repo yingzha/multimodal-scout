@@ -16,6 +16,7 @@ from sqlalchemy import (
     desc,
     ForeignKey,
     func,
+    Computed,
 )
 from sqlalchemy.types import JSON, TypeDecorator
 import json
@@ -79,7 +80,11 @@ class Source(Base):
     updated_at = Column(
         DateTime, default=datetime.now, onupdate=datetime.now, nullable=False
     )
-    summary_tsvector = Column(TSVECTOR)
+    summary_tsvector = Column(
+        TSVECTOR,
+        Computed("to_tsvector('english', COALESCE(summary, ''))"),
+        nullable=True,
+    )
 
 
 class SeenCard(Base):
