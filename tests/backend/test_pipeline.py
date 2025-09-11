@@ -98,6 +98,12 @@ class TestPipeline(unittest.TestCase):
     @patch('src.backend.search.semantic_search_with_scores')
     def test_discovery_mode_uses_ai_keyword(self, mock_semantic_search_with_scores, mock_keyword_search):
         """Test that discovery mode replaces with empty topics."""
+        asyncio.run(self._async_test_discovery_mode_uses_ai_keyword(
+            mock_semantic_search_with_scores, mock_keyword_search
+        ))
+    
+    async def _async_test_discovery_mode_uses_ai_keyword(self, mock_semantic_search_with_scores, mock_keyword_search):
+        """Async implementation of discovery mode test."""
         # Create a simple test source
         test_source = SourceSchema(
             title="Test Article",
@@ -113,7 +119,7 @@ class TestPipeline(unittest.TestCase):
         mock_semantic_search_with_scores.return_value = []
         
         # Call with discovery mode
-        result = _apply_balanced_filtering(
+        result = await _apply_balanced_filtering(
             sources=[test_source],
             keywords=["original", "topics"],  # Should be ignored
             discovery_mode=True
