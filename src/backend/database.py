@@ -15,10 +15,11 @@ from sqlalchemy import (
     Integer,
     desc,
     ForeignKey,
+    func,
 )
 from sqlalchemy.types import JSON, TypeDecorator
 import json
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, TSVECTOR
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.dialects.postgresql import UUID
@@ -78,6 +79,7 @@ class Source(Base):
     updated_at = Column(
         DateTime, default=datetime.now, onupdate=datetime.now, nullable=False
     )
+    summary_tsvector = Column(TSVECTOR)
 
 
 class SeenCard(Base):
@@ -326,15 +328,51 @@ class DatabaseManager:
             }
 
     def search_summaries(self, query: str, limit: int = 10) -> List[Dict[str, str]]:
-        """Search summaries in sources table (consolidated approach)."""
+        """Search summaries using PostgreSQL full-text search with GIN index."""
         with self.get_session() as session:
-            results = (
-                session.query(Source)
-                .filter(Source.summary.ilike(f"%{query}%"), Source.summary.isnot(None))
-                .order_by(desc(Source.created_at))
-                .limit(limit)
-                .all()
+            # Format query for PostgreSQL full-text search
+            # Replace spaces with & for AND operation, handle special characters
+            formatted_query = " & ".join(
+                word.strip() for word in query.split() if word.strip()
             )
+
+            if not formatted_query:
+                return []
+
+            try:
+                # Use op() for raw PostgreSQL operators to avoid SQLAlchemy wrapping
+                results = (
+                    session.query(Source)
+                    .filter(
+                        Source.summary.isnot(None),
+                        Source.summary_tsvector.op("@@")(
+                            func.to_tsquery("english", formatted_query)
+                        ),
+                    )
+                    .order_by(
+                        func.ts_rank(
+                            Source.summary_tsvector,
+                            func.to_tsquery("english", formatted_query),
+                        ).desc()
+                    )
+                    .limit(limit)
+                    .all()
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Full-text search failed for query '{query}': {e}. Falling back to ILIKE."
+                )
+                # Fallback to old method if FTS fails (e.g., malformed query)
+                results = (
+                    session.query(Source)
+                    .filter(
+                        Source.summary.ilike(f"%{query}%"), Source.summary.isnot(None)
+                    )
+                    .order_by(desc(Source.created_at))
+                    .limit(limit)
+                    .all()
+                )
+
             return [
                 {
                     "url": s.link,
