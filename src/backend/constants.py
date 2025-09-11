@@ -24,8 +24,6 @@ INTERESTED_KEYWORDS = [
 RESEARCH_THRESHOLD = 0.65
 # Lower threshold for industry content to include more variety
 INDUSTRY_THRESHOLD = 0.6
-# Discovery mode threshold for finding relevant content without specific topics
-DISCOVERY_THRESHOLD = 0.65
 
 # --- RSS Sources Configuration ---
 # Maximum number of items to retrieve from each RSS feed

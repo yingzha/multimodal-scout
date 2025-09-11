@@ -11,24 +11,65 @@ export default function Home() {
   // API configuration
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
+  // UI State
   const [showAuthModal, setShowAuthModal] = useState(false)
-  const [selectedDays, setSelectedDays] = useState(1)
+  const [showResults, setShowResults] = useState(false)
+  const [showBookmarks, setShowBookmarks] = useState(false)
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
+  const [showUserMenu, setShowUserMenu] = useState(false)
+  const [showDetailedProgress, setShowDetailedProgress] = useState(false)
+
+  // Content and Data State
+  const [fetchedItems, setFetchedItems] = useState<any[]>([])
+  const [bookmarkedCards, setBookmarkedCards] = useState<any[]>([])
+  const [bookmarkedItems, setBookmarkedItems] = useState<Set<string>>(new Set())
+  const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set())
+  const [showReadMore, setShowReadMore] = useState<Set<string>>(new Set())
+
+  // Topics and Keywords
   const [defaultTopics, setDefaultTopics] = useState<string[]>([])
   const [customTopics, setCustomTopics] = useState<string[]>([])
   const [newKeyword, setNewKeyword] = useState('')
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
+  const [isLoadingTopics, setIsLoadingTopics] = useState(true)
+
+  // Search and Filtering
+  const [homepageSearchQuery, setHomepageSearchQuery] = useState('')
+  const [bookmarkSearchQuery, setBookmarkSearchQuery] = useState('')
+  const [bookmarkSearchDays, setBookmarkSearchDays] = useState<number | null>(null)
+  const [bookmarkSearchLimit, setBookmarkSearchLimit] = useState(50)
+
+  // Settings and Configuration
+  const [selectedDays, setSelectedDays] = useState(1)
+  const [maxResults, setMaxResults] = useState(10)
+  const [researchRatio, setResearchRatio] = useState(0.5)
+  const [discoveryMode, setDiscoveryMode] = useState(false)
+  const [appConfig, setAppConfig] = useState({ max_urls_per_request: 5 })
+
+  // Loading and Progress State
   const [isLoading, setIsLoading] = useState(false)
   const [progressMessage, setProgressMessage] = useState('')
-  const [showDetailedProgress, setShowDetailedProgress] = useState(false)
-  const [isLoadingTopics, setIsLoadingTopics] = useState(true)
-  const [fetchedItems, setFetchedItems] = useState<any[]>([])
-  const [showResults, setShowResults] = useState(false)
-  const [bookmarkedItems, setBookmarkedItems] = useState<Set<string>>(new Set())
-  const [showBookmarks, setShowBookmarks] = useState(false)
-  const [bookmarkedCards, setBookmarkedCards] = useState<any[]>([])
-  const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set())
   const [keywordMessage, setKeywordMessage] = useState('')
-  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
-  const [appConfig, setAppConfig] = useState({ max_urls_per_request: 5 }) // Default fallback
+
+  // Upload State
+  const [uploadUrl, setUploadUrl] = useState('')
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadMessage, setUploadMessage] = useState('')
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadProgressMessage, setUploadProgressMessage] = useState('')
+
+  // Edit and Delete State
+  const [editingSummary, setEditingSummary] = useState<string | null>(null)
+  const [editedSummaryText, setEditedSummaryText] = useState('')
+  const [isUpdatingSummary, setIsUpdatingSummary] = useState(false)
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState<any>(null)
+  const [deleteConfirmPosition, setDeleteConfirmPosition] = useState<{top: number, left: number} | null>(null)
+
+  // Navigation and Session State
+  const [previousViewState, setPreviousViewState] = useState<{showResults: boolean, showBookmarks: boolean} | null>(null)
+  const [sessionId] = useState(() => {
+    return 'session_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now()
+  })
 
   // Utility function to show temporary messages
   const showTemporaryMessage = (message: string, duration: number = 3000) => {
@@ -56,38 +97,59 @@ export default function Home() {
     setHomepageSearchQuery('')
     setSelectedTags(new Set())
   }
+
+  // Pagination State
   const [currentPage, setCurrentPage] = useState(1)
   const [bookmarksPage, setBookmarksPage] = useState(1)
   const [paginatedItems, setPaginatedItems] = useState<any[]>([])
   const [paginatedBookmarks, setPaginatedBookmarks] = useState<any[]>([])
-  const [showReadMore, setShowReadMore] = useState<Set<string>>(new Set())
-  const [maxResults, setMaxResults] = useState(10)
   const itemsPerPage = 5
-  const [researchRatio, setResearchRatio] = useState(0.5)
-  const [uploadUrl, setUploadUrl] = useState('')
-  const [isUploading, setIsUploading] = useState(false)
-  const [uploadMessage, setUploadMessage] = useState('')
-  const [uploadProgress, setUploadProgress] = useState(0)
-  const [uploadProgressMessage, setUploadProgressMessage] = useState('')
-  const [deleteConfirmItem, setDeleteConfirmItem] = useState<any>(null)
-  const [deleteConfirmPosition, setDeleteConfirmPosition] = useState<{top: number, left: number} | null>(null)
-  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
-  const [editingSummary, setEditingSummary] = useState<string | null>(null)
-  const [editedSummaryText, setEditedSummaryText] = useState('')
-  const [isUpdatingSummary, setIsUpdatingSummary] = useState(false)
-  const [sessionId] = useState(() => {
-    return 'session_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now()
-  })
-  const [discoveryMode, setDiscoveryMode] = useState(false)
-  const [bookmarkSearchDays, setBookmarkSearchDays] = useState<number | null>(null)
-  const [bookmarkSearchLimit, setBookmarkSearchLimit] = useState(50)
-  const [bookmarkSearchQuery, setBookmarkSearchQuery] = useState('')
-  const [homepageSearchQuery, setHomepageSearchQuery] = useState('')
-  const [previousViewState, setPreviousViewState] = useState<{showResults: boolean, showBookmarks: boolean} | null>(null)
-  const [showUserMenu, setShowUserMenu] = useState(false)
+
+  // Refs
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const userMenuRef = useRef<HTMLDivElement>(null)
 
+  // Debounced search values to reduce API calls
+  const [debouncedHomepageSearch, setDebouncedHomepageSearch] = useState(homepageSearchQuery)
+  const [debouncedBookmarkSearch, setDebouncedBookmarkSearch] = useState(bookmarkSearchQuery)
+  const homepageSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const bookmarkSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // ==============================
+  // EFFECTS AND EVENT HANDLERS
+  // ==============================
+
+  // Debounce homepage search
+  useEffect(() => {
+    if (homepageSearchTimeoutRef.current) {
+      clearTimeout(homepageSearchTimeoutRef.current)
+    }
+    homepageSearchTimeoutRef.current = setTimeout(() => {
+      setDebouncedHomepageSearch(homepageSearchQuery)
+    }, 300)
+
+    return () => {
+      if (homepageSearchTimeoutRef.current) {
+        clearTimeout(homepageSearchTimeoutRef.current)
+      }
+    }
+  }, [homepageSearchQuery])
+
+  // Debounce bookmark search
+  useEffect(() => {
+    if (bookmarkSearchTimeoutRef.current) {
+      clearTimeout(bookmarkSearchTimeoutRef.current)
+    }
+    bookmarkSearchTimeoutRef.current = setTimeout(() => {
+      setDebouncedBookmarkSearch(bookmarkSearchQuery)
+    }, 300)
+
+    return () => {
+      if (bookmarkSearchTimeoutRef.current) {
+        clearTimeout(bookmarkSearchTimeoutRef.current)
+      }
+    }
+  }, [bookmarkSearchQuery])
 
   // Handle clicking outside user menu to close it
   useEffect(() => {
@@ -123,19 +185,15 @@ export default function Home() {
     }
   }
 
-
+  // ==============================
+  // API FUNCTIONS
+  // ==============================
 
   // Fetch default topics from backend
   const fetchDefaultTopics = async () => {
     try {
       setIsLoadingTopics(true)
-      const response = await fetch(`${apiUrl}/api/topics`, {
-        // Disable cache to always get fresh data
-        cache: 'no-cache',
-        headers: {
-          'Cache-Control': 'no-cache'
-        }
-      })
+      const response = await fetch(`${apiUrl}/api/topics`)
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
@@ -348,6 +406,10 @@ export default function Home() {
     }
   }
 
+  // ==============================
+  // UTILITY FUNCTIONS
+  // ==============================
+
   // Reusable filtering logic
   const filterItems = (items: any[], searchQuery: string = '') => {
     return items.filter(item => {
@@ -381,12 +443,12 @@ export default function Home() {
 
   // Check bookmark status when results are loaded
   useEffect(() => {
-    setPaginatedItems(paginateItems(fetchedItems, currentPage, homepageSearchQuery))
-  }, [fetchedItems, selectedTags, currentPage, itemsPerPage, bookmarkedItems, homepageSearchQuery])
+    setPaginatedItems(paginateItems(fetchedItems, currentPage, debouncedHomepageSearch))
+  }, [fetchedItems, selectedTags, currentPage, itemsPerPage, bookmarkedItems, debouncedHomepageSearch])
 
   useEffect(() => {
-    setPaginatedBookmarks(paginateItems(bookmarkedCards, bookmarksPage, bookmarkSearchQuery))
-  }, [bookmarkedCards, selectedTags, bookmarksPage, itemsPerPage, bookmarkSearchQuery])
+    setPaginatedBookmarks(paginateItems(bookmarkedCards, bookmarksPage, debouncedBookmarkSearch))
+  }, [bookmarkedCards, selectedTags, bookmarksPage, itemsPerPage, debouncedBookmarkSearch])
 
   // Helper function to check if summary needs "Read More"
   const checkSummaryOverflow = (element: HTMLElement) => {
@@ -996,6 +1058,10 @@ export default function Home() {
     }
   }
 
+  // ==============================
+  // COMPONENT RENDER
+  // ==============================
+
   return (
     <main className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
@@ -1483,9 +1549,9 @@ export default function Home() {
               <div className="flex items-center gap-3">
                 <div className="text-sm text-gray-600">
                   {(() => {
-                    const filteredItems = filterItems(fetchedItems, homepageSearchQuery)
+                    const filteredItems = filterItems(fetchedItems, debouncedHomepageSearch)
 
-                    const hasFilters = selectedTags.size > 0 || homepageSearchQuery.trim()
+                    const hasFilters = selectedTags.size > 0 || debouncedHomepageSearch.trim()
                     if (hasFilters) {
                       const filterParts = []
                       if (selectedTags.size > 0) {
@@ -1678,7 +1744,7 @@ export default function Home() {
             <PaginationControls
               currentPage={currentPage}
               setCurrentPage={setCurrentPage}
-              totalItems={filterItems(fetchedItems, homepageSearchQuery).length}
+              totalItems={filterItems(fetchedItems, debouncedHomepageSearch).length}
               itemsPerPage={itemsPerPage}
             />
           </div>
@@ -1692,9 +1758,9 @@ export default function Home() {
               <div className="flex items-center gap-3">
                 <div className="text-sm text-gray-600">
                   {(() => {
-                    const filteredItems = filterItems(bookmarkedCards, bookmarkSearchQuery)
+                    const filteredItems = filterItems(bookmarkedCards, debouncedBookmarkSearch)
 
-                    const hasFilters = selectedTags.size > 0 || bookmarkSearchQuery.trim()
+                    const hasFilters = selectedTags.size > 0 || debouncedBookmarkSearch.trim()
                     if (hasFilters) {
                       const filterParts = []
                       if (selectedTags.size > 0) {
@@ -1971,7 +2037,7 @@ export default function Home() {
                 <PaginationControls
                   currentPage={bookmarksPage}
                   setCurrentPage={setBookmarksPage}
-                  totalItems={filterItems(bookmarkedCards, bookmarkSearchQuery).length}
+                  totalItems={filterItems(bookmarkedCards, debouncedBookmarkSearch).length}
                   itemsPerPage={itemsPerPage}
                 />
               </>

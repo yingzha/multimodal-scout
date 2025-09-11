@@ -98,12 +98,9 @@ async def _apply_balanced_filtering(
                 industry_candidates.append(source)
 
         # Choose thresholds based on discovery mode
-        research_threshold = (
-            DISCOVERY_THRESHOLD if discovery_mode else RESEARCH_THRESHOLD
-        )
-        industry_threshold = (
-            DISCOVERY_THRESHOLD if discovery_mode else INDUSTRY_THRESHOLD
-        )
+        # In discovery mode, we skip semantic search entirely, so thresholds are irrelevant
+        research_threshold = 0.0 if discovery_mode else RESEARCH_THRESHOLD
+        industry_threshold = 0.0 if discovery_mode else INDUSTRY_THRESHOLD
 
         # Run semantic searches in parallel for better performance
         search_tasks = []
