@@ -23,18 +23,18 @@
   --bg-gradient-mid1: #1a1a1a;
   --bg-gradient-mid2: #2d2d2d;
   --bg-gradient-end: #3a3a3a;
-  --text-primary: #f8f8f8;
-  --text-secondary: #d1d1d1;
-  --text-muted: #a1a1a1;
+  --text-primary: #ffffff;
+  --text-secondary: #e5e5e5;
+  --text-muted: #c0c0c0;
   --text-dark: #ffffff;
-  --bg-card: rgba(30, 30, 30, 0.95);
-  --bg-section: rgba(42, 42, 42, 0.8);
-  --bg-button: #404040;
-  --bg-button-hover: #525252;
-  --bg-button-dark: #606060;
-  --bg-button-dark-hover: #737373;
-  --border-color: #525252;
-  --shadow-color: rgba(0, 0, 0, 0.5);
+  --bg-card: rgba(40, 40, 40, 0.95);
+  --bg-section: rgba(55, 55, 55, 0.9);
+  --bg-button: #505050;
+  --bg-button-hover: #606060;
+  --bg-button-dark: #707070;
+  --bg-button-dark-hover: #808080;
+  --border-color: #666666;
+  --shadow-color: rgba(0, 0, 0, 0.7);
 }
 
 /* Basic reset and body styles */
@@ -320,7 +320,7 @@ input[type="text"]:focus, input[type="url"]:focus, input[type="number"]:focus, t
 
 [data-theme="dark"] .bg-blue-50,
 [data-theme="dark"] .bg-blue-100 {
-  background-color: rgba(45, 45, 45, 0.8);
+  background-color: rgba(60, 60, 60, 0.9);
 }
 
 .text-blue-700, .text-blue-800, .text-blue-600 {
@@ -330,7 +330,57 @@ input[type="text"]:focus, input[type="url"]:focus, input[type="number"]:focus, t
 [data-theme="dark"] .text-blue-700,
 [data-theme="dark"] .text-blue-800,
 [data-theme="dark"] .text-blue-600 {
-  color: #60a5fa;
+  color: #70b6ff;
+}
+
+/* Improve dark mode readability for various elements */
+[data-theme="dark"] .text-gray-800 {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .text-gray-900 {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .text-gray-700 {
+  color: #e5e5e5;
+}
+
+[data-theme="dark"] .text-gray-600 {
+  color: #d0d0d0;
+}
+
+[data-theme="dark"] .text-gray-500 {
+  color: #c0c0c0;
+}
+
+/* Improve button contrast in both modes */
+.bg-gray-100 {
+  background-color: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.bg-gray-200 {
+  background-color: rgba(255, 255, 255, 0.9);
+}
+
+.hover\:bg-gray-200:hover {
+  background-color: rgba(255, 255, 255, 0.9);
+}
+
+[data-theme="dark"] .bg-gray-100 {
+  background-color: var(--bg-button);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+[data-theme="dark"] .bg-gray-200 {
+  background-color: var(--bg-button-hover);
+}
+
+[data-theme="dark"] .hover\:bg-gray-200:hover {
+  background-color: var(--bg-button-hover);
 }
 
 /* Custom tooltip styling using data-tooltip to avoid native conflicts */

@@ -884,7 +884,7 @@ export default function Home() {
 
 
     return (
-      <div className="flex justify-center items-center gap-2 mt-6 p-4 bg-gray-100 rounded-lg">
+      <div className="flex justify-center items-center gap-2 mt-6 p-4 rounded-lg">
         <span className="text-sm text-gray-700 mr-4">
           Page {currentPage} of {totalPages}
         </span>
