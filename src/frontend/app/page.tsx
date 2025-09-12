@@ -1725,7 +1725,7 @@ export default function Home() {
                     </div>
                   )}
 
-                  <div className="flex justify-end">
+                  <div className="flex justify-between items-center">
                     <a
                       href={item.link}
                       target="_blank"
@@ -1734,6 +1734,11 @@ export default function Home() {
                     >
                       Read the original post →
                     </a>
+                    {item.created_at && (
+                      <span className="text-xs text-gray-500">
+                        {new Date(item.created_at).toLocaleDateString()}
+                      </span>
+                    )}
                   </div>
                 </div>
                 )
