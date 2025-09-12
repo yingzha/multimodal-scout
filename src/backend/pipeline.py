@@ -366,7 +366,7 @@ async def process_content_pipeline(
     cutoff_date = datetime.now() - timedelta(days=selected_days)
     yield {
         "type": "status",
-        "message": f"Fetching sources from database added in last {selected_days} days...",
+        "message": f"Fetching recently discovered sources from last {selected_days} days...",
     }
 
     with db_manager.get_session() as session:
@@ -379,11 +379,11 @@ async def process_content_pipeline(
 
     if db_sources:
         logger.info(
-            f"Found {len(db_sources)} sources in database from last {selected_days} days"
+            f"Found {len(db_sources)} recently discovered sources from last {selected_days} days"
         )
         yield {
             "type": "status",
-            "message": f"Found {len(db_sources)} sources from last {selected_days} days",
+            "message": f"Found {len(db_sources)} recently discovered sources from last {selected_days} days",
         }
 
         # Convert database records back to SourceSchema objects
@@ -425,11 +425,11 @@ async def process_content_pipeline(
     else:
         # Fallback to fresh content if no database records in date range
         logger.warning(
-            f"No database records found for last {selected_days} days, using fresh scraped content"
+            f"No recently discovered content found for last {selected_days} days, using fresh scraped content"
         )
         yield {
             "type": "warning",
-            "message": f"No database records for {selected_days} days, using fresh content",
+            "message": f"No recently discovered content for {selected_days} days, using fresh content",
         }
         all_sources = fresh_sources
 

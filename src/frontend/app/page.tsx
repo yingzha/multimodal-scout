@@ -1443,7 +1443,7 @@ export default function Home() {
             {/* Time Range Selector */}
           <div className="mb-6">
             <div className="flex items-center justify-center space-x-4">
-              <span className="text-gray-700 font-medium">Retrieve content from the last</span>
+              <span className="text-gray-700 font-medium">Show recently discovered content from the last</span>
               <input
                 type="number"
                 value={selectedDays}
@@ -1519,7 +1519,7 @@ export default function Home() {
             <div className="flex items-start gap-2">
               <span className="flex-shrink-0">🎯</span>
               <div>
-                <strong>Smart Balanced Search:</strong> Prioritizes keyword matches first, then adds semantic matches by relevance score. Research papers use a higher similarity threshold to ensure quality, while industry content uses a lower threshold for variety.
+                <strong>Smart Balanced Search:</strong> Shows recently discovered content based on when we found it, not publication date. Prioritizes keyword matches first, then adds semantic matches by relevance score. Research papers use a higher similarity threshold to ensure quality, while industry content uses a lower threshold for variety.
               </div>
             </div>
           </div>
@@ -1736,7 +1736,7 @@ export default function Home() {
                     </a>
                     {item.created_at && (
                       <span className="text-xs text-gray-500">
-                        {new Date(item.created_at).toLocaleDateString()}
+                        Created {new Date(item.created_at).toLocaleDateString()}
                       </span>
                     )}
                   </div>
