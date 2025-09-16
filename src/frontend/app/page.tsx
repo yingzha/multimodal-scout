@@ -68,7 +68,20 @@ export default function Home() {
   // Navigation and Session State
   const [previousViewState, setPreviousViewState] = useState<{showResults: boolean, showBookmarks: boolean} | null>(null)
   const [sessionId] = useState(() => {
-    return 'session_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now()
+    // Try to get existing session ID from localStorage first
+    if (typeof window !== 'undefined') {
+      const existingSessionId = localStorage.getItem('multimodal-scout-session-id')
+      if (existingSessionId) {
+        return existingSessionId
+      }
+    }
+
+    // Generate new session ID and store it
+    const newSessionId = 'session_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now()
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('multimodal-scout-session-id', newSessionId)
+    }
+    return newSessionId
   })
 
   // Utility function to show temporary messages

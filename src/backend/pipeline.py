@@ -499,8 +499,9 @@ async def process_content_pipeline(
         all_links = [str(source.link) for source in filtered_sources]
         new_links = db_manager.get_new_cards(session_id, all_links)
 
-        # Mark all cards as seen now that they're being shown
-        db_manager.mark_cards_seen(session_id, all_links)
+        # Mark only new cards as seen now that they're being shown
+        if new_links:
+            db_manager.mark_cards_seen(session_id, new_links)
 
     # Prepare batch processing for HN comment insights
     all_links = [str(source.link) for source in filtered_sources]
