@@ -921,17 +921,56 @@ class DatabaseManager:
 
     # --- Embedding Cache Methods ---
 
-    def get_embedding_from_cache(self, text_hash: str) -> Optional[List[float]]:
+    def get_embedding_from_cache(
+        self, text_hash
+    ) -> Optional[List[float]] | Dict[str, Optional[List[float]]]:
+        """Gets embedding(s) from cache for single hash or list of hashes.
+
+        Args:
+            text_hash: Either a single string hash or a list of string hashes
+
+        Returns:
+            For single hash: Optional[List[float]]
+            For list of hashes: Dict[str, Optional[List[float]]]
+        """
+        # Handle single hash case (backward compatibility)
+        if isinstance(text_hash, str):
+            with self.get_session() as session:
+                cached = (
+                    session.query(EmbeddingCache)
+                    .filter(EmbeddingCache.text_hash == text_hash)
+                    .first()
+                )
+                if cached:
+                    return (
+                        cached.embedding
+                    )  # EmbeddingArrayType handles conversion automatically
+                return None
+
+        # Handle batch case
+        if not isinstance(text_hash, list) or not text_hash:
+            return {} if isinstance(text_hash, list) else None
+
         with self.get_session() as session:
-            cached = (
+            cached_embeddings = (
                 session.query(EmbeddingCache)
-                .filter(EmbeddingCache.text_hash == text_hash)
-                .first()
+                .filter(EmbeddingCache.text_hash.in_(text_hash))
+                .all()
             )
-            if cached:
-                return (
-                    cached.embedding
-                )  # EmbeddingArrayType handles conversion automatically
+
+            # Build result map
+            result = {}
+            found_hashes = {cached.text_hash for cached in cached_embeddings}
+
+            for cached in cached_embeddings:
+                result[cached.text_hash] = cached.embedding
+
+            # Add None for hashes not found in cache
+            for hash_val in text_hash:
+                if hash_val not in found_hashes:
+                    result[hash_val] = None
+
+            return result
 
     def add_embedding_to_cache(
         self, text: str, text_hash: str, embedding: List[float], model_name: str
@@ -1022,12 +1061,36 @@ class DatabaseManager:
                 for e in results
             ]
 
-    def _get_text_hash(self, text: str) -> str:
-        """Get SHA256 hash of text for caching."""
-        return hashlib.sha256(text.encode("utf-8")).hexdigest()
+    def _get_text_hash(self, text) -> str | List[str]:
+        """Get SHA256 hash of text(s) for caching.
 
-    def get_embedding_for_text(self, text: str) -> Optional[List[float]]:
-        """Gets an embedding for the given text, using the cache if available."""
+        Args:
+            text: Either a single string or a list of strings
+
+        Returns:
+            For single string: str
+            For list of strings: List[str]
+        """
+        if isinstance(text, str):
+            return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+        if isinstance(text, list):
+            return [hashlib.sha256(t.encode("utf-8")).hexdigest() for t in text]
+
+        raise ValueError("text must be either a string or a list of strings")
+
+    def get_embedding_for_text(
+        self, text
+    ) -> Optional[List[float]] | Dict[str, Optional[List[float]]]:
+        """Gets an embedding for the given text(s), using the cache if available.
+
+        Args:
+            text: Either a single string or a list of strings
+
+        Returns:
+            For single string: Optional[List[float]]
+            For list of strings: Dict[str, Optional[List[float]]]
+        """
         text_hash = self._get_text_hash(text)
         return self.get_embedding_from_cache(text_hash)
 

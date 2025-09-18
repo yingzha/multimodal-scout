@@ -21,7 +21,7 @@ def _normalize_text(text: str) -> str:
     return re.sub(r"[^\w\s]", "", text.lower())
 
 
-def _get_embedding(text: str) -> np.ndarray:
+async def _get_embedding(text: str) -> np.ndarray:
     """Get embedding for text using Google Gemini with database caching."""
     if not is_genai_enabled():
         return np.array([])
@@ -168,18 +168,32 @@ async def semantic_search_with_scores(
     try:
         # Get embeddings for each keyword, using module-level cache
         keyword_embeddings = []
+        uncached_keywords = []
+
+        # Check cache first
         for keyword in keywords:
             if keyword in _keyword_embedding_cache:
                 logger.info(f"Using cached keyword embedding for: {keyword}")
                 embedding = _keyword_embedding_cache[keyword]
+                if len(embedding) > 0:
+                    keyword_embeddings.append(embedding)
             else:
-                embedding = _get_embedding(keyword)
+                uncached_keywords.append(keyword)
+
+        # Generate embeddings for uncached keywords in parallel
+        if uncached_keywords:
+            logger.info(
+                f"Generating embeddings for {len(uncached_keywords)} keywords in parallel..."
+            )
+            embedding_tasks = [_get_embedding(keyword) for keyword in uncached_keywords]
+            new_embeddings = await asyncio.gather(*embedding_tasks)
+
+            # Cache and add new embeddings
+            for keyword, embedding in zip(uncached_keywords, new_embeddings):
                 if len(embedding) > 0:
                     _keyword_embedding_cache[keyword] = embedding
+                    keyword_embeddings.append(embedding)
                     logger.info(f"Cached new keyword embedding for: {keyword}")
-
-            if len(embedding) > 0:
-                keyword_embeddings.append(embedding)
 
         if not keyword_embeddings:
             logger.warning(
@@ -191,12 +205,18 @@ async def semantic_search_with_scores(
             f"Running Gemini semantic search on {len(sources)} sources with {len(keyword_embeddings)} keyword embeddings"
         )
 
-        for source in sources:
-            if not source.summary or source.summary.strip() == "":
-                continue
+        # Process sources with summaries
+        valid_sources = [
+            source for source in sources if source.summary and source.summary.strip()
+        ]
 
-            # Get embedding for the source summary
-            source_embedding = _get_embedding(source.summary)
+        # Get embeddings for all sources in parallel
+        source_embedding_tasks = [
+            _get_embedding(source.summary) for source in valid_sources
+        ]
+        source_embeddings = await asyncio.gather(*source_embedding_tasks)
+
+        for source, source_embedding in zip(valid_sources, source_embeddings):
 
             if len(source_embedding) == 0:
                 continue

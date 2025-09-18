@@ -260,7 +260,7 @@ def enrich_hackernews_comments(sources: List[SourceSchema]) -> None:
     )
 
 
-def enrich_sources_with_summaries_and_embeddings(
+async def enrich_sources_with_summaries_and_embeddings(
     sources: List[SourceSchema],
 ) -> List[SourceSchema]:
     """
@@ -282,7 +282,7 @@ def enrich_sources_with_summaries_and_embeddings(
     for source in enriched_sources:
         try:
             if source.summary:  # Only generate embeddings for sources with summaries
-                embedding = _get_embedding(source.summary)
+                embedding = await _get_embedding(source.summary)
                 if len(embedding) > 0:
                     logger.info(f"Generated embedding for: {source.title}")
                 else:

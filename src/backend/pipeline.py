@@ -305,8 +305,10 @@ async def process_content_pipeline(
                 }
 
                 # Enrich new sources with summaries and embeddings
-                enriched_new_sources = enrich_sources_with_summaries_and_embeddings(
-                    sources_needing_summaries
+                enriched_new_sources = (
+                    await enrich_sources_with_summaries_and_embeddings(
+                        sources_needing_summaries
+                    )
                 )
 
                 # Show final progress for this step

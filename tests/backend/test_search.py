@@ -1,4 +1,5 @@
 import unittest
+import asyncio
 from unittest.mock import patch, MagicMock
 import numpy as np
 
@@ -14,8 +15,11 @@ class TestSearch(unittest.TestCase):
         mock_get_embedding.return_value = [0.1, 0.2, 0.3]
         text = "test text"
 
-        # Call the function
-        embedding = _get_embedding(text)
+        # Call the async function
+        async def run_test():
+            return await _get_embedding(text)
+
+        embedding = asyncio.run(run_test())
 
         # Assertions
         self.assertTrue(np.array_equal(embedding, np.array([0.1, 0.2, 0.3])))
@@ -29,16 +33,19 @@ class TestSearch(unittest.TestCase):
     def test_get_embedding_generated_and_cached(self, mock_embed_content, mock_add_embedding, mock_get_embedding):
         # Setup: Embedding not found in cache, needs generation
         mock_get_embedding.return_value = None
-        
+
         # Mock the genai_client response
         mock_response = MagicMock()
         mock_response.embeddings = [MagicMock(values=[0.4, 0.5, 0.6])]
         mock_embed_content.return_value = mock_response
-        
+
         text = "new text"
 
-        # Call the function
-        embedding = _get_embedding(text)
+        # Call the async function
+        async def run_test():
+            return await _get_embedding(text)
+
+        embedding = asyncio.run(run_test())
 
         # Assertions
         self.assertTrue(np.array_equal(embedding, np.array([0.4, 0.5, 0.6])))
@@ -53,7 +60,12 @@ class TestSearch(unittest.TestCase):
         # Temporarily disable GenAI for this test
         with patch('src.backend.search.is_genai_enabled', return_value=False):
             text = "disabled test"
-            embedding = _get_embedding(text)
+
+            # Call the async function
+            async def run_test():
+                return await _get_embedding(text)
+
+            embedding = asyncio.run(run_test())
             self.assertTrue(np.array_equal(embedding, np.array([])))
             mock_get_embedding.assert_not_called()
             mock_embed_content.assert_not_called()
@@ -68,7 +80,11 @@ class TestSearch(unittest.TestCase):
         mock_embed_content.side_effect = Exception("API Error")
         text = "error text"
 
-        embedding = _get_embedding(text)
+        # Call the async function
+        async def run_test():
+            return await _get_embedding(text)
+
+        embedding = asyncio.run(run_test())
 
         self.assertTrue(np.array_equal(embedding, np.array([])))
         mock_get_embedding.assert_called_once_with(text)
