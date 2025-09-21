@@ -20,6 +20,7 @@ from alembic.config import Config
 from alembic import command
 from fastapi import FastAPI, HTTPException, Header, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import StreamingResponse, Response
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
@@ -134,6 +135,9 @@ def create_user_friendly_error(
         },
     )
 
+
+# Add response compression middleware (reduces bandwidth by ~70% for JSON/HTML)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Add CORS middleware to allow frontend connections
 app.add_middleware(
