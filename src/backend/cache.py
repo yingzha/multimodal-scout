@@ -10,6 +10,7 @@ Consolidates all caching mechanisms across the backend:
 
 import time
 from functools import lru_cache
+from collections import OrderedDict
 from typing import Dict, Any, Optional, List, Set
 
 from .logger import logger
@@ -91,31 +92,46 @@ class ContentCache:
 
 
 class SourceProcessingCache:
-    """In-memory cache to track recently processed sources"""
+    """LRU cache to track recently processed sources"""
 
     def __init__(self, max_size: int = 10000):
-        self._processed_sources_cache: Set[str] = set()
-        self._cache_max_size = max_size
+        self._cache: OrderedDict[str, bool] = OrderedDict()
+        self._max_size = max_size
 
     def is_recently_processed(self, link: str) -> bool:
-        """Check if a source was recently processed"""
-        return link in self._processed_sources_cache
+        """Check if a source was recently processed and update its position in LRU"""
+        if link in self._cache:
+            # Move to end (most recently used)
+            self._cache.move_to_end(link)
+            return True
+        return False
 
     def mark_as_processed(self, link: str):
-        """Mark a source as recently processed"""
-        self._processed_sources_cache.add(link)
-        if len(self._processed_sources_cache) % 1000 == 0:  # Check periodically
-            self._manage_cache_size()
+        """Mark a source as recently processed using LRU eviction"""
+        if link in self._cache:
+            # Move to end (most recently used)
+            self._cache.move_to_end(link)
+        else:
+            # Add new entry
+            self._cache[link] = True
 
-    def _manage_cache_size(self):
-        """Keep cache size under control to prevent memory issues"""
-        if len(self._processed_sources_cache) > self._cache_max_size:
-            # Remove half the cache when it gets too large
-            cache_list = list(self._processed_sources_cache)
-            self._processed_sources_cache = set(cache_list[len(cache_list) // 2 :])
+            # Remove least recently used items if over capacity
+            while len(self._cache) > self._max_size:
+                oldest_link = next(iter(self._cache))
+                del self._cache[oldest_link]
+
+        if len(self._cache) % 1000 == 0:  # Log periodically
             logger.info(
-                f"Source processing cache size reduced from {len(cache_list)} to {len(self._processed_sources_cache)}"
+                f"Source processing cache size: {len(self._cache)}/{self._max_size}"
             )
+
+    def clear(self):
+        """Clear the cache"""
+        self._cache.clear()
+
+    def size(self) -> int:
+        """Get current cache size"""
+        return len(self._cache)
 
 
 # ============================================================================
@@ -200,7 +216,7 @@ comment_insights_cache = CommentInsightsCache(ttl_seconds=600)  # 10 minutes
 def clear_all_caches():
     """Clear all in-memory caches"""
     content_cache.clear()
-    source_processing_cache._processed_sources_cache.clear()
+    source_processing_cache.clear()
     comment_insights_cache._cache.clear()
     get_cached_topics.cache_clear()
     logger.info("All in-memory caches cleared")
@@ -219,8 +235,8 @@ def get_cache_stats() -> Dict[str, Any]:
             and content_age > content_cache.ttl_seconds,
         },
         "source_processing_cache": {
-            "size": len(source_processing_cache._processed_sources_cache),
-            "max_size": source_processing_cache._cache_max_size,
+            "size": source_processing_cache.size(),
+            "max_size": source_processing_cache._max_size,
         },
         "comment_insights_cache": {
             "size": len(comment_insights_cache._cache),
