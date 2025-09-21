@@ -29,6 +29,7 @@ import secrets
 
 from .config import config
 from .logger import logger
+from .cache import source_processing_cache
 from .schema import SourceSchema
 
 
@@ -181,10 +182,8 @@ class DatabaseManager:
             autocommit=False, autoflush=False, bind=self.engine
         )
 
-        # In-memory cache to track recently processed sources (by link)
-        # This helps avoid reprocessing the same sources across method calls
-        self._processed_sources_cache = set()
-        self._cache_max_size = 10000  # Limit cache size to prevent memory issues
+        # Use unified source processing cache
+        self._source_cache = source_processing_cache
 
     def get_session(self) -> Session:
         return self.SessionLocal()
@@ -192,26 +191,13 @@ class DatabaseManager:
     def create_tables(self):
         Base.metadata.create_all(bind=self.engine)
 
-    def _manage_cache_size(self):
-        """Keep cache size under control to prevent memory issues."""
-        if len(self._processed_sources_cache) > self._cache_max_size:
-            # Remove half the cache when it gets too large
-            # Convert to list, keep the second half (more recent)
-            cache_list = list(self._processed_sources_cache)
-            self._processed_sources_cache = set(cache_list[len(cache_list) // 2 :])
-            logger.info(
-                f"Cache size reduced from {len(cache_list)} to {len(self._processed_sources_cache)}"
-            )
-
     def _is_recently_processed(self, link: str) -> bool:
         """Check if a source was recently processed."""
-        return link in self._processed_sources_cache
+        return self._source_cache.is_recently_processed(link)
 
     def _mark_as_processed(self, link: str):
         """Mark a source as recently processed."""
-        self._processed_sources_cache.add(link)
-        if len(self._processed_sources_cache) % 1000 == 0:  # Check periodically
-            self._manage_cache_size()
+        self._source_cache.mark_as_processed(link)
 
     def add_summaries(self, url_summary_pairs: Dict[str, str]) -> Dict[str, bool]:
         """Add summaries for multiple URLs in a single transaction (batch operation)."""

@@ -8,9 +8,8 @@ from .utils import (
     generate_summary_from_link,
     fetch_hackernews_comments,
     generate_comment_insights,
-    is_comment_insight_recently_processed,
-    mark_comment_insight_as_processed,
 )
+from .cache import comment_insights_cache
 
 from .constants import MIN_COMMENTS_FOR_INSIGHTS, COMMENT_INSIGHTS_ENABLED
 from .database import db_manager, Source
@@ -99,7 +98,7 @@ def enrich_hackernews_comments(sources: List[SourceSchema]) -> None:
 
     for source in hn_sources:
         link_str = str(source.link)
-        if not is_comment_insight_recently_processed(link_str):
+        if not comment_insights_cache.is_recently_processed(link_str):
             sources_to_process.append(source)
         else:
             cache_hits += 1
@@ -253,7 +252,7 @@ def enrich_hackernews_comments(sources: List[SourceSchema]) -> None:
 
     # Mark all processed sources as cached with 5-minute TTL
     for source in sources_to_process:
-        mark_comment_insight_as_processed(str(source.link))
+        comment_insights_cache.mark_as_processed(str(source.link))
 
     logger.info(
         f"✅ HN comment insights processing complete: {len(results_to_save)} insights updated"

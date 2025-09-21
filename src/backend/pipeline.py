@@ -27,7 +27,7 @@ from .merger import (
     enrich_sources_with_summaries_and_embeddings,
     enrich_hackernews_comments,
 )
-from .content_cache import content_cache
+from .cache import content_cache
 
 
 async def _apply_balanced_filtering(
@@ -449,7 +449,9 @@ async def process_content_pipeline(
 
             # Use database source names for final output
             source_names = list(db_source_names)
-            logger.info(f"Converted {len(all_sources)} database records to source schemas")
+            logger.info(
+                f"Converted {len(all_sources)} database records to source schemas"
+            )
 
         else:
             # Fallback to fresh content if no database records in date range
@@ -463,7 +465,9 @@ async def process_content_pipeline(
             all_sources = fresh_sources
 
         # Cache the processed content for future requests
-        content_cache.set_cached_content(fresh_sources, all_sources, source_names, selected_days)
+        content_cache.set_cached_content(
+            fresh_sources, all_sources, source_names, selected_days
+        )
 
     else:
         # Using cached content - skip progress update
