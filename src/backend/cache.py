@@ -11,8 +11,7 @@ Consolidates all caching mechanisms across the backend:
 import time
 from functools import lru_cache
 from collections import OrderedDict
-from typing import Dict, Any, Optional, List, Set
-
+from typing import Dict, Any, Optional, List
 from .logger import logger
 from .schema import SourceSchema
 from .constants import INTERESTED_KEYWORDS

@@ -1,6 +1,5 @@
 import os
 import hashlib
-import time
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 
@@ -190,14 +189,6 @@ class DatabaseManager:
 
     def create_tables(self):
         Base.metadata.create_all(bind=self.engine)
-
-    def _is_recently_processed(self, link: str) -> bool:
-        """Check if a source was recently processed."""
-        return self._source_cache.is_recently_processed(link)
-
-    def _mark_as_processed(self, link: str):
-        """Mark a source as recently processed."""
-        self._source_cache.mark_as_processed(link)
 
     def add_summaries(self, url_summary_pairs: Dict[str, str]) -> Dict[str, bool]:
         """Add summaries for multiple URLs in a single transaction (batch operation)."""
@@ -399,7 +390,7 @@ class DatabaseManager:
         cache_hits = 0
         for source in sources:
             link_str = str(source.link)
-            if not self._is_recently_processed(link_str):
+            if not self._source_cache.is_recently_processed(link_str):
                 fresh_sources.append(source)
             else:
                 cache_hits += 1
@@ -499,7 +490,7 @@ class DatabaseManager:
             # Step 6: Mark all processed sources in cache to avoid reprocessing
             for source in deduplicated_sources:
                 if source.summary:
-                    self._mark_as_processed(str(source.link))
+                    self._source_cache.mark_as_processed(str(source.link))
 
             logger.info(
                 f"✅ Successfully processed {len(deduplicated_sources)} sources ({len(sources_to_insert)} new, {len(sources_to_update)} updated)"
