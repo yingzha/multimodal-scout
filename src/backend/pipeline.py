@@ -27,6 +27,7 @@ from .merger import (
     enrich_sources_with_summaries_and_embeddings,
     enrich_hackernews_comments,
 )
+from .cache import content_cache
 
 
 async def _apply_balanced_filtering(
@@ -205,235 +206,271 @@ async def process_content_pipeline(
     user_id: str = None,
 ) -> AsyncGenerator[Dict[str, Any], None]:
     """
-    The main processing pipeline.
-    1. Always scrape fresh content first
-    2. Save new content to database
-    3. Query database for sources within date range
+    The main processing pipeline with content caching optimization.
+    1. Check content cache first (saves 2+ seconds if hit)
+    2. If cache miss: scrape fresh content and save to database
+    3. Apply topic filtering to cached/fresh content
     Yields progress updates and finally the results.
     """
-    # Step 1: Always scrape fresh content to get latest trending items
-    yield {
-        "type": "status",
-        "message": "Scraping fresh content from Hugging Face and Hacker News...",
-    }
-
-    fresh_sources = []
-    source_names = []
-
     total_weight = 100
     scraping_weight = 10
     summary_weight = 70
     filtering_weight = 20
 
-    current_progress = scraping_weight
-    yield {
-        "type": "start",
-        "message": "Starting unified processing pipeline...",
-        "total": 100,
-        "processed": int((current_progress / total_weight) * 100),
-    }
+    # Step 1: Check content cache first
+    cached_content = content_cache.get_cached_content(selected_days)
 
-    try:
-        # Use concurrent scraping for better performance
-        hf_papers, rss_items = await scrape_all_sources_concurrent()
-
-        if hf_papers:
-            fresh_sources.extend(hf_papers)
-            source_names.append("Hugging Face")
-
-        if rss_items:
-            fresh_sources.extend(rss_items)
-            source_names.append("RSS Sources")
-
+    if cached_content:
+        # Cache hit - skip expensive scraping and DB operations
+        cache_age = content_cache.get_cache_age()
         yield {
             "type": "status",
-            "message": f"Concurrent scraping complete!",
+            "message": f"Using cached content (age: {cache_age:.1f}s) - skipping scraping...",
         }
 
-    except Exception as e:
-        logger.error(f"Failed to fetch sources concurrently: {e}")
+        fresh_sources = cached_content["fresh_sources"]
+        all_sources = cached_content["all_sources"]
+        source_names = cached_content["source_names"]
+
+        # Fast-forward progress since we skipped expensive operations
+        current_progress = scraping_weight + summary_weight
         yield {
-            "type": "error",
-            "message": f"Failed to fetch sources concurrently: {str(e)}",
+            "type": "start",
+            "message": "Using cached content - applying filters...",
+            "total": 100,
+            "processed": int((current_progress / total_weight) * 100),
         }
-
-    # Step 2: Save fresh content to database first (without summaries)
-    # This tells us which sources are truly new and need summary generation
-    try:
-        save_result = db_manager.save_sources(fresh_sources)
-        new_sources = save_result["new_sources"]
-        updated_sources = save_result["updated_sources"]
-        skipped_sources = save_result["skipped_sources"]
-
-        total_operated = len(new_sources) + len(updated_sources)
-        total_input = save_result["total_processed"] + skipped_sources
-        logger.info(
-            f"Processed {total_input} sources: {len(new_sources)} new, {len(updated_sources)} updated, {skipped_sources} skipped (recent cache), {save_result['total_processed'] - total_operated} unchanged"
-        )
-
-        # Step 2b: Generate summaries for sources that don't have them (both new and updated)
-        all_processed_sources = new_sources + updated_sources
-        if all_processed_sources:
-            # Check which sources actually need summaries
-            sources_needing_summaries = [
-                source
-                for source in fresh_sources
-                if source.link in all_processed_sources
-            ]
-
-            if sources_needing_summaries:
-                logger.info(
-                    f"Generating summaries and embeddings for {len(sources_needing_summaries)} new sources..."
-                )
-
-                # Show initial progress
-                initial_progress = current_progress + (summary_weight * 0.1)
-                yield {
-                    "type": "progress",
-                    "message": f"Starting GenAI processing...",
-                    "processed": int((initial_progress / total_weight) * 100),
-                    "total": 100,
-                }
-
-                # Show mid-progress for summaries
-                summary_progress = current_progress + (summary_weight * 0.5)
-                yield {
-                    "type": "progress",
-                    "message": "Generating summaries...",
-                    "processed": int((summary_progress / total_weight) * 100),
-                    "total": 100,
-                }
-
-                # Enrich new sources with summaries and embeddings
-                enriched_new_sources = (
-                    await enrich_sources_with_summaries_and_embeddings(
-                        sources_needing_summaries
-                    )
-                )
-
-                # Show final progress for this step
-                final_progress = current_progress + (summary_weight * 0.9)
-                yield {
-                    "type": "progress",
-                    "message": "GenAI processing complete...",
-                    "processed": int((final_progress / total_weight) * 100),
-                    "total": 100,
-                }
-
-                # Update the database with the new summaries using batch method
-                url_summary_pairs = {
-                    str(source.link): source.summary
-                    for source in enriched_new_sources
-                    if source.summary
-                }
-                if url_summary_pairs:
-                    update_results = db_manager.add_summaries(url_summary_pairs)
-                    successful_updates = sum(
-                        1 for success in update_results.values() if success
-                    )
-                    logger.info(
-                        f"Updated {successful_updates} sources with summaries via batch operation"
-                    )
-                    yield {
-                        "type": "status",
-                        "message": f"Updated with GenAI summaries...",
-                    }
-            else:
-                logger.info("All new sources already have summaries")
-        else:
-            logger.info("No new sources found - all were existing or skipped")
-
-        # Always run comment insights enrichment on HN sources (both new and existing)
-        # since HN comments can grow over time
-        if fresh_sources:
-            logger.info("Running comment insights enrichment on all HN sources...")
-            enrich_hackernews_comments(fresh_sources)
-
-    except Exception as e:
-        logger.error(f"Failed to save sources to database: {e}")
-        yield {
-            "type": "warning",
-            "message": f"Database save failed, proceeding with fresh content: {str(e)}",
-        }
-
-    current_progress += summary_weight
-    yield {
-        "type": "progress",
-        "message": "Summary generation complete...",
-        "processed": int((current_progress / total_weight) * 100),
-        "total": 100,
-    }
-
-    # Step 3: Query database for sources within the specified date range
-    cutoff_date = datetime.now() - timedelta(days=selected_days)
-    yield {
-        "type": "status",
-        "message": f"Fetching recently discovered sources from last {selected_days} days...",
-    }
-
-    with db_manager.get_session() as session:
-        db_sources = (
-            session.query(Source)
-            .filter(Source.created_at >= cutoff_date)
-            .order_by(Source.created_at.desc())
-            .all()
-        )
-
-    if db_sources:
-        logger.info(
-            f"Found {len(db_sources)} recently discovered sources from last {selected_days} days"
-        )
-        yield {
-            "type": "status",
-            "message": f"Found {len(db_sources)} recently discovered sources from last {selected_days} days",
-        }
-
-        # Convert database records back to SourceSchema objects
-        all_sources = []
-        db_source_names = set()
-
-        for db_source in db_sources:
-            try:
-                # Determine source name from tags
-                source_tag = "General"
-                if db_source.tags and len(db_source.tags) > 0:
-                    source_tag = db_source.tags[0].capitalize()
-                    if source_tag.lower() == "research":
-                        db_source_names.add("Research Papers")
-                    elif source_tag.lower() == "industry":
-                        db_source_names.add("Industry News")
-
-                # Create SourceSchema object from database record
-                source_schema = SourceSchema(
-                    title=db_source.title,
-                    authors=db_source.authors or [],
-                    link=db_source.link,
-                    source_link=db_source.source_link,
-                    summary=db_source.summary,
-                    keywords=db_source.keywords,
-                    tags=db_source.tags or [],
-                    date=db_source.date,
-                )
-                all_sources.append(source_schema)
-
-            except Exception as e:
-                logger.warning(f"Failed to convert database record to schema: {e}")
-                continue
-
-        # Use database source names for final output
-        source_names = list(db_source_names)
-        logger.info(f"Converted {len(all_sources)} database records to source schemas")
 
     else:
-        # Fallback to fresh content if no database records in date range
-        logger.warning(
-            f"No recently discovered content found for last {selected_days} days, using fresh scraped content"
-        )
+        # Cache miss - perform full scraping and processing pipeline
         yield {
-            "type": "warning",
-            "message": f"No recently discovered content for {selected_days} days, using fresh content",
+            "type": "status",
+            "message": "Cache miss - scraping fresh content from Hugging Face and Hacker News...",
         }
-        all_sources = fresh_sources
+
+        fresh_sources = []
+        source_names = []
+
+        current_progress = scraping_weight
+        yield {
+            "type": "start",
+            "message": "Starting unified processing pipeline...",
+            "total": 100,
+            "processed": int((current_progress / total_weight) * 100),
+        }
+
+        try:
+            # Use concurrent scraping for better performance
+            hf_papers, rss_items = await scrape_all_sources_concurrent()
+
+            if hf_papers:
+                fresh_sources.extend(hf_papers)
+                source_names.append("Hugging Face")
+
+            if rss_items:
+                fresh_sources.extend(rss_items)
+                source_names.append("RSS Sources")
+
+            yield {
+                "type": "status",
+                "message": f"Concurrent scraping complete!",
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to fetch sources concurrently: {e}")
+            yield {
+                "type": "error",
+                "message": f"Failed to fetch sources concurrently: {str(e)}",
+            }
+
+    # Step 2: Database operations and AI processing (only if cache miss)
+    if not cached_content:
+        # Save fresh content to database first (without summaries)
+        try:
+            save_result = db_manager.save_sources(fresh_sources)
+            new_sources = save_result["new_sources"]
+            updated_sources = save_result["updated_sources"]
+            skipped_sources = save_result["skipped_sources"]
+
+            total_operated = len(new_sources) + len(updated_sources)
+            total_input = save_result["total_processed"] + skipped_sources
+            logger.info(
+                f"Processed {total_input} sources: {len(new_sources)} new, {len(updated_sources)} updated, {skipped_sources} skipped (recent cache), {save_result['total_processed'] - total_operated} unchanged"
+            )
+
+            # Step 2b: Generate summaries for sources that don't have them (both new and updated)
+            all_processed_sources = new_sources + updated_sources
+            if all_processed_sources:
+                # Check which sources actually need summaries
+                sources_needing_summaries = [
+                    source
+                    for source in fresh_sources
+                    if source.link in all_processed_sources
+                ]
+
+                if sources_needing_summaries:
+                    logger.info(
+                        f"Generating summaries and embeddings for {len(sources_needing_summaries)} new sources..."
+                    )
+
+                    # Show initial progress
+                    initial_progress = current_progress + (summary_weight * 0.1)
+                    yield {
+                        "type": "progress",
+                        "message": f"Starting GenAI processing...",
+                        "processed": int((initial_progress / total_weight) * 100),
+                        "total": 100,
+                    }
+
+                    # Show mid-progress for summaries
+                    summary_progress = current_progress + (summary_weight * 0.5)
+                    yield {
+                        "type": "progress",
+                        "message": "Generating summaries...",
+                        "processed": int((summary_progress / total_weight) * 100),
+                        "total": 100,
+                    }
+
+                    # Enrich new sources with summaries and embeddings
+                    enriched_new_sources = (
+                        await enrich_sources_with_summaries_and_embeddings(
+                            sources_needing_summaries
+                        )
+                    )
+
+                    # Show final progress for this step
+                    final_progress = current_progress + (summary_weight * 0.9)
+                    yield {
+                        "type": "progress",
+                        "message": "GenAI processing complete...",
+                        "processed": int((final_progress / total_weight) * 100),
+                        "total": 100,
+                    }
+
+                    # Update the database with the new summaries using batch method
+                    url_summary_pairs = {
+                        str(source.link): source.summary
+                        for source in enriched_new_sources
+                        if source.summary
+                    }
+                    if url_summary_pairs:
+                        update_results = db_manager.add_summaries(url_summary_pairs)
+                        successful_updates = sum(
+                            1 for success in update_results.values() if success
+                        )
+                        logger.info(
+                            f"Updated {successful_updates} sources with summaries via batch operation"
+                        )
+                        yield {
+                            "type": "status",
+                            "message": f"Updated with GenAI summaries...",
+                        }
+                else:
+                    logger.info("All new sources already have summaries")
+            else:
+                logger.info("No new sources found - all were existing or skipped")
+
+            # Always run comment insights enrichment on HN sources (both new and existing)
+            # since HN comments can grow over time
+            if fresh_sources:
+                logger.info("Running comment insights enrichment on all HN sources...")
+                enrich_hackernews_comments(fresh_sources)
+
+        except Exception as e:
+            logger.error(f"Failed to save sources to database: {e}")
+            yield {
+                "type": "warning",
+                "message": f"Database save failed, proceeding with fresh content: {str(e)}",
+            }
+
+        current_progress += summary_weight
+        yield {
+            "type": "progress",
+            "message": "Summary generation complete...",
+            "processed": int((current_progress / total_weight) * 100),
+            "total": 100,
+        }
+
+        # Step 3: Query database for sources within the specified date range
+        cutoff_date = datetime.now() - timedelta(days=selected_days)
+        yield {
+            "type": "status",
+            "message": f"Fetching recently discovered sources from last {selected_days} days...",
+        }
+
+        with db_manager.get_session() as session:
+            db_sources = (
+                session.query(Source)
+                .filter(Source.created_at >= cutoff_date)
+                .order_by(Source.created_at.desc())
+                .all()
+            )
+
+        if db_sources:
+            logger.info(
+                f"Found {len(db_sources)} recently discovered sources from last {selected_days} days"
+            )
+            yield {
+                "type": "status",
+                "message": f"Found {len(db_sources)} recently discovered sources from last {selected_days} days",
+            }
+
+            # Convert database records back to SourceSchema objects
+            all_sources = []
+            db_source_names = set()
+
+            for db_source in db_sources:
+                try:
+                    # Determine source name from tags
+                    source_tag = "General"
+                    if db_source.tags and len(db_source.tags) > 0:
+                        source_tag = db_source.tags[0].capitalize()
+                        if source_tag.lower() == "research":
+                            db_source_names.add("Research Papers")
+                        elif source_tag.lower() == "industry":
+                            db_source_names.add("Industry News")
+
+                    # Create SourceSchema object from database record
+                    source_schema = SourceSchema(
+                        title=db_source.title,
+                        authors=db_source.authors or [],
+                        link=db_source.link,
+                        source_link=db_source.source_link,
+                        summary=db_source.summary,
+                        keywords=db_source.keywords,
+                        tags=db_source.tags or [],
+                        date=db_source.date,
+                    )
+                    all_sources.append(source_schema)
+
+                except Exception as e:
+                    logger.warning(f"Failed to convert database record to schema: {e}")
+                    continue
+
+            # Use database source names for final output
+            source_names = list(db_source_names)
+            logger.info(
+                f"Converted {len(all_sources)} database records to source schemas"
+            )
+
+        else:
+            # Fallback to fresh content if no database records in date range
+            logger.warning(
+                f"No recently discovered content found for last {selected_days} days, using fresh scraped content"
+            )
+            yield {
+                "type": "warning",
+                "message": f"No recently discovered content for {selected_days} days, using fresh content",
+            }
+            all_sources = fresh_sources
+
+        # Cache the processed content for future requests
+        content_cache.set_cached_content(
+            fresh_sources, all_sources, source_names, selected_days
+        )
+
+    # Set current progress for both cache hit and miss paths
+    current_progress = scraping_weight + summary_weight
 
     if all_sources:
         # Get all edited summaries once at the beginning for efficiency

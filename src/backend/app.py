@@ -10,14 +10,12 @@ import time
 import uvicorn
 from contextlib import asynccontextmanager
 from datetime import datetime
-from functools import lru_cache
 from html import escape
-from io import BytesIO
+from io import BytesIO, StringIO
 from typing import Optional
 
 # Third-party imports
 from alembic.config import Config
-from alembic import command
 from fastapi import FastAPI, HTTPException, Header, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -28,7 +26,6 @@ from sqlalchemy import text
 
 # Local imports
 from .config import config
-from .constants import INTERESTED_KEYWORDS
 from .logger import logger
 from .database import db_manager
 from .pipeline import process_content_pipeline
@@ -39,6 +36,7 @@ from .utils import (
     categorize_content,
     _fetch_article_text,
 )
+from .cache import get_cached_topics
 from .schema import (
     FetchRequest,
     TopicResponse,
@@ -247,12 +245,6 @@ async def get_config():
     )
 
 
-@lru_cache(maxsize=1)
-def get_cached_topics() -> TopicResponse:
-    """Cache static topics data"""
-    return TopicResponse(topics=INTERESTED_KEYWORDS)
-
-
 @app.get("/api/topics", response_model=TopicResponse)
 async def get_default_topics():
     """
@@ -261,7 +253,8 @@ async def get_default_topics():
     """
     try:
         logger.info("Fetching default topics from constants")
-        response = get_cached_topics()
+        response_data = get_cached_topics()
+        response = TopicResponse(**response_data)
 
         # Add cache headers for better client-side caching
         return Response(
