@@ -469,9 +469,8 @@ async def process_content_pipeline(
             fresh_sources, all_sources, source_names, selected_days
         )
 
-    else:
-        # Using cached content - skip progress update
-        pass
+    # Set current progress for both cache hit and miss paths
+    current_progress = scraping_weight + summary_weight
 
     if all_sources:
         # Get all edited summaries once at the beginning for efficiency
