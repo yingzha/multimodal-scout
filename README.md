@@ -86,21 +86,21 @@ A smart content discovery platform that automatically finds, curates, and helps 
 └─────────────────────────┬───────────────────────────────────────────────┘
                           │ REST API + SSE
                           ▼
-┌────────────────────────────────────────────────────────────────────────┐
+┌─────────────────────────────────────────────────────────────────────────┐
 │                            Backend (FastAPI)                            │
 │                    API Endpoints + Pipeline Logic                       │
 └─────┬─────────────────────────────┬─────────────────────────────────────┘
       │                             │
       ▼                             ▼
-┌──────────────┐            ┌──────────────────┐
-│  PostgreSQL  |            |    Google Gemini │
-│   Database   │            │      AI API      │
-│              │            │                  │
-│ • Bookmarks  │            │ • Summarization  │
-│ • Content    │            │ • Categorization │
+┌──────────────┐            ┌───────────────────┐
+│  PostgreSQL  |            |    Google Gemini  │
+│   Database   │            │      AI API       │
+│              │            │                   │
+│ • Bookmarks  │            │ • Summarization   │
+│ • Content    │            │ • Categorization  │
 │ • Users      │            │ • Comment Insights│
-│ • Cache      │            │ • Smart Filters  │
-└──────────────┘
+│ • Cache      │            │ • Smart Filters   │
+└──────────────┘            └───────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                         Automated Pipeline                              │
@@ -109,7 +109,7 @@ A smart content discovery platform that automatically finds, curates, and helps 
 │ Content Discovery  →  AI Processing  →  Storage & Indexing              │
 │                                                                         │
 │ • Hacker News         →  • Summarization   →  • PostgreSQL              │
-│ • Substack Feeds      →  • Comment Insights →  • Search Embeddings       │
+│ • Substack Feeds      →  • Comment Insights →  • Search Embeddings      │
 │ • Hugging Face        →  • Categorization  →  • Cache Management        │
 │                       →  • Quality Filter  →  • 5-min TTL Caching       │
 └─────────────────────────────────────────────────────────────────────────┘
