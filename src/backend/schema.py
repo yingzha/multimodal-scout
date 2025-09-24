@@ -159,3 +159,11 @@ class CommentInsightRequest(BaseModel):
     """Request model for generating comment insights"""
 
     link: HttpUrl
+
+
+class KeywordSuggestionsResponse(BaseModel):
+    """Response model for keyword suggestions based on user bookmarks"""
+
+    suggested_keywords: List[str]
+    existing_keywords: List[str]
+    total_bookmarks_analyzed: int

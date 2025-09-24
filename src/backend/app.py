@@ -35,6 +35,7 @@ from .utils import (
     extract_title_from_url,
     categorize_content,
     _fetch_article_text,
+    generate_keyword_suggestions_from_bookmarks,
 )
 from .cache import get_cached_topics
 from .schema import (
@@ -53,6 +54,7 @@ from .schema import (
     ConfigResponse,
     UserPreferencesResponse,
     UpdateUserPreferencesRequest,
+    KeywordSuggestionsResponse,
 )
 
 
@@ -569,6 +571,54 @@ async def update_user_preferences(
     except Exception as e:
         logger.error(f"Failed to update user preferences: {e}")
         raise HTTPException(status_code=500, detail="Failed to update preferences")
+
+
+@app.get("/api/keywords/suggestions", response_model=KeywordSuggestionsResponse)
+async def get_keyword_suggestions(current_user: str = Depends(get_current_user)):
+    """Generate keyword suggestions based on user's bookmarked content"""
+    try:
+        # Get user's existing custom topics/keywords
+        existing_keywords = db_manager.get_user_custom_topics(current_user)
+
+        # Get user's bookmarks with title and summary
+        bookmarks = db_manager.get_bookmarks(
+            current_user, limit=50
+        )  # Analyze up to 50 bookmarks
+
+        if not bookmarks:
+            return KeywordSuggestionsResponse(
+                suggested_keywords=[],
+                existing_keywords=existing_keywords,
+                total_bookmarks_analyzed=0,
+            )
+
+        # Prepare bookmark data for analysis
+        bookmark_data = []
+        for bookmark in bookmarks:
+            bookmark_data.append(
+                {"title": bookmark.title, "summary": bookmark.summary or ""}
+            )
+
+        # Generate keyword suggestions using AI
+        suggested_keywords = generate_keyword_suggestions_from_bookmarks(
+            bookmark_data, existing_keywords
+        )
+
+        logger.info(
+            f"Generated {len(suggested_keywords)} keyword suggestions for user {current_user} from {len(bookmarks)} bookmarks"
+        )
+
+        return KeywordSuggestionsResponse(
+            suggested_keywords=suggested_keywords,
+            existing_keywords=existing_keywords,
+            total_bookmarks_analyzed=len(bookmarks),
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to generate keyword suggestions: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate keyword suggestions: {str(e)}"
+        )
 
 
 @app.post("/api/bookmarks", response_model=BookmarkResponse)

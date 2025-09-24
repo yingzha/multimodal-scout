@@ -422,6 +422,99 @@ Key Insights:"""
         return None
 
 
+def generate_keyword_suggestions_from_bookmarks(
+    bookmark_titles_and_summaries: List[Dict[str, str]], existing_keywords: List[str]
+) -> List[str]:
+    """
+    Generate keyword suggestions based on user's bookmarked content.
+
+    Args:
+        bookmark_titles_and_summaries: List of dicts with 'title' and 'summary' keys
+        existing_keywords: List of keywords the user already has
+
+    Returns:
+        List of suggested keywords (distinct from existing ones)
+    """
+    if not bookmark_titles_and_summaries or not is_genai_enabled():
+        return []
+
+    try:
+        # Combine all bookmark content for analysis
+        content_pieces = []
+        for bookmark in bookmark_titles_and_summaries:
+            title = bookmark.get("title", "").strip()
+            summary = bookmark.get("summary", "").strip()
+            if title:
+                content_pieces.append(f"Title: {title}")
+            if summary:
+                content_pieces.append(f"Summary: {summary}")
+
+        if not content_pieces:
+            return []
+
+        combined_content = "\n\n".join(content_pieces)
+        existing_keywords_str = (
+            ", ".join(existing_keywords) if existing_keywords else "None"
+        )
+
+        prompt = f"""Analyze this user's bookmarked content and suggest up to 5 new keywords that represent their interests and research areas.
+
+Requirements:
+- Keywords should be specific, technical terms or topic areas
+- Focus on emerging technologies, methodologies, or research domains
+- Avoid generic words like "technology", "innovation", "research"
+- Suggest keywords that are DISTINCT from existing keywords: {existing_keywords_str}
+- Return ONLY a comma-separated list of keywords (maximum 5)
+- Each keyword should be 1-3 words maximum
+
+Bookmarked Content:
+{combined_content}
+
+New Keywords:"""
+
+        def generate_keywords():
+            response = genai_client.models.generate_content(
+                model=GEMINI_MODEL_NAME, contents=[prompt]
+            )
+            return response.text.strip()
+
+        logger.info(
+            f"🤖 Calling Gemini API to generate keyword suggestions from {len(bookmark_titles_and_summaries)} bookmarks"
+        )
+        keywords_response = _retry_with_backoff(generate_keywords)
+
+        if not keywords_response:
+            return []
+
+        # Parse the response and clean up keywords
+        suggested_keywords = []
+        for keyword in keywords_response.split(","):
+            clean_keyword = keyword.strip().strip('"').strip("'").lower()
+            if (
+                clean_keyword
+                and len(clean_keyword) > 2
+                and clean_keyword not in [k.lower() for k in existing_keywords]
+            ):
+                suggested_keywords.append(clean_keyword)
+
+        # Remove duplicates while preserving order
+        unique_keywords = []
+        seen = set()
+        for keyword in suggested_keywords:
+            if keyword not in seen:
+                unique_keywords.append(keyword)
+                seen.add(keyword)
+
+        logger.info(
+            f"✅ Generated {len(unique_keywords)} keyword suggestions from bookmarks"
+        )
+        return unique_keywords[:5]  # Limit to 5 suggestions
+
+    except Exception as e:
+        logger.error(f"Error generating keyword suggestions from bookmarks: {e}")
+        return []
+
+
 async def get_hn_comment_insights_with_summaries(
     links: List[str], original_summaries: Dict[str, str], user_id: str = None
 ) -> Dict[str, Tuple[str, Optional[str], Optional[int]]]:
