@@ -25,6 +25,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 import secrets
+import bcrypt
 
 from .config import config
 from .logger import logger
@@ -312,17 +313,29 @@ class DatabaseManager:
     def search_summaries(self, query: str, limit: int = 10) -> List[Dict[str, str]]:
         """Search summaries using PostgreSQL full-text search with GIN index."""
         with self.get_session() as session:
+            # Sanitize input: only allow alphanumeric, spaces, hyphens, and underscores
+            # Remove potential SQL injection characters
+            sanitized_query = "".join(
+                c for c in query if c.isalnum() or c.isspace() or c in "-_"
+            ).strip()
+
+            if not sanitized_query:
+                logger.warning(
+                    f"Query sanitization resulted in empty string: '{query}'"
+                )
+                return []
+
             # Format query for PostgreSQL full-text search
-            # Replace spaces with & for AND operation, handle special characters
+            # Replace spaces with & for AND operation
             formatted_query = " & ".join(
-                word.strip() for word in query.split() if word.strip()
+                word.strip() for word in sanitized_query.split() if word.strip()
             )
 
             if not formatted_query:
                 return []
 
             try:
-                # Use op() for raw PostgreSQL operators to avoid SQLAlchemy wrapping
+                # Use parameterized queries to prevent SQL injection
                 results = (
                     session.query(Source)
                     .filter(
@@ -342,13 +355,15 @@ class DatabaseManager:
                 )
             except Exception as e:
                 logger.warning(
-                    f"Full-text search failed for query '{query}': {e}. Falling back to ILIKE."
+                    f"Full-text search failed for sanitized query '{sanitized_query}': {e}. Falling back to ILIKE."
                 )
-                # Fallback to old method if FTS fails (e.g., malformed query)
+                # Fallback with parameterized query to prevent SQL injection
+                # SQLAlchemy automatically handles parameterization for .ilike()
                 results = (
                     session.query(Source)
                     .filter(
-                        Source.summary.ilike(f"%{query}%"), Source.summary.isnot(None)
+                        Source.summary.ilike(f"%{sanitized_query}%"),
+                        Source.summary.isnot(None),
                     )
                     .order_by(desc(Source.created_at))
                     .limit(limit)
@@ -623,17 +638,20 @@ class DatabaseManager:
             return False
 
     def _hash_password(self, password: str) -> str:
-        """Hash password using hashlib (simple implementation for now)"""
-        salt = os.urandom(32)
-        pwdhash = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 100000)
-        return salt.hex() + pwdhash.hex()
+        """Hash password using bcrypt with secure salt generation"""
+        salt = bcrypt.gensalt(rounds=12)  # Higher cost factor for better security
+        hashed = bcrypt.hashpw(password.encode("utf-8"), salt)
+        return hashed.decode("utf-8")
 
     def _verify_password(self, password: str, password_hash: str) -> bool:
-        """Verify password against hash"""
-        salt = bytes.fromhex(password_hash[:64])
-        stored_hash = password_hash[64:]
-        pwdhash = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 100000)
-        return pwdhash.hex() == stored_hash
+        """Verify password against bcrypt hash"""
+        try:
+            return bcrypt.checkpw(
+                password.encode("utf-8"), password_hash.encode("utf-8")
+            )
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Password verification failed: {e}")
+            return False
 
     def cleanup_user(self, email: str) -> Dict[str, Any]:
         with self.get_session() as session:
@@ -871,13 +889,25 @@ class DatabaseManager:
             if not user:
                 return []
 
+            # Sanitize query input to prevent SQL injection
+            sanitized_query = "".join(
+                c for c in query if c.isalnum() or c.isspace() or c in "-_"
+            ).strip()
+
+            if not sanitized_query:
+                logger.warning(
+                    f"Bookmark search query sanitization resulted in empty string: '{query}'"
+                )
+                return []
+
+            # SQLAlchemy automatically parameterizes .ilike() queries
             results = (
                 session.query(Bookmark)
                 .filter(
                     Bookmark.user_id == user.id,
                     (
-                        Bookmark.title.ilike(f"%{query}%")
-                        | Bookmark.summary.ilike(f"%{query}%")
+                        Bookmark.title.ilike(f"%{sanitized_query}%")
+                        | Bookmark.summary.ilike(f"%{sanitized_query}%")
                     ),
                 )
                 .order_by(desc(Bookmark.bookmarked_at))
@@ -1021,9 +1051,21 @@ class DatabaseManager:
 
     def search_embeddings(self, query: str, limit: int = 10) -> List[Dict[str, str]]:
         with self.get_session() as session:
+            # Sanitize query input to prevent SQL injection
+            sanitized_query = "".join(
+                c for c in query if c.isalnum() or c.isspace() or c in "-_"
+            ).strip()
+
+            if not sanitized_query:
+                logger.warning(
+                    f"Embedding search query sanitization resulted in empty string: '{query}'"
+                )
+                return []
+
+            # SQLAlchemy automatically parameterizes .ilike() queries
             results = (
                 session.query(EmbeddingCache)
-                .filter(EmbeddingCache.text.ilike(f"%{query}%"))
+                .filter(EmbeddingCache.text.ilike(f"%{sanitized_query}%"))
                 .order_by(desc(EmbeddingCache.created_at))
                 .limit(limit)
                 .all()

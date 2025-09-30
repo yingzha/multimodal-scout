@@ -23,6 +23,13 @@ from fastapi.responses import StreamingResponse, Response
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 from sqlalchemy import text
+from sqlalchemy.exc import (
+    DatabaseError,
+    IntegrityError,
+    OperationalError,
+    DataError,
+)
+from pydantic import ValidationError
 
 # Local imports
 from .config import config
@@ -352,9 +359,38 @@ async def search_content(
                 detail="Failed to fetch items: Pipeline finished without result.",
             )
 
+    except ValidationError as e:
+        # Invalid request parameters
+        logger.warning(f"Invalid search parameters: {e}")
+        raise HTTPException(status_code=400, detail="Invalid search parameters")
+    except OperationalError as e:
+        # Database connection issues
+        logger.error(f"Database connection error during search: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Search service temporarily unavailable. Please try again later.",
+        )
+    except DatabaseError as e:
+        # General database errors
+        logger.error(f"Database error during search: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Search failed due to database error. Please try again.",
+        )
+    except asyncio.TimeoutError:
+        # Timeout during search
+        logger.error("Search operation timed out")
+        raise HTTPException(
+            status_code=504,
+            detail="Search operation timed out. Try refining your search criteria.",
+        )
     except Exception as e:
-        logger.error(f"Failed to fetch items: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to fetch items: {str(e)}")
+        # Unexpected errors
+        logger.error(f"Unexpected error during search: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected error occurred during search. Please try again.",
+        )
 
 
 @app.post("/api/content/search/stream")
@@ -470,10 +506,31 @@ async def register_user(request: UserRegistrationRequest):
             user_id=user_id,
         )
     except ValueError as e:
+        # Handle duplicate email/username
+        logger.warning(f"Registration failed for {request.email}: {e}")
         raise HTTPException(status_code=400, detail=str(e))
+    except IntegrityError as e:
+        # Database constraint violation (e.g., unique constraint)
+        logger.error(f"Database integrity error during registration: {e}")
+        raise HTTPException(status_code=409, detail="Email or username already exists")
+    except OperationalError as e:
+        # Database connection issues
+        logger.error(f"Database connection error during registration: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Database temporarily unavailable. Please try again later.",
+        )
+    except DatabaseError as e:
+        # General database errors
+        logger.error(f"Database error during registration: {e}")
+        raise HTTPException(
+            status_code=500, detail="Unable to register user. Please try again."
+        )
     except Exception as e:
-        create_user_friendly_error(
-            "database_error", "Unable to register user. Please try again.", str(e), 500
+        # Unexpected errors
+        logger.error(f"Unexpected error during registration: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="An unexpected error occurred. Please try again."
         )
 
 
@@ -496,10 +553,26 @@ async def login_user(request: UserLoginRequest):
             user_id=user_id,
         )
     except HTTPException:
+        # Re-raise authentication errors
         raise
+    except OperationalError as e:
+        # Database connection issues
+        logger.error(f"Database connection error during login: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Database temporarily unavailable. Please try again later.",
+        )
+    except DatabaseError as e:
+        # General database errors
+        logger.error(f"Database error during login: {e}")
+        raise HTTPException(
+            status_code=500, detail="Unable to login. Please try again."
+        )
     except Exception as e:
-        create_user_friendly_error(
-            "database_error", "Unable to login. Please try again.", str(e), 500
+        # Unexpected errors
+        logger.error(f"Unexpected error during login: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="An unexpected error occurred. Please try again."
         )
 
 
@@ -638,9 +711,36 @@ async def add_bookmark(
         return BookmarkResponse(
             success=True, message="Bookmark added successfully", bookmark_id=bookmark_id
         )
+    except IntegrityError as e:
+        # Duplicate bookmark or constraint violation
+        logger.warning(
+            f"Bookmark already exists for user {current_user}: {request.link}"
+        )
+        raise HTTPException(
+            status_code=409, detail="This bookmark already exists in your collection"
+        )
+    except DataError as e:
+        # Invalid data format
+        logger.error(f"Invalid data format for bookmark: {e}")
+        raise HTTPException(status_code=400, detail="Invalid bookmark data format")
+    except OperationalError as e:
+        # Database connection issues
+        logger.error(f"Database connection error adding bookmark: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Database temporarily unavailable. Please try again later.",
+        )
+    except DatabaseError as e:
+        # General database errors
+        logger.error(f"Database error adding bookmark: {e}")
+        raise HTTPException(
+            status_code=500, detail="Unable to save bookmark. Please try again."
+        )
     except Exception as e:
-        create_user_friendly_error(
-            "database_error", "Unable to save bookmark. Please try again.", str(e), 500
+        # Unexpected errors
+        logger.error(f"Unexpected error adding bookmark: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="An unexpected error occurred. Please try again."
         )
 
 
