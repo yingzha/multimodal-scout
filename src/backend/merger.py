@@ -1,4 +1,4 @@
-import time
+import asyncio
 from concurrent import futures
 from typing import List
 
@@ -16,9 +16,11 @@ from .database import db_manager, Source
 from .search import _get_embedding
 
 
-def enrich_sources_with_summaries(sources: List[SourceSchema]) -> List[SourceSchema]:
+async def enrich_sources_with_summaries(
+    sources: List[SourceSchema],
+) -> List[SourceSchema]:
     """
-    Generates summaries for sources using batch operations to avoid N+1 query problems.
+    Generates summaries for sources using parallel processing for improved performance.
     Only generates summaries for sources that don't already have them (e.g., from scraping).
 
     Args:
@@ -27,7 +29,7 @@ def enrich_sources_with_summaries(sources: List[SourceSchema]) -> List[SourceSch
     Returns:
         The list of sources, with missing summaries filled in where possible.
     """
-    logger.info("--- Enriching sources with summaries (batch optimized) ---")
+    logger.info("--- Enriching sources with summaries (parallel optimized) ---")
 
     if not sources:
         return sources
@@ -39,29 +41,53 @@ def enrich_sources_with_summaries(sources: List[SourceSchema]) -> List[SourceSch
     logger.info(
         f"Found {len(sources_with_summaries)} sources with existing summaries, generating for {len(sources_needing_summaries)} remaining sources..."
     )
-    newly_generated = []
 
-    for i, source in enumerate(sources_needing_summaries):
-        # Add a small delay between API calls to avoid rate limiting (except for first item)
-        if i > 0:
-            time.sleep(0.5)  # 500ms delay between requests
+    async def generate_with_retry(source: SourceSchema) -> SourceSchema:
+        """Generate summary for a single source with retry logic."""
+        # Generate from source_link first
+        new_summary = await asyncio.to_thread(
+            generate_summary_from_link, source.source_link, source.title
+        )
 
-        new_summary = generate_summary_from_link(source.source_link, source.title)
+        # Retry with alternate link if first attempt fails
         if new_summary is None and str(source.source_link) != str(source.link):
             logger.warning(
                 f"2nd attempt to generate summary from link for: {source.link}"
             )
-            time.sleep(1.0)  # Longer delay before retry
-            new_summary = generate_summary_from_link(source.link, source.title)
+            new_summary = await asyncio.to_thread(
+                generate_summary_from_link, source.link, source.title
+            )
 
         if new_summary:
             source.summary = new_summary
-            newly_generated.append(source)
             logger.info(f"Generated new summary for: {source.title}")
         else:
             logger.warning(
                 f"Failed to generate summary for: {source.title} ({source.link})"
             )
+
+        return source
+
+    # Process all summaries in parallel
+    if sources_needing_summaries:
+        results = await asyncio.gather(
+            *[generate_with_retry(source) for source in sources_needing_summaries],
+            return_exceptions=True,
+        )
+
+        # Count successful generations
+        newly_generated = [
+            r for r in results if not isinstance(r, Exception) and r.summary
+        ]
+
+        # Log any exceptions
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.error(
+                    f"Error generating summary for {sources_needing_summaries[i].title}: {result}"
+                )
+    else:
+        newly_generated = []
 
     # Note: Sources are saved by the caller using add_summaries for better efficiency
     logger.info(
@@ -274,8 +300,8 @@ async def enrich_sources_with_summaries_and_embeddings(
     """
     logger.info("--- Enriching sources with summaries and embeddings ---")
 
-    # First, generate summaries
-    enriched_sources = enrich_sources_with_summaries(sources)
+    # First, generate summaries (now async)
+    enriched_sources = await enrich_sources_with_summaries(sources)
 
     # Generate embeddings for the text that will be searched
     for source in enriched_sources:
