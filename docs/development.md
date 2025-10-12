@@ -72,11 +72,13 @@ The project is configured for hot reloading. When you save changes to a file, th
 
 ### Backend Unit Tests
 
-Run the backend test suite using `pytest`:
+Run the backend test suite using `pytest`. The testing dependencies live in the `dev` extra, so include it when invoking `uv`:
 
 ```bash
-docker-compose run --rm backend pytest tests/backend/
+docker-compose run --rm backend uv run --extra dev pytest tests/backend/
 ```
+
+> Tip: if you plan to run tests repeatedly in the same container, sync the dev extra once first (`docker-compose exec backend uv sync --extra dev`) and then use `uv run pytest …` without the extra flag on subsequent runs.
 
 ### Frontend Checks
 
@@ -171,15 +173,17 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/auth
 
 The backend includes code quality and formatting tools:
 
+> Dev tooling lives in the optional `dev` extra. Include `--extra dev` the first time so the formatter/linter are available in the container.
+
 ```bash
 # Format Python code with black
-docker-compose exec backend uv run black src/backend/
+docker-compose exec backend uv run --extra dev black src/backend/
 
 # Run pylint for code quality analysis
-docker-compose exec backend uv run pylint src/backend/
+docker-compose exec backend uv run --extra dev pylint src/backend/
 
-# Install/sync new dependencies
-docker-compose exec backend uv sync
+# Install/sync new dependencies (includes dev tools)
+docker-compose exec backend uv sync --extra dev
 ```
 
 ## 🗄️ Database Migrations

@@ -287,7 +287,9 @@ async def process_content_pipeline(
     if not cached_content:
         # Save fresh content to database first (without summaries)
         try:
-            save_result = db_manager.save_sources(fresh_sources)
+            save_result = await asyncio.to_thread(
+                db_manager.save_sources, fresh_sources
+            )
             new_sources = save_result["new_sources"]
             updated_sources = save_result["updated_sources"]
             skipped_sources = save_result["skipped_sources"]
@@ -354,7 +356,9 @@ async def process_content_pipeline(
                         if source.summary
                     }
                     if url_summary_pairs:
-                        update_results = db_manager.add_summaries(url_summary_pairs)
+                        update_results = await asyncio.to_thread(
+                            db_manager.add_summaries, url_summary_pairs
+                        )
                         successful_updates = sum(
                             1 for success in update_results.values() if success
                         )
@@ -398,13 +402,16 @@ async def process_content_pipeline(
             "message": f"Fetching recently discovered sources from last {selected_days} days...",
         }
 
-        with db_manager.get_session() as session:
-            db_sources = (
-                session.query(Source)
-                .filter(Source.created_at >= cutoff_date)
-                .order_by(Source.created_at.desc())
-                .all()
-            )
+        def _fetch_recent_sources():
+            with db_manager.get_session() as session:
+                return (
+                    session.query(Source)
+                    .filter(Source.created_at >= cutoff_date)
+                    .order_by(Source.created_at.desc())
+                    .all()
+                )
+
+        db_sources = await asyncio.to_thread(_fetch_recent_sources)
 
         if db_sources:
             logger.info(
@@ -476,7 +483,7 @@ async def process_content_pipeline(
         # Get all edited summaries once at the beginning for efficiency
         edited_summaries_map = {}
         if user_id:
-            bookmarks = db_manager.get_bookmarks(user_id)
+            bookmarks = await asyncio.to_thread(db_manager.get_bookmarks, user_id)
             for bookmark in bookmarks:
                 edited_summary = getattr(bookmark, "summary_edited", None)
                 if edited_summary:
@@ -536,11 +543,13 @@ async def process_content_pipeline(
     new_links = []
     if session_id:
         all_links = [str(source.link) for source in filtered_sources]
-        new_links = db_manager.get_new_cards(session_id, all_links)
+        new_links = await asyncio.to_thread(
+            db_manager.get_new_cards, session_id, all_links
+        )
 
         # Mark only new cards as seen now that they're being shown
         if new_links:
-            db_manager.mark_cards_seen(session_id, new_links)
+            await asyncio.to_thread(db_manager.mark_cards_seen, session_id, new_links)
 
     # Prepare batch processing for HN comment insights
     all_links = [str(source.link) for source in filtered_sources]

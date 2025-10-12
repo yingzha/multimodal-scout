@@ -1220,7 +1220,6 @@ dependencies = [
     { name = "alembic" },
     { name = "bcrypt" },
     { name = "beautifulsoup4" },
-    { name = "black" },
     { name = "cloud-sql-python-connector", extra = ["pg8000"] },
     { name = "email-validator" },
     { name = "fastapi" },
@@ -1232,14 +1231,19 @@ dependencies = [
     { name = "openpyxl" },
     { name = "psycopg2-binary" },
     { name = "pydantic", extra = ["email"] },
-    { name = "pylint" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
     { name = "python-dateutil" },
     { name = "python-dotenv" },
     { name = "requests" },
     { name = "sqlalchemy" },
     { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "black" },
+    { name = "pylint" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
 ]
 
 [package.metadata]
@@ -1248,7 +1252,7 @@ requires-dist = [
     { name = "alembic", specifier = ">=1.16.5" },
     { name = "bcrypt", specifier = ">=4.3.0" },
     { name = "beautifulsoup4", specifier = ">=4.11.0" },
-    { name = "black", specifier = ">=25.1.0" },
+    { name = "black", marker = "extra == 'dev'", specifier = ">=25.1.0" },
     { name = "cloud-sql-python-connector", extras = ["pg8000"], specifier = ">=1.4.0" },
     { name = "email-validator", specifier = ">=2.3.0" },
     { name = "fastapi", specifier = ">=0.116.1" },
@@ -1259,15 +1263,16 @@ requires-dist = [
     { name = "openpyxl", specifier = ">=3.1.0" },
     { name = "psycopg2-binary", specifier = ">=2.9.10" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.11.7" },
-    { name = "pylint", specifier = ">=3.0.0" },
-    { name = "pytest", specifier = ">=8.4.1" },
-    { name = "pytest-asyncio", specifier = ">=1.1.0" },
+    { name = "pylint", marker = "extra == 'dev'", specifier = ">=3.0.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.4.1" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=1.1.0" },
     { name = "python-dateutil", specifier = ">=2.8.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "requests", specifier = ">=2.28.0" },
     { name = "sqlalchemy", specifier = ">=2.0.43" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.35.0" },
 ]
+provides-extras = ["dev"]
 
 [[package]]
 name = "mypy-extensions"
