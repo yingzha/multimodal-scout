@@ -32,7 +32,9 @@ async def _get_embedding(text: str) -> np.ndarray:
 
     # Check cache first using the new abstracted method
     try:
-        cached_embedding = db_manager.get_embedding_for_text(text)
+        cached_embedding = await asyncio.to_thread(
+            db_manager.get_embedding_for_text, text
+        )
         if cached_embedding is not None:
             logger.info(f"Using cached embedding for text: {text[:50]}...")
             return np.array(cached_embedding)
@@ -210,11 +212,31 @@ async def semantic_search_with_scores(
             source for source in sources if source.summary and source.summary.strip()
         ]
 
-        # Get embeddings for all sources in parallel
-        source_embedding_tasks = [
-            _get_embedding(source.summary) for source in valid_sources
-        ]
-        source_embeddings = await asyncio.gather(*source_embedding_tasks)
+        # Fetch cached embeddings in a single DB call to avoid sequential queries
+        summaries = [source.summary for source in valid_sources]
+        cached_embeddings = await asyncio.to_thread(
+            db_manager.get_embeddings_for_texts, summaries
+        )
+
+        # Initialize embeddings list while tracking cache misses
+        source_embeddings: List[np.ndarray] = []
+        missing_indices = []
+
+        for idx, embedding in enumerate(cached_embeddings):
+            if embedding:
+                source_embeddings.append(np.array(embedding))
+            else:
+                source_embeddings.append(np.array([]))
+                missing_indices.append(idx)
+
+        # Generate embeddings for cache misses in parallel
+        if missing_indices:
+            missing_tasks = [
+                _get_embedding(valid_sources[idx].summary) for idx in missing_indices
+            ]
+            missing_results = await asyncio.gather(*missing_tasks)
+            for idx, embedding in zip(missing_indices, missing_results):
+                source_embeddings[idx] = embedding
 
         for source, source_embedding in zip(valid_sources, source_embeddings):
 

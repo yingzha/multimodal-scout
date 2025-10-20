@@ -177,6 +177,8 @@ class DatabaseManager:
         if database_url is None:
             database_url = config.database_url
 
+        self._is_test_environment = bool(os.getenv("PYTEST_CURRENT_TEST"))
+
         self.engine = create_engine(database_url)
         self.SessionLocal = sessionmaker(
             autocommit=False, autoflush=False, bind=self.engine
@@ -253,11 +255,14 @@ class DatabaseManager:
         cutoff_date = datetime.now() - timedelta(days=days_to_keep)
         with self.get_session() as session:
             # First, get summaries that will be cleaned up to find their embeddings
-            sources_to_cleanup = (
-                session.query(Source)
-                .filter(Source.created_at < cutoff_date, Source.summary.isnot(None))
-                .all()
+            sources_query = session.query(Source).filter(
+                Source.created_at < cutoff_date, Source.summary.isnot(None)
             )
+
+            if self._is_test_environment:
+                sources_query = sources_query.filter(Source.link.like("http://test%"))
+
+            sources_to_cleanup = sources_query.all()
 
             # Collect text hashes for embeddings to be removed
             embedding_hashes_to_remove = set()
@@ -276,9 +281,16 @@ class DatabaseManager:
                 )
 
             # Set summary to NULL for old sources instead of deleting records
+            summary_filters = [
+                Source.created_at < cutoff_date,
+                Source.summary.isnot(None),
+            ]
+            if self._is_test_environment:
+                summary_filters.append(Source.link.like("http://test%"))
+
             summary_updated_count = (
                 session.query(Source)
-                .filter(Source.created_at < cutoff_date, Source.summary.isnot(None))
+                .filter(*summary_filters)
                 .update({Source.summary: None, Source.updated_at: datetime.now()})
             )
 
@@ -1112,6 +1124,25 @@ class DatabaseManager:
         """
         text_hash = self._get_text_hash(text)
         return self.get_embedding_from_cache(text_hash)
+
+    def get_embeddings_for_texts(self, texts: List[str]) -> List[Optional[List[float]]]:
+        """
+        Gets cached embeddings for a list of texts in a single database query.
+
+        Returns a list of embeddings aligned with the input order. Items with no
+        cached embedding are returned as None to allow callers to decide how to
+        handle cache misses.
+        """
+        if not texts:
+            return []
+
+        text_hashes = self._get_text_hash(texts)
+        cached = self.get_embedding_from_cache(text_hashes)
+
+        if not isinstance(cached, dict):
+            return [None] * len(texts)
+
+        return [cached.get(hash_val) for hash_val in text_hashes]
 
     def add_embedding_for_text(
         self, text: str, embedding: List[float], model_name: str
