@@ -723,9 +723,7 @@ export default function Home() {
       for (let i = 0; i < validUrls.length; i++) {
         const currentUrl = validUrls[i]
         const urlNumber = i + 1
-        const progressPercent = Math.floor((i / validUrls.length) * 90) // Reserve 90% for processing, 10% for final steps
 
-        setUploadProgress(progressPercent)
         setUploadProgressMessage(`Processing URL ${urlNumber}/${validUrls.length}: ${currentUrl.length > 50 ? currentUrl.substring(0, 50) + '...' : currentUrl}`)
 
         try {
@@ -754,13 +752,15 @@ export default function Home() {
           setUploadProgressMessage(`❌ Processed ${urlNumber}/${validUrls.length}: Network error`)
         }
 
+        // Update progress after processing each URL
+        const progressPercent = Math.floor(((i + 1) / validUrls.length) * 100)
+        setUploadProgress(progressPercent)
+
         // Small delay to show the result message briefly
         await new Promise(resolve => setTimeout(resolve, 800))
       }
 
       // Final results after processing all URLs
-      setUploadProgress(100)
-      
       if (successful === validUrls.length) {
         setUploadProgressMessage(`All ${successful} URL${successful > 1 ? 's' : ''} processed successfully!`)
         setUploadMessage(`🎉 Successfully processed ${successful} URL${successful > 1 ? 's' : ''}!`)
@@ -1214,18 +1214,10 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* Upload Progress Bar */}
-              {isUploading && (
-                <div className="space-y-3">
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="h-2 bg-blue-500 rounded-full transition-all duration-500 ease-out"
-                      style={{ width: `${uploadProgress}%` }}
-                    ></div>
-                  </div>
-                  <div className="text-sm text-blue-700 text-center font-medium">
-                    {uploadProgressMessage}{uploadProgressMessage && ` (${uploadProgress}%)`}
-                  </div>
+              {/* Upload Progress Message */}
+              {isUploading && uploadProgressMessage && (
+                <div className="text-sm text-blue-700 text-center font-medium">
+                  {uploadProgressMessage}{uploadProgressMessage && ` (${uploadProgress}%)`}
                 </div>
               )}
 
