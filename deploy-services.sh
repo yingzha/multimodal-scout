@@ -46,6 +46,7 @@ gcloud run deploy multimodal-scout-backend \
   --memory 512Mi \
   --min-instances 0 \
   --max-instances 10 \
+  --cpu-boost \
   --port 8000 \
   --allow-unauthenticated
 
