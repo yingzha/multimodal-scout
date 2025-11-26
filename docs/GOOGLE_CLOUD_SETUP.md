@@ -23,7 +23,7 @@ export GOOGLE_API_KEY="your-gemini-api-key-here"
 ```bash
 # Replace with your actual project ID
 ./setup-infrastructure.sh your-project-id us-central1
-./deploy-services.sh your-project-id us-central1
+gcloud/deploy-services.sh your-project-id us-central1
 ```
 
 3. **That's it!** Your app will be running on Google Cloud.
@@ -99,7 +99,7 @@ Current setup auto-scales from 0 to handle traffic spikes:
 
 **Deploy new version:**
 ```bash
-./deploy-services.sh your-project-id us-central1
+gcloud/deploy-services.sh your-project-id us-central1
 ```
 
 **Database migrations:**
