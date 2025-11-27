@@ -20,9 +20,9 @@ gcloud auth configure-docker $REGION-docker.pkg.dev
 # Build and push backend image
 echo "🏗️ Building backend image..."
 gcloud builds submit \
-  --config cloudbuild.backend.yaml \
+  --config gcloud/cloudbuild.backend.yaml \
   --substitutions _IMAGE_NAME=$REGION-docker.pkg.dev/$PROJECT_ID/multimodal-scout/backend:latest \
-  .
+  ..
 
 echo "✅ Backend image built and pushed successfully!"
 echo ""
@@ -60,9 +60,9 @@ echo "🖥️ Backend deployed at: $BACKEND_URL"
 # Now build and push frontend image with correct backend URL
 echo "🏗️ Building frontend image with backend URL..."
 gcloud builds submit \
-  --config cloudbuild.frontend.yaml \
+  --config gcloud/cloudbuild.frontend.yaml \
   --substitutions _IMAGE_NAME=$REGION-docker.pkg.dev/$PROJECT_ID/multimodal-scout/frontend:latest,_BACKEND_URL=$BACKEND_URL \
-  .
+  ..
 
 echo "✅ Frontend image built and pushed successfully!"
 

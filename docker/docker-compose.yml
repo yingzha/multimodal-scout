@@ -17,20 +17,20 @@ services:
 
   backend:
     build:
-      context: .
-      dockerfile: Dockerfile.backend
+      context: ..
+      dockerfile: docker/Dockerfile.backend
     depends_on:
       postgres:
         condition: service_healthy
     env_file:
-      - .env
+      - ../.env
     environment:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
     volumes:
-      - ./src:/app/src
-      - ./tests:/app/tests
-      - ./alembic:/app/alembic
-      - ./alembic.ini:/app/alembic.ini
+      - ../src:/app/src
+      - ../tests:/app/tests
+      - ../alembic:/app/alembic
+      - ../alembic.ini:/app/alembic.ini
     ports:
       - "8000:8000"
     command: >
@@ -41,8 +41,8 @@ services:
 
   cron:
     build:
-      context: .
-      dockerfile: Dockerfile.backend
+      context: ..
+      dockerfile: docker/Dockerfile.backend
     user: root
     depends_on:
       postgres:
@@ -50,11 +50,11 @@ services:
       backend:
         condition: service_started
     env_file:
-      - .env
+      - ../.env
     volumes:
-      - ./src:/app/src
-      - ./crontab:/etc/cron.d/multimodal-scout
-      - ./cron_env.sh:/app/cron_env.sh
+      - ../src:/app/src
+      - ../crontab:/etc/cron.d/multimodal-scout
+      - ../gcloud/cron_env.sh:/app/cron_env.sh
       - cron_logs:/var/log
     command: >
       sh -c "
@@ -70,16 +70,16 @@ services:
 
   frontend:
     build:
-      context: .
-      dockerfile: Dockerfile.frontend
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
     depends_on:
       - backend
     ports:
       - "3000:3000"
     env_file:
-      - .env
+      - ../.env
     volumes:
-      - ./src/frontend:/app
+      - ../src/frontend:/app
       - /app/node_modules
       - /app/.next
 

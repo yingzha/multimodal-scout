@@ -15,10 +15,10 @@ The automated pipeline:
 ### Start with Automation
 ```bash
 # Start all services (includes automated pipeline)
-docker-compose up -d
+docker-compose -f docker/docker-compose.yml up -d
 
 # Monitor pipeline execution
-docker-compose logs -f cron
+docker-compose -f docker/docker-compose.yml logs -f cron
 ```
 
 ### Manual Testing
@@ -40,7 +40,7 @@ In production, the pipeline runs via Google Cloud Scheduler:
 ```bash
 # Deploy with automated pipeline
 ./scripts/configure-env.sh cloud
-./deploy-services.sh YOUR_PROJECT_ID us-central1
+gcloud/deploy-services.sh YOUR_PROJECT_ID us-central1
 ```
 
 **Cloud Features:**
@@ -61,13 +61,13 @@ In production, the pipeline runs via Google Cloud Scheduler:
 ### View Logs
 ```bash
 # Real-time pipeline logs
-docker-compose logs -f cron
+docker-compose -f docker/docker-compose.yml logs -f cron
 
 # Recent logs
-docker-compose logs cron --tail=50
+docker-compose -f docker/docker-compose.yml logs cron --tail=50
 
 # All service status
-docker-compose ps
+docker-compose -f docker/docker-compose.yml ps
 ```
 
 ### Log Format
@@ -99,13 +99,13 @@ docker-compose ps
 ### Manual Testing
 ```bash
 # Test full pipeline
-docker-compose exec cron /app/cron_env.sh /root/.local/bin/uv run python -m src.backend.run_pipeline
+docker-compose -f docker/docker-compose.yml exec cron /app/cron_env.sh /root/.local/bin/uv run python -m src.backend.run_pipeline
 
 # Test database connection
-docker-compose exec cron /app/cron_env.sh /root/.local/bin/uv run python -c "from src.backend.database import db_manager; print('Database connected')"
+docker-compose -f docker/docker-compose.yml exec cron /app/cron_env.sh /root/.local/bin/uv run python -c "from src.backend.database import db_manager; print('Database connected')"
 
 # Restart cron service
-docker-compose restart cron
+docker-compose -f docker/docker-compose.yml restart cron
 ```
 
 ## Configuration

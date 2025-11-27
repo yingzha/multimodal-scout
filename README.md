@@ -45,7 +45,7 @@ A smart content discovery platform that automatically finds, curates, and helps 
 
 2. **Start All Services:**
    ```bash
-   docker-compose up -d
+   docker-compose -f docker/docker-compose.yml up -d
    ```
    
    This launches:
@@ -66,15 +66,15 @@ A smart content discovery platform that automatically finds, curates, and helps 
    ./scripts/configure-env.sh cloud
 
    # Add your Gemini API to .env
-   
+
    # Set up infrastructure (run once)
-   ./setup-infrastructure.sh YOUR_PROJECT_ID us-central1
+   gcloud/setup-infrastructure.sh YOUR_PROJECT_ID us-central1
    ```
 
 2. **Deploy Services:**
    ```bash
    # Build and deploy all services
-   ./deploy-services.sh YOUR_PROJECT_ID us-central1
+   gcloud/deploy-services.sh YOUR_PROJECT_ID us-central1
    ```
 
 ## 🏗️ Architecture

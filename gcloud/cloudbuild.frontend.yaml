@@ -1,4 +1,4 @@
 steps:
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '-f', 'Dockerfile.frontend', '--build-arg', 'NEXT_PUBLIC_API_URL=$_BACKEND_URL', '-t', '$_IMAGE_NAME', '.']
+  args: ['build', '-f', 'docker/Dockerfile.frontend', '--build-arg', 'NEXT_PUBLIC_API_URL=$_BACKEND_URL', '-t', '$_IMAGE_NAME', '.']
 images: ['$_IMAGE_NAME']

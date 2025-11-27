@@ -19,7 +19,7 @@ cd multimodal-scout
 # Update your Google API Key
 
 # Start all services
-docker-compose up -d
+docker-compose -f docker/docker-compose.yml up -d
 
 # Verify everything works
 curl http://localhost:8000/health
@@ -31,26 +31,26 @@ curl http://localhost:3000
 ### Service Management  
 ```bash
 # Start all services
-docker-compose up -d
+docker-compose -f docker/docker-compose.yml up -d
 
 # View service status
-docker-compose ps
+docker-compose -f docker/docker-compose.yml ps
 
 # View logs
-docker-compose logs -f [service]     # Specific service
-docker-compose logs -f               # All services
+docker-compose -f docker/docker-compose.yml logs -f [service]     # Specific service
+docker-compose -f docker/docker-compose.yml logs -f               # All services
 
 # Stop services
-docker-compose down
+docker-compose -f docker/docker-compose.yml down
 
 # Rebuild after dependency changes
-docker-compose up -d --build [service]
+docker-compose -f docker/docker-compose.yml up -d --build [service]
 ```
 
 ### Pipeline Control
 ```bash
 # Watch automated pipeline (every 30 min)
-docker-compose logs -f cron
+docker-compose -f docker/docker-compose.yml logs -f cron
 
 # Manual pipeline trigger
 curl -X POST localhost:8000/pipeline \
@@ -75,16 +75,16 @@ The project is configured for hot reloading. When you save changes to a file, th
 Run the backend test suite using `pytest`. The testing dependencies live in the `dev` extra, so include it when invoking `uv`:
 
 ```bash
-docker-compose run --rm backend uv run --extra dev pytest tests/backend/
+docker-compose -f docker/docker-compose.yml run --rm backend uv run --extra dev pytest tests/backend/
 ```
 
-> Tip: if you plan to run tests repeatedly in the same container, sync the dev extra once first (`docker-compose exec backend uv sync --extra dev`) and then use `uv run pytest …` without the extra flag on subsequent runs.
+> Tip: if you plan to run tests repeatedly in the same container, sync the dev extra once first (`docker-compose -f docker/docker-compose.yml exec backend uv sync --extra dev`) and then use `uv run pytest …` without the extra flag on subsequent runs.
 
 ### Frontend Checks
 
 Verify TypeScript compilation and basic functionality.
 ```bash
-docker-compose exec frontend timeout 10s npm run dev || echo "✅ Frontend TypeScript compilation passed"
+docker-compose -f docker/docker-compose.yml exec frontend timeout 10s npm run dev || echo "✅ Frontend TypeScript compilation passed"
 ```
 > **Note**: The frontend uses Next.js App Router which provides integrated TypeScript checking. The `timeout` command stops the dev server after compilation succeeds, avoiding the need for a full production build during testing.
 
@@ -151,22 +151,22 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/auth
 -   **View Logs in Real-Time**:
     ```bash
     # Follow logs for all services
-    docker-compose logs -f
+    docker-compose -f docker/docker-compose.yml logs -f
 
     # Follow logs for a specific service (e.g., backend)
-    docker-compose logs -f backend
+    docker-compose -f docker/docker-compose.yml logs -f backend
     ```
 
 -   **Access the Database**:
     ```bash
-    docker-compose exec postgres psql -U scout_user -d multimodal_scout
+    docker-compose -f docker/docker-compose.yml exec postgres psql -U scout_user -d multimodal_scout
     ```
 
 -   **Rebuild a Service**:
     If you change dependencies (e.g., in `pyproject.toml` or `package.json`), you will need to rebuild the service's image.
     ```bash
-    docker-compose up -d --build <service_name>
-    # e.g., docker-compose up -d --build backend
+    docker-compose -f docker/docker-compose.yml up -d --build <service_name>
+    # e.g., docker-compose -f docker/docker-compose.yml up -d --build backend
     ```
 
 ## Code Quality Tools
@@ -177,13 +177,13 @@ The backend includes code quality and formatting tools:
 
 ```bash
 # Format Python code with black
-docker-compose exec backend uv run --extra dev black src/backend/
+docker-compose -f docker/docker-compose.yml exec backend uv run --extra dev black src/backend/
 
 # Run pylint for code quality analysis
-docker-compose exec backend uv run --extra dev pylint src/backend/
+docker-compose -f docker/docker-compose.yml exec backend uv run --extra dev pylint src/backend/
 
 # Install/sync new dependencies (includes dev tools)
-docker-compose exec backend uv sync --extra dev
+docker-compose -f docker/docker-compose.yml exec backend uv sync --extra dev
 ```
 
 ## 🗄️ Database Migrations
@@ -195,11 +195,11 @@ When you change the database structure (add columns, tables, etc.), you need to 
 1. **Modify your models** in `src/backend/database.py`
 2. **Generate migration**:
    ```bash
-   docker-compose exec backend alembic revision --autogenerate -m "Add new feature"
+   docker-compose -f docker/docker-compose.yml exec backend alembic revision --autogenerate -m "Add new feature"
    ```
 3. **Apply locally**:
    ```bash
-   docker-compose exec backend alembic upgrade head
+   docker-compose -f docker/docker-compose.yml exec backend alembic upgrade head
    ```
 
 ### 🚀 Deploying Migrations to Cloud
@@ -208,7 +208,7 @@ When you change the database structure (add columns, tables, etc.), you need to 
 
 ```bash
 # Just deploy as normal - migrations happen automatically
-./deploy-services.sh YOUR_PROJECT_ID us-central1
+gcloud/deploy-services.sh YOUR_PROJECT_ID us-central1
 ```
 
 The backend will:
@@ -244,10 +244,10 @@ pkill cloud_sql_proxy
 
 ```bash
 # See current migration version
-docker-compose exec backend alembic current
+docker-compose -f docker/docker-compose.yml exec backend alembic current
 
 # View all migrations
-docker-compose exec backend alembic history
+docker-compose -f docker/docker-compose.yml exec backend alembic history
 ```
 
 **That's it!** Most of the time, migrations just work automatically when you deploy. 🎉
