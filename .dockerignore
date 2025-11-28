@@ -35,6 +35,7 @@ build/
 # Environment
 .env
 .env.local
+.env.cloud
 .env.development.local
 .env.test.local
 .env.production.local
