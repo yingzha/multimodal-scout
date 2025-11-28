@@ -151,6 +151,95 @@ async def scrape_huggingface_trending_papers() -> List[SourceSchema]:
     return validated_papers
 
 
+async def scrape_engineering_blogs() -> List[SourceSchema]:
+    """
+    Scrapes articles from Engineering Blogs (https://engineeringblogs.xyz/),
+    an aggregator of 500+ engineering blog RSS feeds.
+
+    Returns:
+        List[SourceSchema]: A list of validated articles from engineering blogs.
+    """
+    url = "https://engineeringblogs.xyz/"
+    headers = {"User-Agent": USER_AGENT}
+    validated_articles = []
+
+    try:
+        logger.info(f"Attempting to fetch data from: {url}")
+        timeout = aiohttp.ClientTimeout(total=15)
+        async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
+            async with session.get(url) as response:
+                response.raise_for_status()
+                html_content = await response.text()
+
+        soup = BeautifulSoup(html_content, "html.parser")
+        items = soup.find_all("div", class_="item")
+        logger.info(f"Found {len(items)} articles from Engineering Blogs")
+
+        # Limit to top RSS_FEED_LIMIT entries
+        items_to_process = items[:RSS_FEED_LIMIT]
+
+        for item in items_to_process:
+            try:
+                # Extract title and link
+                link_div = item.find("div", class_="link")
+                if not link_div or not link_div.find("a"):
+                    continue
+
+                link_tag = link_div.find("a")
+                title = link_tag.get_text(strip=True)
+                article_link = link_tag.get("href")
+
+                # Extract source name
+                source_div = item.find("div", class_="source")
+                source_name = (
+                    source_div.get_text(strip=True) if source_div else "Unknown Source"
+                )
+
+                # Skip if missing essential data
+                if not title or not article_link:
+                    continue
+
+                # Determine if it's research content
+                title_lower = title.lower()
+                link_lower = article_link.lower()
+                is_research = (
+                    "arxiv.org" in link_lower
+                    or "paper" in title_lower
+                    or "research" in title_lower
+                    or "[pdf]" in title_lower
+                )
+
+                article_data = {
+                    "title": title,
+                    "authors": [source_name],
+                    "link": article_link,
+                    "source_link": article_link,
+                    "summary": None,
+                    "keywords": None,
+                    "tags": ["research"] if is_research else ["industry"],
+                    "date": datetime.now().strftime("%Y-%m-%dT%H:%M:%S%z"),
+                }
+
+                validated_article = SourceSchema(**article_data)
+                validated_articles.append(validated_article)
+
+            except ValidationError as e:
+                logger.warning(f"Skipping article due to validation error: {e}")
+            except Exception as e:
+                logger.warning(f"Error processing article: {e}")
+
+    except Exception as err:
+        logger.error(
+            f"An unexpected error occurred while scraping Engineering Blogs: {err}",
+            exc_info=True,
+        )
+
+    logger.info(
+        f"Successfully scraped and validated {len(validated_articles)} articles from Engineering Blogs"
+    )
+    return validated_articles
+
+
 async def scrape_rss_sources() -> List[SourceSchema]:
     """
     Scrapes stories from multiple RSS sources including Hacker News and Substack,
@@ -267,18 +356,19 @@ async def scrape_all_sources_concurrent() -> (
     tuple[List[SourceSchema], List[SourceSchema]]
 ):
     """
-    Scrape both HuggingFace and RSS sources concurrently for maximum performance.
-    Returns a tuple of (hf_papers, rss_items).
+    Scrape HuggingFace, RSS sources, and Engineering Blogs concurrently for maximum performance.
+    Returns a tuple of (hf_papers, combined_rss_and_blog_items).
     """
     logger.info("Starting concurrent scraping of all sources...")
 
-    # Run both scrapers concurrently
+    # Run all scrapers concurrently
     hf_task = scrape_huggingface_trending_papers()
     rss_task = scrape_rss_sources()
+    engblogs_task = scrape_engineering_blogs()
 
     try:
-        hf_papers, rss_items = await asyncio.gather(
-            hf_task, rss_task, return_exceptions=True
+        hf_papers, rss_items, engblog_items = await asyncio.gather(
+            hf_task, rss_task, engblogs_task, return_exceptions=True
         )
 
         # Handle any exceptions from the scrapers
@@ -290,10 +380,18 @@ async def scrape_all_sources_concurrent() -> (
             logger.error(f"RSS scraping failed: {rss_items}")
             rss_items = []
 
+        if isinstance(engblog_items, Exception):
+            logger.error(f"Engineering Blogs scraping failed: {engblog_items}")
+            engblog_items = []
+
+        # Combine RSS and Engineering Blogs items
+        combined_items = rss_items + engblog_items
+
         logger.info(
-            f"Concurrent scraping complete: {len(hf_papers)} HF papers, {len(rss_items)} RSS items"
+            f"Concurrent scraping complete: {len(hf_papers)} HF papers, "
+            f"{len(rss_items)} RSS items, {len(engblog_items)} Engineering Blog items"
         )
-        return hf_papers, rss_items
+        return hf_papers, combined_items
 
     except Exception as e:
         logger.error(f"Concurrent scraping failed: {e}", exc_info=True)

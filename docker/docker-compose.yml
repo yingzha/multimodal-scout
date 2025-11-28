@@ -36,7 +36,7 @@ services:
     command: >
       sh -c "
         echo 'Database ready. Starting FastAPI server...' &&
-        python -m uvicorn src.backend.app:app --host 0.0.0.0 --port 8000 --reload
+        uvicorn src.backend.app:app --host 0.0.0.0 --port 8000 --reload
       "
 
   cron:
