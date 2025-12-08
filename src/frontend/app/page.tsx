@@ -1925,11 +1925,10 @@ export default function Home() {
                     {/* Summary Section for Bookmarks */}
                     {item.summary && (
                       <div className="mb-4">
-                        <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-start justify-between">
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium text-gray-600">Summary</span>
                             {item.summary_edited && (
-                              <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
+                              <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full mb-2">
                                 edited
                               </span>
                             )}
@@ -1941,7 +1940,7 @@ export default function Home() {
                               role="button"
                               tabIndex={0}
                               data-tooltip="Edit summary"
-                              className="text-xs text-gray-400 hover:text-gray-600 cursor-pointer focus:outline-none hover:bg-gray-600 rounded-full p-1"
+                              className="text-xs text-gray-400 hover:text-gray-600 cursor-pointer focus:outline-none hover:bg-gray-600 rounded-full p-1 mb-2"
                             >
                               ✏️
                             </span>
