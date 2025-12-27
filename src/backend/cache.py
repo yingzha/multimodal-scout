@@ -91,37 +91,62 @@ class ContentCache:
 
 
 class SourceProcessingCache:
-    """LRU cache to track recently processed sources"""
+    """LRU cache with TTL to track recently processed sources"""
 
-    def __init__(self, max_size: int = 10000):
-        self._cache: OrderedDict[str, bool] = OrderedDict()
+    def __init__(self, max_size: int = 10000, ttl_seconds: int = 604800):  # 7 days
+        self._cache: OrderedDict[str, float] = OrderedDict()  # link -> timestamp
         self._max_size = max_size
+        self.ttl_seconds = ttl_seconds
 
     def is_recently_processed(self, link: str) -> bool:
-        """Check if a source was recently processed and update its position in LRU"""
-        if link in self._cache:
-            # Move to end (most recently used)
-            self._cache.move_to_end(link)
-            return True
-        return False
+        """Check if a source was recently processed (within TTL) and update LRU position"""
+        if link not in self._cache:
+            return False
+
+        # Check if entry has expired
+        if time.time() - self._cache[link] > self.ttl_seconds:
+            del self._cache[link]
+            return False
+
+        # Move to end (most recently used)
+        self._cache.move_to_end(link)
+        return True
 
     def mark_as_processed(self, link: str):
-        """Mark a source as recently processed using LRU eviction"""
+        """Mark a source as recently processed with current timestamp"""
+        current_time = time.time()
+
         if link in self._cache:
-            # Move to end (most recently used)
+            # Update timestamp and move to end
+            self._cache[link] = current_time
             self._cache.move_to_end(link)
         else:
-            # Add new entry
-            self._cache[link] = True
+            # Add new entry with timestamp
+            self._cache[link] = current_time
 
             # Remove least recently used items if over capacity
             while len(self._cache) > self._max_size:
                 oldest_link = next(iter(self._cache))
                 del self._cache[oldest_link]
 
-        if len(self._cache) % 1000 == 0:  # Log periodically
+        # Periodic cleanup of expired entries
+        if len(self._cache) % 500 == 0:
+            self._cleanup_expired()
+
+    def _cleanup_expired(self):
+        """Remove expired entries from cache"""
+        current_time = time.time()
+        expired_links = [
+            link
+            for link, timestamp in self._cache.items()
+            if current_time - timestamp > self.ttl_seconds
+        ]
+        for link in expired_links:
+            del self._cache[link]
+
+        if expired_links:
             logger.info(
-                f"Source processing cache size: {len(self._cache)}/{self._max_size}"
+                f"Source processing cache cleanup: Removed {len(expired_links)} expired entries"
             )
 
     def clear(self):
@@ -200,8 +225,8 @@ def get_cached_topics():
 # Main content cache for performance optimization
 content_cache = ContentCache(ttl_seconds=300)  # 5 minutes
 
-# Source processing cache for database operations
-source_processing_cache = SourceProcessingCache(max_size=10000)
+# Source processing cache for database operations (7-day TTL, resets on deploy)
+source_processing_cache = SourceProcessingCache(max_size=10000, ttl_seconds=604800)
 
 # Comment insights cache for HN comment processing
 comment_insights_cache = CommentInsightsCache(ttl_seconds=600)  # 10 minutes
@@ -236,6 +261,7 @@ def get_cache_stats() -> Dict[str, Any]:
         "source_processing_cache": {
             "size": source_processing_cache.size(),
             "max_size": source_processing_cache._max_size,
+            "ttl_seconds": source_processing_cache.ttl_seconds,
         },
         "comment_insights_cache": {
             "size": len(comment_insights_cache._cache),

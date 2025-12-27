@@ -1,5 +1,6 @@
 import re
 import asyncio
+import time
 import numpy as np
 from typing import List
 
@@ -118,6 +119,7 @@ def keyword_search(
     Returns:
         A list of tuples (source, matched_keywords) for sources that match the keywords.
     """
+    start_time = time.time()
     matches = []
     normalized_keywords = [_normalize_text(k) for k in keywords]
 
@@ -138,10 +140,12 @@ def keyword_search(
 
         if matching_keywords:
             matches.append((source, matching_keywords))
-            matching_keywords_str = ", ".join([f"'{kw}'" for kw in matching_keywords])
-            logger.info(
-                f"Keyword match found for: '{source.title}' with keywords: {matching_keywords_str}"
-            )
+
+    elapsed_ms = (time.time() - start_time) * 1000
+    logger.info(
+        f"[PERF] keyword_search: {len(sources)} sources, {len(keywords)} keywords, "
+        f"{len(matches)} matches in {elapsed_ms:.2f}ms"
+    )
 
     return matches
 
@@ -161,6 +165,8 @@ async def semantic_search_with_scores(
     Returns:
         A list of tuples (source, similarity_score, matched_keywords) sorted by descending similarity.
     """
+    start_time = time.time()
+
     if not is_genai_enabled() or not sources:
         logger.warning("Semantic search is disabled or no sources provided")
         return []
@@ -272,5 +278,9 @@ async def semantic_search_with_scores(
     # Sort by similarity score in descending order
     matches.sort(key=lambda x: x[1], reverse=True)
 
-    logger.info(f"Gemini semantic search completed: {len(matches)} matches found")
+    elapsed_ms = (time.time() - start_time) * 1000
+    logger.info(
+        f"[PERF] semantic_search: {len(sources)} sources, {len(keywords)} keywords, "
+        f"{len(matches)} matches in {elapsed_ms:.2f}ms"
+    )
     return matches
