@@ -393,6 +393,17 @@ class DatabaseManager:
             ]
 
     # --- Source Methods ---
+
+    def _get_source_priority(self, link: str) -> int:
+        """Return priority for source (higher = keep). HN sources take priority."""
+        if "news.ycombinator.com" in link.lower():
+            return 10  # Highest priority (HN has discussion value)
+        return 1  # Default priority
+
+    def _get_canonical_url(self, source: "SourceSchema") -> str:
+        """Get canonical URL for deduplication (the actual article URL)."""
+        return str(source.source_link)
+
     def save_sources(self, sources: List["SourceSchema"]) -> Dict[str, Any]:
         """
         Optimized batch save with in-memory deduplication and single DB query.
@@ -413,11 +424,12 @@ class DatabaseManager:
             }
 
         # Step 1: Filter out recently processed sources using in-memory cache
+        # Use canonical URL (source_link) for cache to prevent cross-source duplicates
         fresh_sources = []
         cache_hits = 0
         for source in sources:
-            link_str = str(source.link)
-            if not self._source_cache.is_recently_processed(link_str):
+            canonical_url = self._get_canonical_url(source)
+            if not self._source_cache.is_recently_processed(canonical_url):
                 fresh_sources.append(source)
             else:
                 cache_hits += 1
@@ -427,14 +439,22 @@ class DatabaseManager:
                 f"Cache optimization: Skipped {cache_hits} recently processed sources"
             )
 
-        # Step 2: Deduplicate remaining sources by link within this batch
-        seen_links = set()
-        deduplicated_sources = []
+        # Step 2: Deduplicate by canonical URL, keeping highest priority source
+        # This prevents duplicates when same article comes from HN and engineering blogs
+        seen_canonical: Dict[str, "SourceSchema"] = {}
         for source in fresh_sources:
-            link_str = str(source.link)
-            if link_str not in seen_links:
-                seen_links.add(link_str)
-                deduplicated_sources.append(source)
+            canonical_url = self._get_canonical_url(source)
+            if canonical_url not in seen_canonical:
+                seen_canonical[canonical_url] = source
+            else:
+                # Keep higher priority source (HN over engineering blogs)
+                existing_priority = self._get_source_priority(
+                    str(seen_canonical[canonical_url].link)
+                )
+                new_priority = self._get_source_priority(str(source.link))
+                if new_priority > existing_priority:
+                    seen_canonical[canonical_url] = source
+        deduplicated_sources = list(seen_canonical.values())
 
         logger.info(
             f"Processing pipeline: {len(sources)} → {len(fresh_sources)} (after cache) → {len(deduplicated_sources)} (after dedup)"
@@ -449,31 +469,63 @@ class DatabaseManager:
             }
 
         with self.get_session() as session:
-            # Step 2: Single batch query to get all existing sources
-            all_links = [str(source.link) for source in deduplicated_sources]
-            existing_sources = (
+            # Step 3: Query existing sources by BOTH link AND source_link (canonical URL)
+            # This catches cross-source duplicates (same article from HN and eng blogs)
+            all_links = [str(s.link) for s in deduplicated_sources]
+            all_canonical = [self._get_canonical_url(s) for s in deduplicated_sources]
+
+            existing_by_link = (
                 session.query(Source).filter(Source.link.in_(all_links)).all()
             )
-            existing_links_map = {source.link: source for source in existing_sources}
-
-            logger.info(
-                f"Found {len(existing_sources)} existing sources out of {len(deduplicated_sources)} to process"
+            existing_by_canonical = (
+                session.query(Source).filter(Source.source_link.in_(all_canonical)).all()
             )
 
-            # Step 3: Separate updates and inserts
+            existing_links_map = {s.link: s for s in existing_by_link}
+            existing_canonical_map = {s.source_link: s for s in existing_by_canonical}
+
+            logger.info(
+                f"Found {len(existing_by_link)} by link, {len(existing_by_canonical)} by canonical out of {len(deduplicated_sources)} to process"
+            )
+
+            # Step 4: Separate updates and inserts with priority logic
             sources_to_update = []
             sources_to_insert = []
+            sources_skipped_lower_priority = 0
 
             for source_schema in deduplicated_sources:
                 link_str = str(source_schema.link)
+                canonical_str = self._get_canonical_url(source_schema)
+
+                # Check exact link match first (same source type)
                 if link_str in existing_links_map:
                     sources_to_update.append(
                         (source_schema, existing_links_map[link_str])
                     )
-                else:
-                    sources_to_insert.append(source_schema)
+                    continue
 
-            # Step 4: Batch update existing sources
+                # Check canonical URL match (cross-source duplicate)
+                if canonical_str in existing_canonical_map:
+                    existing = existing_canonical_map[canonical_str]
+                    new_priority = self._get_source_priority(link_str)
+                    existing_priority = self._get_source_priority(existing.link)
+
+                    if new_priority > existing_priority:
+                        # New source is higher priority - update existing record
+                        sources_to_update.append((source_schema, existing))
+                    else:
+                        # Skip - existing has higher or equal priority
+                        sources_skipped_lower_priority += 1
+                    continue
+
+                sources_to_insert.append(source_schema)
+
+            if sources_skipped_lower_priority > 0:
+                logger.info(
+                    f"Skipped {sources_skipped_lower_priority} lower-priority duplicates"
+                )
+
+            # Step 5: Batch update existing sources
             for source_schema, existing in sources_to_update:
                 existing.title = source_schema.title
                 existing.authors = source_schema.authors
@@ -486,7 +538,7 @@ class DatabaseManager:
                 existing.date = source_schema.date
                 existing.updated_at = datetime.now()
 
-            # Step 5: Batch insert new sources
+            # Step 6: Batch insert new sources
             if sources_to_insert:
                 new_sources = []
                 for source_schema in sources_to_insert:
@@ -514,10 +566,12 @@ class DatabaseManager:
             # Single commit for all operations
             session.commit()
 
-            # Step 6: Mark all processed sources in cache to avoid reprocessing
+            # Step 7: Mark all processed sources in cache to avoid reprocessing
+            # Use canonical URL for cache to prevent cross-source duplicates
             for source in deduplicated_sources:
                 if source.summary:
-                    self._source_cache.mark_as_processed(str(source.link))
+                    canonical = self._get_canonical_url(source)
+                    self._source_cache.mark_as_processed(canonical)
 
             logger.info(
                 f"✅ Successfully processed {len(deduplicated_sources)} sources ({len(sources_to_insert)} new, {len(sources_to_update)} updated)"
@@ -533,6 +587,58 @@ class DatabaseManager:
                 ],
                 "skipped_sources": cache_hits,
                 "total_processed": len(deduplicated_sources),
+            }
+
+    def cleanup_duplicate_sources(self) -> Dict[str, Any]:
+        """
+        One-time cleanup: Find and remove duplicate sources,
+        keeping HN versions (higher priority) over engineering blog versions.
+
+        Returns:
+            Dict with cleanup statistics
+        """
+        with self.get_session() as session:
+            all_sources = session.query(Source).all()
+
+            # Group by canonical URL (source_link)
+            by_canonical: Dict[str, List[Source]] = {}
+            for s in all_sources:
+                canonical = s.source_link
+                if canonical not in by_canonical:
+                    by_canonical[canonical] = []
+                by_canonical[canonical].append(s)
+
+            # Find and delete lower-priority duplicates
+            duplicates_deleted = 0
+            for canonical, sources in by_canonical.items():
+                if len(sources) <= 1:
+                    continue
+
+                # Sort: highest priority first, then oldest (by created_at)
+                sources.sort(
+                    key=lambda s: (
+                        -self._get_source_priority(s.link),
+                        s.created_at,
+                    )
+                )
+
+                # Keep first (highest priority), delete rest
+                keep = sources[0]
+                for dup in sources[1:]:
+                    logger.info(
+                        f"Removing duplicate: {dup.link} "
+                        f"(keeping: {keep.link}, canonical: {canonical})"
+                    )
+                    session.delete(dup)
+                    duplicates_deleted += 1
+
+            session.commit()
+            logger.info(f"Cleaned up {duplicates_deleted} duplicate sources")
+
+            return {
+                "total_sources": len(all_sources),
+                "duplicates_deleted": duplicates_deleted,
+                "unique_canonical_urls": len(by_canonical),
             }
 
     # --- User Management Methods ---
