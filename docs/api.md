@@ -9,40 +9,18 @@ RESTful API built with FastAPI for content discovery and bookmark management. Al
 
 ## Authentication
 
-Endpoints related to user-specific data (like bookmarks) are protected and require a bearer token in the `Authorization` header.
+Authentication uses Firebase Google Sign-In. Protected endpoints require a bearer token in the `Authorization` header.
 
-`Authorization: Bearer <your_session_token>`
-
-You can obtain a session token by using the `/api/auth/login` or `/api/auth/register` endpoints.
+`Authorization: Bearer <session_token>`
 
 ### Authentication Endpoints
 
-**POST /api/auth/register**
-- **Description**: Register a new user.
+**POST /api/auth/google**
+- **Description**: Authenticate via Firebase Google Sign-In. Creates or links user account automatically.
 - **Request Body**:
   ```json
   {
-    "email": "user@example.com",
-    "password": "your_password",
-    "username": "your_username"
-  }
-  ```
-- **Response**:
-  ```json
-  {
-    "success": true,
-    "user_id": "user-uuid-here",
-    "session_token": "session-token-here"
-  }
-  ```
-
-**POST /api/auth/login**
-- **Description**: Log in a user.
-- **Request Body**:
-  ```json
-  {
-    "email": "user@example.com",
-    "password": "your_password"
+    "id_token": "firebase-id-token-from-google-sign-in"
   }
   ```
 - **Response**:
@@ -54,18 +32,12 @@ You can obtain a session token by using the `/api/auth/login` or `/api/auth/regi
   ```
 
 **POST /api/auth/logout**
-- **Description**: Log out a user by invalidating the session token.
+- **Description**: Invalidate the session token.
 - **Authentication**: Required.
-- **Response**:
-  ```json
-  {
-    "success": true,
-    "message": "Logged out successfully"
-  }
-  ```
+- **Response**: `{"success": true, "message": "Logged out successfully"}`
 
 **GET /api/auth/me**
-- **Description**: Get information about the currently authenticated user.
+- **Description**: Get current user info.
 - **Authentication**: Required.
 - **Response**:
   ```json

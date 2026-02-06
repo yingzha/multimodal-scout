@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, HttpUrl, EmailStr
+from pydantic import BaseModel, HttpUrl
 
 
 class SourceSchema(BaseModel):
@@ -91,19 +91,10 @@ class UploadLinkResponse(BaseModel):
     failed_urls: List[str] = []  # URLs that failed to process
 
 
-class UserRegistrationRequest(BaseModel):
-    """Request model for user registration"""
+class GoogleAuthRequest(BaseModel):
+    """Request model for Google Sign-In via Firebase"""
 
-    email: EmailStr
-    password: str
-    username: str
-
-
-class UserLoginRequest(BaseModel):
-    """Request model for user login"""
-
-    email: EmailStr
-    password: str
+    id_token: str
 
 
 class AuthResponse(BaseModel):

@@ -90,59 +90,26 @@ docker-compose -f docker/docker-compose.yml exec frontend timeout 10s npm run de
 
 ### Integration Tests (API)
 
-You can use `curl` to test the running API endpoints directly.
+Test the running API endpoints with `curl`.
 
 ```bash
-# Check health
+# Health & content
 curl -s http://localhost:8000/health
-
-# Fetch topics  
 curl -s http://localhost:8000/api/topics
-
-# Search content (RESTful endpoint)
 curl -s -X POST "http://localhost:8000/api/content/search" \
   -H "Content-Type: application/json" \
   -d '{"selectedDays": 1, "topics": ["ai"], "maxResults": 10, "researchRatio": 0.5}'
 
-# --- Auth Endpoints ---
-# Register a new user
-curl -s -X POST "http://localhost:8000/api/auth/register" \
-  -H "Content-Type: application/json" \
-  -d '{"email": "test@example.com", "password": "password123", "username": "testuser"}'
-
-# Login and get a session token (requires jq to be installed)
-TOKEN=$(curl -s -X POST "http://localhost:8000/api/auth/login" \
-  -H "Content-Type: application/json" \
-  -d '{"email": "test@example.com", "password": "password123"}' | jq -r .session_token)
-
-echo "Got token: $TOKEN"
-
-# Get current user info
+# Auth (sign in via browser, then use session token from response)
 curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/auth/me
 
-# --- Authenticated Bookmark Endpoints ---
-# Add a bookmark
+# Bookmarks (requires auth)
+curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/bookmarks
 curl -s -X POST "http://localhost:8000/api/bookmarks" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"title": "Test", "link": "http://example.com", "source": "Test", "summary": "Test summary"}'
-
-# Get all bookmarks for the user
-curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/bookmarks
-
-# Get specific bookmark (replace BOOKMARK_ID with a real ID)
-curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/bookmarks/BOOKMARK_ID
-
-# Update bookmark summary (replace BOOKMARK_ID with a real ID)
-curl -s -X PATCH "http://localhost:8000/api/bookmarks/BOOKMARK_ID" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{"summary": "Updated summary"}'
-
-# Delete bookmark (replace BOOKMARK_ID with a real ID)
 curl -s -X DELETE -H "Authorization: Bearer $TOKEN" "http://localhost:8000/api/bookmarks/BOOKMARK_ID"
-
-# Logout
 curl -s -X POST -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/auth/logout
 ```
 
@@ -251,3 +218,39 @@ docker-compose -f docker/docker-compose.yml exec backend alembic history
 ```
 
 **That's it!** Most of the time, migrations just work automatically when you deploy. 🎉
+
+## 🧹 Database Cleanup
+
+### Reset Database (Nuclear Option)
+```bash
+# Stop services, delete volumes, restart fresh
+docker compose -f docker/docker-compose.yml down -v
+docker compose -f docker/docker-compose.yml up -d
+```
+
+### Selective Cleanup
+```bash
+# Access database shell
+docker compose -f docker/docker-compose.yml exec postgres psql -U scout_user -d multimodal_scout
+
+# Clear all content (keep users)
+DELETE FROM summaries;
+DELETE FROM seen_cards;
+
+# Clear all users and their data
+DELETE FROM bookmarks;
+DELETE FROM users;
+
+# Check table sizes
+SELECT relname, n_live_tup FROM pg_stat_user_tables ORDER BY n_live_tup DESC;
+```
+
+### Cloud Database Cleanup
+```bash
+# Connect via Cloud SQL Proxy
+cloud_sql_proxy -instances=PROJECT_ID:us-central1:multimodal-scout-db=tcp:9470
+
+# Then connect with psql
+DB_PASSWORD=$(gcloud secrets versions access latest --secret="database-password")
+PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -p 9470 -U scout_user -d multimodal_scout
+```

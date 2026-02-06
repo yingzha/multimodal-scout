@@ -9,7 +9,9 @@
 1. Google Cloud account with billing enabled
 2. `gcloud` CLI installed and authenticated
 3. Docker installed locally
-4. Set your `GOOGLE_API_KEY` environment variable
+4. Google API key (Gemini) stored in Secret Manager
+5. Firebase project configured with Google Sign-In enabled
+6. Firebase API key stored in Secret Manager (`firebase-api-key`)
 
 ### 🚀 Quick Start
 
@@ -42,8 +44,8 @@ gcloud/deploy-services.sh your-project-id us-central1
 
 **Cloud Run Services:**
 - `multimodal-scout-backend` - FastAPI API server
-- `multimodal-scout-frontend` - Next.js web app  
-- `multimodal-scout-cron` - Background job processor
+- `multimodal-scout-frontend` - Next.js web app
+- **Pipeline**: Cloud Scheduler calls `POST /pipeline` every 30 minutes (no separate cron service)
 
 **Cloud SQL:**
 - Instance: `multimodal-scout-db` (micro, PostgreSQL 17)
@@ -51,14 +53,13 @@ gcloud/deploy-services.sh your-project-id us-central1
 - User: `scout_user`
 
 **Scheduled Jobs:**
-- Scraper: Every 6 hours (cost-optimized)
-- Pipeline: Daily at 8 AM UTC
+- Pipeline: Every 30 minutes via Cloud Scheduler
 
 ### 🔧 Configuration Files
 
-- `cloud-run-backend.yaml` - Backend service config
-- `cloud-run-frontend.yaml` - Frontend service config  
-- `cloud-run-cron.yaml` - Cron job config
+- `gcloud/deploy-services.sh` - Main deployment script
+- `gcloud/cloudbuild.backend.yaml` - Cloud Build for backend
+- `gcloud/cloudbuild.frontend.yaml` - Cloud Build for frontend
 
 ### 🔐 Security Features
 
@@ -80,7 +81,7 @@ Access via Google Cloud Console:
 
 1. **Build fails**: Check `gcloud auth list` and Docker authentication
 2. **Database connection**: Verify Cloud SQL instance is running
-3. **Secrets missing**: Ensure `GOOGLE_API_KEY` is set before deployment
+3. **Secrets missing**: Ensure `google-api-key` and `firebase-api-key` are in Secret Manager
 4. **Permission errors**: Wait 5-10 minutes for IAM propagation
 
 **Check logs:**

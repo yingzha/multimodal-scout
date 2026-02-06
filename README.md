@@ -28,7 +28,8 @@ A smart content discovery platform that automatically finds, curates, and helps 
 ### Prerequisites
 - Docker and Docker Compose
 - Google Gemini API key
-- Google Cloud CLI (optional)
+- Firebase project with Google Sign-In enabled
+- Google Cloud CLI (for cloud deployment)
 
 ### Local Development
 
@@ -37,10 +38,7 @@ A smart content discovery platform that automatically finds, curates, and helps 
    git clone https://github.com/yingzha/multimodal-scout.git
    cd multimodal-scout
    
-   # Configure environment
-   ./scripts/configure-env.sh local
-
-   # Add your Gemini API key to .env
+   # Add your Gemini API key and Firebase config to .env
    ```
 
 2. **Start All Services:**
@@ -62,10 +60,9 @@ A smart content discovery platform that automatically finds, curates, and helps 
 
 1. **Prepare Environment:**
    ```bash
-   # Configure for cloud deployment
-   ./scripts/configure-env.sh cloud
-
-   # Add your Gemini API to .env
+   # Store secrets in Secret Manager
+   echo -n 'YOUR_KEY' | gcloud secrets create google-api-key --data-file=- --project=YOUR_PROJECT_ID
+   echo -n 'YOUR_KEY' | gcloud secrets create firebase-api-key --data-file=- --project=YOUR_PROJECT_ID
 
    # Set up infrastructure (run once)
    gcloud/setup-infrastructure.sh YOUR_PROJECT_ID us-central1
@@ -117,15 +114,8 @@ A smart content discovery platform that automatically finds, curates, and helps 
 
 ## 🔧 Configuration
 
-Switch between environments easily:
-
-```bash
-# Local development
-./scripts/configure-env.sh local
-
-# Cloud deployment  
-./scripts/configure-env.sh cloud
-```
+- **Local dev**: Configure `.env` with your API keys and Firebase config
+- **Cloud deployment**: Secrets stored in Google Secret Manager, Firebase config derived from project ID
 
 ## ☕ Support
 

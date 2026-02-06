@@ -1,4 +1,18 @@
 steps:
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '-f', 'docker/Dockerfile.frontend', '--build-arg', 'NEXT_PUBLIC_API_URL=$_BACKEND_URL', '-t', '$_IMAGE_NAME', '.']
+  args:
+    - 'build'
+    - '-f'
+    - 'docker/Dockerfile.frontend'
+    - '--build-arg'
+    - 'NEXT_PUBLIC_API_URL=$_BACKEND_URL'
+    - '--build-arg'
+    - 'NEXT_PUBLIC_FIREBASE_API_KEY=$_FIREBASE_API_KEY'
+    - '--build-arg'
+    - 'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=$_FIREBASE_AUTH_DOMAIN'
+    - '--build-arg'
+    - 'NEXT_PUBLIC_FIREBASE_PROJECT_ID=$_FIREBASE_PROJECT_ID'
+    - '-t'
+    - '$_IMAGE_NAME'
+    - '.'
 images: ['$_IMAGE_NAME']

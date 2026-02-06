@@ -7,17 +7,17 @@ A comprehensive guide to using Multimodal Scout effectively.
 ## Getting Started
 
 Visit [https://multimodal-scout.app/](https://multimodal-scout.app/) to start exploring! The platform works in two modes:
-- **Guest Mode**: Browse and search content (5 searches/day limit)
-- **Registered User**: Unlimited searches + bookmark management
+- **Guest Mode**: Browse and search content (limited searches/day)
+- **Signed-in User**: Unlimited searches + bookmark management
 
 ## Main Interface Overview
 
 ### 🏠 Homepage Controls
 - **🏠 Home Button**: Return to main search interface
-- **📚 Bookmarks Button**: View your saved bookmarks (*login required*)
+- **📚 Bookmarks Button**: View your saved bookmarks (*sign-in required*)
 - **⚙️ Settings Button**: Access advanced search options (time range, content balance, result count)
 - **🌙 Theme Toggle**: Switch between light and dark modes
-- **👤 User Button**: Login/register or access user menu when logged in
+- **👤 User Button**: Sign in with Google or access user menu when signed in
 
 ### 🔍 Search & Discovery
 1. **Topic Keywords**: 
@@ -37,7 +37,7 @@ Each result card shows:
 - **Source Tags**: Click to filter results by source type
 - **Matched Keywords**: See which keywords triggered this result
 - **"New!" Badge**: Indicates recently discovered content
-- **⭐ Bookmark Button**: Save to your personal library (*login required*)
+- **⭐ Bookmark Button**: Save to your personal library (*sign-in required*)
 - **Title & Summary**: AI-generated content overview with "Read more/less" expansion
 - **"Read the original post →"**: Visit the source article
 
@@ -47,11 +47,11 @@ Each result card shows:
 - **Active Filters**: View and remove applied filters with "×" button
 - **Pagination**: Navigate through large result sets
 
-## 📚 Bookmark Management (*Login Required*)
+## 📚 Bookmark Management (*Sign-in Required*)
 
 ### Accessing Bookmarks
 - Click the **Bookmarks** button in the top navigation
-- Requires user registration/login for privacy and data persistence
+- Requires Google Sign-In for privacy and data persistence
 
 ### Bookmark Features
 - **Time Filters**: View bookmarks from last 1, 3, 7, or 30 days, or all time
@@ -85,15 +85,14 @@ Each result card shows:
 
 ## 👤 User Account Management
 
-### Registration/Login
-- **Guest Users**: 5 searches per day, no bookmarking
-- **Registered Users**: Unlimited searches, full bookmark management
-- **User Menu**: Access account info and logout when logged in
-- **Session Management**: Secure token-based authentication
+### Sign In
+- Click **Sign In** and authenticate with your Google account
+- **Guest Users**: Limited searches per day, no bookmarking
+- **Signed-in Users**: Unlimited searches, full bookmark management, HN comment insights
 
 ### Account Features
-- **Email & Username**: Personal account identification
-- **Session Persistence**: Stay logged in across browser sessions
+- **Google Sign-In**: One-click authentication, no passwords to manage
+- **Session Persistence**: Stay signed in across browser sessions
 - **Secure Logout**: Invalidate session tokens for security
 
 ## 💡 Pro Tips
@@ -123,10 +122,10 @@ Multimodal Scout automatically discovers content from:
 ## 🛟 Troubleshooting
 
 ### Common Issues
-- **"Login required" messages**: Register for unlimited access and bookmarking
-- **Search limit reached**: Guest users have 5 searches/day - register for unlimited access
+- **"Login required" messages**: Sign in with Google for unlimited access and bookmarking
+- **Search limit reached**: Guest users have limited searches/day - sign in for unlimited access
 - **Slow loading**: First-time visits may take a few seconds due to server startup
-- **Export not working**: Ensure you're logged in and have bookmarks to export
+- **Export not working**: Ensure you're signed in and have bookmarks to export
 
 ### Getting Help
 - Check the [Development Guide](development.md) for technical details

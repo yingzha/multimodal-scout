@@ -8,6 +8,14 @@ set -e
 PROJECT_ID=${1:-"your-project-id"}
 REGION=${2:-"us-central1"}
 DB_INSTANCE_NAME="multimodal-scout-db"
+FIREBASE_API_KEY=$(gcloud secrets versions access latest --secret="firebase-api-key" --project="$PROJECT_ID" 2>/dev/null || echo "")
+if [ -z "$FIREBASE_API_KEY" ]; then
+  echo "❌ firebase-api-key not found in Secret Manager"
+  echo "   Create it with: echo -n 'YOUR_KEY' | gcloud secrets create firebase-api-key --data-file=- --project=$PROJECT_ID"
+  exit 1
+fi
+FIREBASE_AUTH_DOMAIN="$PROJECT_ID.firebaseapp.com"
+FIREBASE_PROJECT_ID="$PROJECT_ID"
 
 echo "🚀 Building images and deploying services for Multimodal Scout"
 echo "Project ID: $PROJECT_ID"
@@ -19,10 +27,13 @@ gcloud auth configure-docker $REGION-docker.pkg.dev
 
 # Build and push backend image
 echo "🏗️ Building backend image..."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 gcloud builds submit \
-  --config gcloud/cloudbuild.backend.yaml \
+  --config "$SCRIPT_DIR/cloudbuild.backend.yaml" \
   --substitutions _IMAGE_NAME=$REGION-docker.pkg.dev/$PROJECT_ID/multimodal-scout/backend:latest \
-  ..
+  "$PROJECT_ROOT"
 
 echo "✅ Backend image built and pushed successfully!"
 echo ""
@@ -60,9 +71,9 @@ echo "🖥️ Backend deployed at: $BACKEND_URL"
 # Now build and push frontend image with correct backend URL
 echo "🏗️ Building frontend image with backend URL..."
 gcloud builds submit \
-  --config gcloud/cloudbuild.frontend.yaml \
-  --substitutions _IMAGE_NAME=$REGION-docker.pkg.dev/$PROJECT_ID/multimodal-scout/frontend:latest,_BACKEND_URL=$BACKEND_URL \
-  ..
+  --config "$SCRIPT_DIR/cloudbuild.frontend.yaml" \
+  --substitutions _IMAGE_NAME=$REGION-docker.pkg.dev/$PROJECT_ID/multimodal-scout/frontend:latest,_BACKEND_URL=$BACKEND_URL,_FIREBASE_API_KEY=$FIREBASE_API_KEY,_FIREBASE_AUTH_DOMAIN=$FIREBASE_AUTH_DOMAIN,_FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID \
+  "$PROJECT_ROOT"
 
 echo "✅ Frontend image built and pushed successfully!"
 

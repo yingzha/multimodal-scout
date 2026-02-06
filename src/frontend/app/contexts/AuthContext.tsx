@@ -1,6 +1,8 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { signOut } from 'firebase/auth'
+import { auth } from '../lib/firebase'
 
 interface User {
   user_id: string
@@ -47,6 +49,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const logout = async () => {
     try {
+      await signOut(auth)
       if (sessionToken) {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
         await fetch(`${apiUrl}/api/auth/logout`, {

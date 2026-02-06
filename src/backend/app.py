@@ -6,6 +6,7 @@ Provides REST API endpoints for fetching topics and scraping content.
 # Standard library imports
 import asyncio
 import json
+import os
 import time
 import uvicorn
 from contextlib import asynccontextmanager
@@ -54,8 +55,7 @@ from .schema import (
     BookmarkResponse,
     UploadLinkRequest,
     UploadLinkResponse,
-    UserRegistrationRequest,
-    UserLoginRequest,
+    GoogleAuthRequest,
     AuthResponse,
     UserResponse,
     ConfigResponse,
@@ -94,8 +94,6 @@ async def lifespan(app: FastAPI):
 
     except Exception as e:
         logger.error(f"❌ Failed to initialize database: {e}", exc_info=True)
-        # Don't raise here to allow the app to start even if DB init fails
-        # This allows for debugging and manual intervention
 
     yield
 
@@ -489,91 +487,45 @@ async def search_content_stream(
     )
 
 
-@app.post("/api/auth/register", response_model=AuthResponse)
-async def register_user(request: UserRegistrationRequest):
-    """Register a new user"""
+@app.post("/api/auth/google", response_model=AuthResponse)
+async def google_auth(request: GoogleAuthRequest):
+    """Authenticate via Firebase Google Sign-In"""
     try:
-        logger.info(f"Registering new user: {request.email} ({request.username})")
-        user_id = db_manager.create_user(
-            request.email, request.password, request.username
+        import google.auth.transport.requests
+        import google.oauth2.id_token
+
+        http_request = google.auth.transport.requests.Request()
+        firebase_project_id = os.getenv("FIREBASE_PROJECT_ID", os.getenv("GOOGLE_CLOUD_PROJECT"))
+        decoded_token = google.oauth2.id_token.verify_firebase_token(
+            request.id_token, http_request, audience=firebase_project_id
+        )
+        firebase_uid = decoded_token["sub"]
+        email = decoded_token.get("email")
+        display_name = decoded_token.get("name") or email.split("@")[0]
+
+        if not email:
+            raise HTTPException(
+                status_code=400, detail="Email not available from Google account"
+            )
+
+        user_id = db_manager.find_or_create_firebase_user(
+            firebase_uid=firebase_uid,
+            email=email,
+            username=display_name,
         )
         session_token = db_manager.create_user_session(user_id)
 
         return AuthResponse(
             success=True,
-            message="User registered successfully",
-            session_token=session_token,
-            user_id=user_id,
-        )
-    except ValueError as e:
-        # Handle duplicate email/username
-        logger.warning(f"Registration failed for {request.email}: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-    except IntegrityError as e:
-        # Database constraint violation (e.g., unique constraint)
-        logger.error(f"Database integrity error during registration: {e}")
-        raise HTTPException(status_code=409, detail="Email or username already exists")
-    except OperationalError as e:
-        # Database connection issues
-        logger.error(f"Database connection error during registration: {e}")
-        raise HTTPException(
-            status_code=503,
-            detail="Database temporarily unavailable. Please try again later.",
-        )
-    except DatabaseError as e:
-        # General database errors
-        logger.error(f"Database error during registration: {e}")
-        raise HTTPException(
-            status_code=500, detail="Unable to register user. Please try again."
-        )
-    except Exception as e:
-        # Unexpected errors
-        logger.error(f"Unexpected error during registration: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500, detail="An unexpected error occurred. Please try again."
-        )
-
-
-@app.post("/api/auth/login", response_model=AuthResponse)
-async def login_user(request: UserLoginRequest):
-    """Login user"""
-    try:
-        logger.info(f"User login attempt: {request.email}")
-        user_id = db_manager.authenticate_user(request.email, request.password)
-
-        if not user_id:
-            raise HTTPException(status_code=401, detail="Invalid email or password")
-
-        session_token = db_manager.create_user_session(user_id)
-
-        return AuthResponse(
-            success=True,
-            message="Login successful",
+            message="Authentication successful",
             session_token=session_token,
             user_id=user_id,
         )
     except HTTPException:
-        # Re-raise authentication errors
         raise
-    except OperationalError as e:
-        # Database connection issues
-        logger.error(f"Database connection error during login: {e}")
-        raise HTTPException(
-            status_code=503,
-            detail="Database temporarily unavailable. Please try again later.",
-        )
-    except DatabaseError as e:
-        # General database errors
-        logger.error(f"Database error during login: {e}")
-        raise HTTPException(
-            status_code=500, detail="Unable to login. Please try again."
-        )
     except Exception as e:
-        # Unexpected errors
-        logger.error(f"Unexpected error during login: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500, detail="An unexpected error occurred. Please try again."
-        )
+        logger.error(f"Google auth error: {e}", exc_info=True)
+        raise HTTPException(status_code=401, detail="Authentication failed")
 
 
 @app.post("/api/auth/logout")
