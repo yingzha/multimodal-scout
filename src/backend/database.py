@@ -25,8 +25,6 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 import secrets
-import bcrypt
-
 from .config import config
 from .logger import logger
 from .cache import source_processing_cache
@@ -116,7 +114,7 @@ class User(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(String, unique=True, nullable=False, index=True)
     username = Column(String, unique=True, nullable=False, index=True)
-    password_hash = Column(String, nullable=False)
+    firebase_uid = Column(String, unique=True, nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
     last_login = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
@@ -643,43 +641,44 @@ class DatabaseManager:
 
     # --- User Management Methods ---
 
-    def create_user(self, email: str, password: str, username: str) -> str:
-        """Create a new user account"""
+    def find_or_create_firebase_user(self, firebase_uid: str, email: str, username: str) -> str:
+        """Find existing user by firebase_uid or email, or create a new one."""
         with self.get_session() as session:
-            # Check if email already exists
-            existing_user = session.query(User).filter(User.email == email).first()
-            if existing_user:
-                raise ValueError("User with this email already exists")
-
-            # Check if username already exists
-            existing_username = (
-                session.query(User).filter(User.username == username).first()
-            )
-            if existing_username:
-                raise ValueError("User with this username already exists")
-
-            password_hash = self._hash_password(password)
-            new_user = User(email=email, username=username, password_hash=password_hash)
-            session.add(new_user)
-            session.commit()
-            logger.info(f"Created new user: {email} ({username})")
-            return str(new_user.id)
-
-    def authenticate_user(self, email: str, password: str) -> Optional[str]:
-        """Authenticate user and return user_id if successful"""
-        with self.get_session() as session:
-            user = (
-                session.query(User)
-                .filter(User.email == email, User.is_active == True)
-                .first()
-            )
-
-            if user and self._verify_password(password, user.password_hash):
+            # First try to find by firebase_uid
+            user = session.query(User).filter(User.firebase_uid == firebase_uid).first()
+            if user:
                 user.last_login = datetime.now()
                 session.commit()
-                logger.info(f"User authenticated: {email}")
+                logger.info(f"Firebase user authenticated: {email}")
                 return str(user.id)
-            return None
+
+            # Then try to find by email (links existing users on first Google sign-in)
+            user = session.query(User).filter(User.email == email).first()
+            if user:
+                user.firebase_uid = firebase_uid
+                user.last_login = datetime.now()
+                if username:
+                    user.username = username
+                session.commit()
+                logger.info(f"Linked existing user to Firebase: {email}")
+                return str(user.id)
+
+            # Create new user, handle username collisions
+            final_username = username
+            existing_username = session.query(User).filter(User.username == username).first()
+            if existing_username:
+                final_username = f"{username}_{str(uuid.uuid4())[:8]}"
+
+            new_user = User(
+                email=email,
+                username=final_username,
+                firebase_uid=firebase_uid,
+                last_login=datetime.now(),
+            )
+            session.add(new_user)
+            session.commit()
+            logger.info(f"Created new Firebase user: {email} ({final_username})")
+            return str(new_user.id)
 
     def create_user_session(self, user_id: str) -> str:
         """Create a new session for the user"""
@@ -753,22 +752,6 @@ class DatabaseManager:
                 return False
         except Exception as e:
             logger.error(f"Failed to update custom topics for user {user_id}: {e}")
-            return False
-
-    def _hash_password(self, password: str) -> str:
-        """Hash password using bcrypt with secure salt generation"""
-        salt = bcrypt.gensalt(rounds=12)  # Higher cost factor for better security
-        hashed = bcrypt.hashpw(password.encode("utf-8"), salt)
-        return hashed.decode("utf-8")
-
-    def _verify_password(self, password: str, password_hash: str) -> bool:
-        """Verify password against bcrypt hash"""
-        try:
-            return bcrypt.checkpw(
-                password.encode("utf-8"), password_hash.encode("utf-8")
-            )
-        except (ValueError, TypeError) as e:
-            logger.warning(f"Password verification failed: {e}")
             return False
 
     def cleanup_user(self, email: str) -> Dict[str, Any]:

@@ -10,7 +10,7 @@ This directory contains all Google Cloud deployment files for the Multimodal Sco
 - `cloudbuild.frontend.yaml` - Cloud Build configuration for frontend
 - `cron_env.sh` - Environment setup for cron jobs
 
-**Note:** Cloud-specific environment variables are configured in `../.env.cloud` (project root)
+**Note:** Secrets (API keys) are stored in Google Secret Manager. Local dev uses `.env` in the project root.
 
 ## Usage
 

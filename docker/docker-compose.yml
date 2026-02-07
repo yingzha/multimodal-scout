@@ -78,6 +78,8 @@ services:
       - "3000:3000"
     env_file:
       - ../.env
+    environment:
+      - NODE_ENV=development
     volumes:
       - ../src/frontend:/app
       - /app/node_modules
