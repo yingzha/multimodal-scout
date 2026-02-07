@@ -10,7 +10,7 @@ from .database import db_manager
 from .client import genai_client, is_genai_enabled
 
 
-# Module-level cache for keyword embeddings
+# In-memory cache for keyword embeddings (avoids repeated DB/API lookups within process lifetime)
 _keyword_embedding_cache = {}
 
 

@@ -16,7 +16,6 @@ from io import BytesIO, StringIO
 from typing import Optional
 
 # Third-party imports
-from alembic.config import Config
 from fastapi import FastAPI, HTTPException, Header, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -36,7 +35,7 @@ from pydantic import ValidationError
 from .config import config
 from .logger import logger
 from .database import db_manager
-from .pipeline import process_content_pipeline
+from .pipeline import process_content_pipeline, search_db_sources
 from .utils import (
     get_hn_comment_insights_with_summaries,
     generate_summary_from_link,
@@ -87,10 +86,6 @@ async def lifespan(app: FastAPI):
             )
             logger.warning("💡 Manual migration may be needed using Cloud SQL Proxy")
             return
-
-        # Set up alembic configuration
-        alembic_cfg = Config("/app/alembic.ini")
-        alembic_cfg.set_main_option("script_location", "/app/alembic")
 
     except Exception as e:
         logger.error(f"❌ Failed to initialize database: {e}", exc_info=True)
@@ -323,7 +318,7 @@ async def search_content(
             f"{user_type}: Fetching items for {request.selectedDays} days with {mode_msg}"
         )
 
-        pipeline_generator = process_content_pipeline(
+        search_generator = search_db_sources(
             topics=request.topics,
             max_results=request.maxResults,
             research_ratio=request.researchRatio,
@@ -334,9 +329,7 @@ async def search_content(
         )
 
         final_result = None
-        # The pipeline is a generator, so we iterate through it to get the final result.
-        # In the non-streaming case, we ignore progress events and just wait for the 'result' event.
-        async for event in pipeline_generator:
+        async for event in search_generator:
             if event["type"] == "result":
                 final_result = event["data"]
                 break
@@ -451,7 +444,7 @@ async def search_content_stream(
                 f"{user_type}: Starting streaming fetch for {request.selectedDays} days with {mode_msg}"
             )
 
-            pipeline_generator = process_content_pipeline(
+            search_generator = search_db_sources(
                 topics=request.topics,
                 max_results=request.maxResults,
                 research_ratio=request.researchRatio,
@@ -461,7 +454,7 @@ async def search_content_stream(
                 user_id=current_user,
             )
 
-            async for event in pipeline_generator:
+            async for event in search_generator:
                 yield f"data: {json.dumps(event)}\n\n"
                 # Add a small sleep to allow the client to process the event
                 await asyncio.sleep(0.01)

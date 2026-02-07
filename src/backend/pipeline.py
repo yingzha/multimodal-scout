@@ -98,10 +98,8 @@ async def _apply_balanced_filtering(
             else:
                 industry_candidates.append(source)
 
-        # Choose thresholds based on discovery mode
-        # In discovery mode, we skip semantic search entirely, so thresholds are irrelevant
-        research_threshold = 0.0 if discovery_mode else RESEARCH_THRESHOLD
-        industry_threshold = 0.0 if discovery_mode else INDUSTRY_THRESHOLD
+        research_threshold = RESEARCH_THRESHOLD
+        industry_threshold = INDUSTRY_THRESHOLD
 
         # Run semantic searches in parallel for better performance
         search_tasks = []
@@ -194,6 +192,219 @@ async def _apply_balanced_filtering(
         f"Balanced filtering complete: {len([s for s in limited_results if hasattr(s, 'tags') and s.tags and s.tags[0].lower() == 'research'])} research, {len([s for s in limited_results if not hasattr(s, 'tags') or not s.tags or s.tags[0].lower() != 'research'])} industry/other"
     )
     return limited_results, matched_keywords_map
+
+
+def _convert_db_to_schemas(
+    db_sources: list,
+) -> tuple[List[SourceSchema], set]:
+    """Convert database Source records to SourceSchema objects and collect source names."""
+    all_sources = []
+    source_names = set()
+    for db_source in db_sources:
+        try:
+            if db_source.tags and len(db_source.tags) > 0:
+                tag = db_source.tags[0].lower()
+                if tag == "research":
+                    source_names.add("Research Papers")
+                elif tag == "industry":
+                    source_names.add("Industry News")
+
+            all_sources.append(
+                SourceSchema(
+                    title=db_source.title,
+                    authors=db_source.authors or [],
+                    link=db_source.link,
+                    source_link=db_source.source_link,
+                    summary=db_source.summary,
+                    keywords=db_source.keywords,
+                    tags=db_source.tags or [],
+                    date=db_source.date,
+                )
+            )
+        except Exception as e:
+            logger.warning(f"Failed to convert database record to schema: {e}")
+            continue
+    return all_sources, source_names
+
+
+async def _apply_edited_summaries(
+    all_sources: List[SourceSchema], user_id: str = None
+) -> None:
+    """Apply user's edited bookmark summaries to sources in-place."""
+    if not user_id:
+        return
+    bookmarks = await asyncio.to_thread(db_manager.get_bookmarks, user_id)
+    edited_summaries_map = {
+        bookmark.link: getattr(bookmark, "summary_edited", None)
+        for bookmark in bookmarks
+        if getattr(bookmark, "summary_edited", None)
+    }
+    for source in all_sources:
+        edited = edited_summaries_map.get(str(source.link))
+        if edited:
+            source.summary = edited
+
+
+async def _build_result_items(
+    all_sources: List[SourceSchema],
+    source_names,
+    topics: List[str],
+    max_results: int,
+    research_ratio: float,
+    discovery_mode: bool = False,
+    session_id: str = None,
+    user_id: str = None,
+) -> tuple[List[Dict[str, Any]], list]:
+    """
+    Shared post-processing: filtering, new cards, HN insights, item building.
+    Returns (final_items, source_names_list).
+    """
+    # Apply edited bookmark summaries
+    await _apply_edited_summaries(all_sources, user_id)
+
+    # Apply balanced filtering
+    source_keywords_map = {}
+    if topics and all_sources:
+        filtered_sources, source_keywords_map = await _apply_balanced_filtering(
+            all_sources, topics, max_results, research_ratio, discovery_mode
+        )
+    else:
+        filtered_sources = all_sources[:max_results]
+
+    # Determine new cards for this session
+    new_links = []
+    if session_id:
+        all_links = [str(source.link) for source in filtered_sources]
+        new_links = await asyncio.to_thread(
+            db_manager.get_new_cards, session_id, all_links
+        )
+        if new_links:
+            await asyncio.to_thread(db_manager.mark_cards_seen, session_id, new_links)
+
+    # Batch process HN comment insights
+    all_links = [str(source.link) for source in filtered_sources]
+    original_summaries = {
+        str(source.link): source.summary or "No summary available"
+        for source in filtered_sources
+    }
+    insights_results = await get_hn_comment_insights_with_summaries(
+        all_links, original_summaries, user_id
+    )
+
+    # Build final items
+    all_items = []
+    for source in filtered_sources:
+        source_tag = "General"
+        if hasattr(source, "tags") and source.tags:
+            source_tag = source.tags[0].capitalize() if source.tags[0] else "General"
+
+        link_str = str(source.link)
+        is_new = link_str in new_links if session_id else False
+        matched_keywords = source_keywords_map.get(link_str, [])
+        display_summary, comment_insights, comment_count = insights_results[link_str]
+
+        all_items.append(
+            {
+                "title": source.title,
+                "link": link_str,
+                "summary": display_summary,
+                "source": source_tag,
+                "created_at": (
+                    source.date.isoformat()
+                    if hasattr(source, "date") and source.date
+                    else datetime.now().isoformat()
+                ),
+                "is_new": is_new,
+                "matched_keywords": matched_keywords,
+                "comment_insights": comment_insights,
+                "comment_count": comment_count,
+            }
+        )
+
+    # Sort: new cards first, then rest in original order
+    new_items = [item for item in all_items if item["is_new"]]
+    existing_items = [item for item in all_items if not item["is_new"]]
+    final_items = new_items + existing_items
+
+    source_names_list = list(source_names) if isinstance(source_names, set) else list(set(source_names))
+    return final_items, source_names_list
+
+
+async def search_db_sources(
+    topics: List[str],
+    max_results: int,
+    research_ratio: float,
+    selected_days: int = 7,
+    session_id: str = None,
+    discovery_mode: bool = False,
+    user_id: str = None,
+) -> AsyncGenerator[Dict[str, Any], None]:
+    """
+    Search-only pipeline that reads pre-processed content from the database.
+    No scraping or summary generation — just DB query, filtering, and response.
+    Yields SSE-compatible progress events identical to process_content_pipeline.
+    """
+    yield {
+        "type": "start",
+        "message": "Searching pre-processed content...",
+        "total": 100,
+        "processed": 10,
+    }
+
+    # Step 1: Query database for sources within the date range
+    cutoff_date = datetime.now() - timedelta(days=selected_days)
+
+    def _fetch_recent_sources():
+        with db_manager.get_session() as session:
+            return (
+                session.query(Source)
+                .filter(Source.created_at >= cutoff_date)
+                .order_by(Source.created_at.desc())
+                .all()
+            )
+
+    db_sources = await asyncio.to_thread(_fetch_recent_sources)
+
+    if not db_sources:
+        yield {
+            "type": "warning",
+            "message": f"No content found for the last {selected_days} days. The pipeline may not have run yet.",
+        }
+        yield {"type": "complete", "message": "Search complete — no results found."}
+        yield {
+            "type": "result",
+            "data": {"items": [], "total_count": 0, "sources": []},
+        }
+        return
+
+    yield {
+        "type": "status",
+        "message": f"Found {len(db_sources)} sources from last {selected_days} days",
+    }
+
+    # Step 2: Convert and filter
+    all_sources, source_names = _convert_db_to_schemas(db_sources)
+
+    yield {"type": "progress", "message": "Applying filters...", "processed": 30, "total": 100}
+
+    final_items, source_names_list = await _build_result_items(
+        all_sources, source_names, topics, max_results,
+        research_ratio, discovery_mode, session_id, user_id,
+    )
+
+    yield {"type": "progress", "message": "Building results...", "processed": 90, "total": 100}
+    yield {
+        "type": "complete",
+        "message": f"Search complete! Found {len(final_items)} relevant items.",
+    }
+    yield {
+        "type": "result",
+        "data": {
+            "items": final_items,
+            "total_count": len(final_items),
+            "sources": source_names_list,
+        },
+    }
 
 
 async def process_content_pipeline(
@@ -422,39 +633,7 @@ async def process_content_pipeline(
                 "message": f"Found {len(db_sources)} recently discovered sources from last {selected_days} days",
             }
 
-            # Convert database records back to SourceSchema objects
-            all_sources = []
-            db_source_names = set()
-
-            for db_source in db_sources:
-                try:
-                    # Determine source name from tags
-                    source_tag = "General"
-                    if db_source.tags and len(db_source.tags) > 0:
-                        source_tag = db_source.tags[0].capitalize()
-                        if source_tag.lower() == "research":
-                            db_source_names.add("Research Papers")
-                        elif source_tag.lower() == "industry":
-                            db_source_names.add("Industry News")
-
-                    # Create SourceSchema object from database record
-                    source_schema = SourceSchema(
-                        title=db_source.title,
-                        authors=db_source.authors or [],
-                        link=db_source.link,
-                        source_link=db_source.source_link,
-                        summary=db_source.summary,
-                        keywords=db_source.keywords,
-                        tags=db_source.tags or [],
-                        date=db_source.date,
-                    )
-                    all_sources.append(source_schema)
-
-                except Exception as e:
-                    logger.warning(f"Failed to convert database record to schema: {e}")
-                    continue
-
-            # Use database source names for final output
+            all_sources, db_source_names = _convert_db_to_schemas(db_sources)
             source_names = list(db_source_names)
             logger.info(
                 f"Converted {len(all_sources)} database records to source schemas"
@@ -476,141 +655,41 @@ async def process_content_pipeline(
             fresh_sources, all_sources, source_names, selected_days
         )
 
-    # Set current progress for both cache hit and miss paths
+    # Post-processing: filtering, new cards, HN insights, item building
     current_progress = scraping_weight + summary_weight
 
-    if all_sources:
-        # Get all edited summaries once at the beginning for efficiency
-        edited_summaries_map = {}
-        if user_id:
-            bookmarks = await asyncio.to_thread(db_manager.get_bookmarks, user_id)
-            for bookmark in bookmarks:
-                edited_summary = getattr(bookmark, "summary_edited", None)
-                if edited_summary:
-                    edited_summaries_map[bookmark.link] = edited_summary
-            logger.info(
-                f"Found {len(edited_summaries_map)} edited summaries in bookmarks"
-            )
-        else:
-            logger.info("No user_id provided, skipping bookmark summary lookup")
-
-        # Apply edited summaries to ALL sources first
-        for source in all_sources:
-            source_link = str(source.link)
-            if source_link in edited_summaries_map:
-                source.summary = edited_summaries_map[source_link]
-                logger.info(f"Applied edited summary for: {source.title[:50]}")
-
-    filtered_sources = []
-    if topics and all_sources:
-        yield {
-            "type": "status",
-            "message": f"Applying smart balanced filtering for {len(all_sources)} items...",
-        }
-
-        progress_50 = current_progress + (filtering_weight * 0.5)
-        yield {
-            "type": "progress",
-            "message": "Applying semantic search & balancing...",
-            "processed": int((progress_50 / total_weight) * 100),
-            "total": 100,
-        }
-
-        filtered_sources, source_keywords_map = await _apply_balanced_filtering(
-            all_sources, topics, max_results, research_ratio, discovery_mode
-        )
-
-        complete_progress = current_progress + filtering_weight
-        yield {
-            "type": "progress",
-            "message": f"Smart filtering complete! Found {len(filtered_sources)} balanced results.",
-            "processed": int((complete_progress / total_weight) * 100),
-            "total": 100,
-        }
-
-    else:
-        filtered_sources = all_sources[:max_results]
-        source_keywords_map = {}  # No keywords matched if no filtering
-        complete_progress = current_progress + filtering_weight
-        yield {
-            "type": "progress",
-            "message": f"No topic filtering requested - using first {max_results} items",
-            "processed": int((complete_progress / total_weight) * 100),
-            "total": 100,
-        }
-
-    # Determine which cards are new for this session
-    new_links = []
-    if session_id:
-        all_links = [str(source.link) for source in filtered_sources]
-        new_links = await asyncio.to_thread(
-            db_manager.get_new_cards, session_id, all_links
-        )
-
-        # Mark only new cards as seen now that they're being shown
-        if new_links:
-            await asyncio.to_thread(db_manager.mark_cards_seen, session_id, new_links)
-
-    # Prepare batch processing for HN comment insights
-    all_links = [str(source.link) for source in filtered_sources]
-    original_summaries = {
-        str(source.link): source.summary or "No summary available"
-        for source in filtered_sources
+    yield {
+        "type": "status",
+        "message": f"Applying smart filtering for {len(all_sources)} items...",
+    }
+    yield {
+        "type": "progress",
+        "message": "Applying semantic search & balancing...",
+        "processed": int(((current_progress + filtering_weight * 0.5) / total_weight) * 100),
+        "total": 100,
     }
 
-    # Batch process all HN comment insights at once
-    insights_results = await get_hn_comment_insights_with_summaries(
-        all_links, original_summaries, user_id
+    final_items, source_names_list = await _build_result_items(
+        all_sources, source_names, topics, max_results,
+        research_ratio, discovery_mode, session_id, user_id,
     )
 
-    # Build items with new status
-    all_items = []
-    for source in filtered_sources:
-        source_tag = "General"
-        if hasattr(source, "tags") and source.tags:
-            source_tag = source.tags[0].capitalize() if source.tags[0] else "General"
-
-        link_str = str(source.link)
-        is_new = link_str in new_links if session_id else False
-
-        matched_keywords = source_keywords_map.get(link_str, [])
-
-        # Get processed summary and insights from batch results
-        display_summary, comment_insights, comment_count = insights_results[link_str]
-
-        all_items.append(
-            {
-                "title": source.title,
-                "link": link_str,
-                "summary": display_summary,
-                "source": source_tag,
-                "created_at": (
-                    source.date.isoformat()
-                    if hasattr(source, "date") and source.date
-                    else datetime.now().isoformat()
-                ),
-                "is_new": is_new,
-                "matched_keywords": matched_keywords,
-                "comment_insights": comment_insights,
-                "comment_count": comment_count,
-            }
-        )
-
-    # Sort items: new cards first, then rest in original order
-    new_items = [item for item in all_items if item["is_new"]]
-    existing_items = [item for item in all_items if not item["is_new"]]
-    final_items = new_items + existing_items
+    yield {
+        "type": "progress",
+        "message": f"Filtering complete! Found {len(final_items)} balanced results.",
+        "processed": int(((current_progress + filtering_weight) / total_weight) * 100),
+        "total": 100,
+    }
 
     yield {
         "type": "complete",
         "message": f"Processing complete! Found {len(final_items)} relevant items.",
     }
-
     yield {
         "type": "result",
         "data": {
             "items": final_items,
             "total_count": len(final_items),
-            "sources": list(set(source_names)),
+            "sources": source_names_list,
         },
     }
