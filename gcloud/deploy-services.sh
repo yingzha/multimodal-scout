@@ -14,8 +14,8 @@ if [ -z "$FIREBASE_API_KEY" ]; then
   echo "   Create it with: echo -n 'YOUR_KEY' | gcloud secrets create firebase-api-key --data-file=- --project=$PROJECT_ID"
   exit 1
 fi
-FIREBASE_AUTH_DOMAIN="$PROJECT_ID.firebaseapp.com"
-FIREBASE_PROJECT_ID="$PROJECT_ID"
+FIREBASE_PROJECT_ID=$(gcloud secrets versions access latest --secret="firebase-project-id" --project="$PROJECT_ID" 2>/dev/null || echo "$PROJECT_ID")
+FIREBASE_AUTH_DOMAIN="$FIREBASE_PROJECT_ID.firebaseapp.com"
 
 echo "🚀 Building images and deploying services for Multimodal Scout"
 echo "Project ID: $PROJECT_ID"
@@ -49,6 +49,7 @@ gcloud run deploy multimodal-scout-backend \
   --region $REGION \
   --service-account multimodal-scout-backend@$PROJECT_ID.iam.gserviceaccount.com \
   --set-env-vars GOOGLE_CLOUD_PROJECT=$PROJECT_ID \
+  --set-env-vars FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID \
   --set-env-vars DB_USER=scout_user \
   --set-env-vars DB_NAME=multimodal_scout \
   --set-env-vars INSTANCE_CONNECTION_NAME=$CONNECTION_NAME \
