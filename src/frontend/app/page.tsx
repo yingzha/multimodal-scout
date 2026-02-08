@@ -17,7 +17,6 @@ export default function Home() {
   const [showBookmarks, setShowBookmarks] = useState(false)
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
-  const [showDetailedProgress, setShowDetailedProgress] = useState(false)
 
   // Content and Data State
   const [fetchedItems, setFetchedItems] = useState<any[]>([])
@@ -50,7 +49,6 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false)
   const [progressMessage, setProgressMessage] = useState('')
   const [keywordMessage, setKeywordMessage] = useState('')
-  const [usingCachedContent, setUsingCachedContent] = useState(false)
 
   // Upload State
   const [uploadUrl, setUploadUrl] = useState('')
@@ -553,7 +551,6 @@ export default function Home() {
     // Reset any loading states
     setIsLoading(false)
     setProgressMessage('')
-    setShowDetailedProgress(false)
 
     // Clear any messages
     setKeywordMessage('')
@@ -941,22 +938,9 @@ export default function Home() {
     switch (eventData.type) {
       case 'status':
         setProgressMessage(eventData.message)
-        // Detect cache-related messages
-        if (eventData.message.includes('Using cached content') || eventData.message.includes('cache hit')) {
-          setUsingCachedContent(true)
-        } else if (eventData.message.includes('Cache miss') || eventData.message.includes('scraping fresh content')) {
-          setUsingCachedContent(false)
-        }
         break
       case 'start':
-        setShowDetailedProgress(true)
         setProgressMessage(eventData.message)
-        // Detect cache-related messages in start events too
-        if (eventData.message.includes('Using cached content') || eventData.message.includes('cache hit')) {
-          setUsingCachedContent(true)
-        } else if (eventData.message.includes('Cache miss') || eventData.message.includes('Starting unified processing')) {
-          setUsingCachedContent(false)
-        }
         break
       case 'progress':
         setProgressMessage(eventData.message)
@@ -1020,8 +1004,6 @@ export default function Home() {
     setShowAdvancedSettings(false) // Close settings panel when search starts
     setShowAuthModal(false) // Close auth modal when search starts
     setProgressMessage('Starting fetch...')
-    setShowDetailedProgress(false)
-    setUsingCachedContent(false) // Reset cache state
 
     try {
       const allTopics = [...defaultTopics, ...customTopics]
@@ -1080,8 +1062,6 @@ export default function Home() {
       setTimeout(() => {
         setIsLoading(false)
         setProgressMessage('')
-        setShowDetailedProgress(false)
-        setUsingCachedContent(false)
       }, 2000)
     }
   }
@@ -1554,11 +1534,6 @@ export default function Home() {
               <div className="animate-spin w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full mr-3"></div>
               <span className="text-sm font-medium">{progressMessage}</span>
             </div>
-            {showDetailedProgress && !usingCachedContent && (
-              <div className="mt-2 text-xs text-gray-600">
-                Summary generation can take 30-60 seconds per article. Thank you for your patience!
-              </div>
-            )}
           </div>
         )}
 
