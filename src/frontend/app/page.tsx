@@ -963,9 +963,10 @@ export default function Home() {
         setExpandedSummaries(new Set())
         setSelectedTags(new Set())
         setCurrentPage(1)
-        setProgressMessage('Complete!')
-        // Load bookmark status for the new search results
-        loadBookmarkStatus()
+        if (eventData.data.items.length > 0) {
+          setProgressMessage('Complete!')
+          loadBookmarkStatus()
+        }
         break
     }
   }
@@ -1005,6 +1006,9 @@ export default function Home() {
     setShowAuthModal(false) // Close auth modal when search starts
     setProgressMessage('Starting fetch...')
 
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000)
+
     try {
       const allTopics = [...defaultTopics, ...customTopics]
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
@@ -1017,7 +1021,8 @@ export default function Home() {
       const response = await fetch(`${apiUrl}/api/content/search/stream`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ selectedDays, topics: allTopics, maxResults, researchRatio, sessionId, discoveryMode })
+        body: JSON.stringify({ selectedDays, topics: allTopics, maxResults, researchRatio, sessionId, discoveryMode }),
+        signal: controller.signal
       })
 
       if (!response.ok) {
@@ -1050,7 +1055,9 @@ export default function Home() {
       console.error('Failed to fetch items:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
 
-      if (errorMessage.startsWith('RATE_LIMIT:')) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        setProgressMessage('Search timed out. Please try again.')
+      } else if (errorMessage.startsWith('RATE_LIMIT:')) {
         const rateLimitMessage = errorMessage.replace('RATE_LIMIT: ', '')
         showTemporaryMessage(`⚠️ ${rateLimitMessage}`, 8000)
         setProgressMessage('Rate limit exceeded')
@@ -1059,9 +1066,10 @@ export default function Home() {
         setProgressMessage('Failed to fetch items')
       }
     } finally {
+      clearTimeout(timeoutId)
       setTimeout(() => {
         setIsLoading(false)
-        setProgressMessage('')
+        setProgressMessage(prev => prev === 'Complete!' ? '' : prev)
       }, 2000)
     }
   }
@@ -1538,8 +1546,17 @@ export default function Home() {
         )}
 
         {/* Results Section */}
-        {showResults && fetchedItems.length > 0 && (!showBookmarks || showAdvancedSettings) && (
+        {showResults && (!showBookmarks || showAdvancedSettings) && (
           <div className="mt-12">
+            {fetchedItems.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-lg font-medium text-gray-600 mb-2">No matching results found</p>
+                <p className="text-sm text-gray-500">
+                  {progressMessage || 'Try adjusting your topics or expanding the time range.'}
+                </p>
+              </div>
+            ) : (
+            <>
             <div className="flex justify-between items-center mb-6">
               <div className="flex items-center gap-3">
                 <div className="text-sm text-gray-600">
@@ -1747,6 +1764,8 @@ export default function Home() {
               totalItems={filterItems(fetchedItems, debouncedHomepageSearch).length}
               itemsPerPage={itemsPerPage}
             />
+            </>
+            )}
           </div>
         )}
 
