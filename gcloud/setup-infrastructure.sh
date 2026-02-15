@@ -36,7 +36,7 @@ echo "🔐 Storing secrets in Secret Manager..."
 
 # Database password (may already exist from setup-db-instance.sh)
 if ! gcloud secrets describe database-password --project=$PROJECT_ID &>/dev/null; then
-  DB_PASSWORD=$(openssl rand -base64 32)
+  DB_PASSWORD=$(openssl rand -hex 24)
   echo -n "$DB_PASSWORD" | gcloud secrets create database-password --data-file=-
   echo "Created database-password secret"
 else

@@ -185,15 +185,15 @@ The backend will:
 If you see migration errors in the logs, run this complete command:
 
 ```bash
-# 1. SSH tunnel to the database VM (keep this terminal open)
-gcloud compute ssh multimodal-scout-db --zone=us-central1-a -- -L 5433:localhost:5432
-
-# 2. In another terminal, get database password and run SQL
+# 1. Get connection details
+DB_HOST=$(gcloud compute instances describe multimodal-scout-db --zone=us-central1-a --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
 DB_PASSWORD=$(gcloud secrets versions access latest --secret="database-password")
-PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -p 5433 -U scout_user -d multimodal_scout
+
+# 2. Connect with psql
+PGPASSWORD="$DB_PASSWORD" psql "host=$DB_HOST port=5432 user=scout_user dbname=multimodal_scout sslmode=require"
 
 # Or run Alembic migrations directly
-DATABASE_URL="postgresql://scout_user:$DB_PASSWORD@127.0.0.1:5433/multimodal_scout" alembic upgrade head
+DATABASE_URL="postgresql://scout_user:$DB_PASSWORD@$DB_HOST:5432/multimodal_scout?sslmode=require" alembic upgrade head
 ```
 
 ### 🔍 Checking Migration Status
@@ -236,10 +236,7 @@ SELECT relname, n_live_tup FROM pg_stat_user_tables ORDER BY n_live_tup DESC;
 
 ### Cloud Database Cleanup
 ```bash
-# SSH tunnel to the database VM (keep this terminal open)
-gcloud compute ssh multimodal-scout-db --zone=us-central1-a -- -L 5433:localhost:5432
-
-# In another terminal, connect with psql
+DB_HOST=$(gcloud compute instances describe multimodal-scout-db --zone=us-central1-a --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
 DB_PASSWORD=$(gcloud secrets versions access latest --secret="database-password")
-PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -p 5433 -U scout_user -d multimodal_scout
+PGPASSWORD="$DB_PASSWORD" psql "host=$DB_HOST port=5432 user=scout_user dbname=multimodal_scout sslmode=require"
 ```

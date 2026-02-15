@@ -18,10 +18,10 @@ echo "Setting up PostgreSQL 18 on Compute Engine e2-micro (free tier)"
 echo "Project: $PROJECT_ID, Zone: $ZONE"
 echo ""
 
-# Get database password from Secret Manager
+# Get or create database password (hex-only for safe shell quoting)
 DB_PASSWORD=$(gcloud secrets versions access latest --secret="database-password" --project=$PROJECT_ID 2>/dev/null || true)
 if [ -z "$DB_PASSWORD" ]; then
-  DB_PASSWORD=$(openssl rand -base64 32)
+  DB_PASSWORD=$(openssl rand -hex 24)
   echo -n "$DB_PASSWORD" | gcloud secrets create database-password --data-file=- --project=$PROJECT_ID
   echo "Created database-password secret"
 fi
@@ -79,7 +79,7 @@ if [ "$PG_READY" = false ]; then
   exit 1
 fi
 
-# Create database and user
+# Create database and user (hex password is safe for shell interpolation)
 echo "Configuring database and user..."
 gcloud compute ssh $INSTANCE_NAME --zone=$ZONE --project=$PROJECT_ID --command="
   sudo -u postgres psql -c \"CREATE USER scout_user WITH PASSWORD '$DB_PASSWORD';\" 2>/dev/null || \
