@@ -13,10 +13,7 @@ Complete guide for developing Multimodal Scout. For quick setup, see the main [R
 git clone https://github.com/yingzha/multimodal-scout.git
 cd multimodal-scout
 
-# Configure environment
-./scripts/configure-env.sh local
-
-# Update your Google API Key
+# Add your Gemini API key and Firebase config to .env
 
 # Start all services
 docker-compose -f docker/docker-compose.yml up -d
@@ -188,23 +185,15 @@ The backend will:
 If you see migration errors in the logs, run this complete command:
 
 ```bash
-# 1. Install Cloud SQL Proxy (one-time setup)
-gcloud components install cloud_sql_proxy
-
-# 2. Get database password
+# 1. Get connection details
+DB_HOST=$(gcloud compute instances describe multimodal-scout-db --zone=us-central1-a --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
 DB_PASSWORD=$(gcloud secrets versions access latest --secret="database-password")
 
-# 3. Start proxy and run SQL directly
-cloud_sql_proxy -instances YOUR_PROJECT_ID:us-central1:multimodal-scout-db=tcp:9470
+# 2. Connect with psql
+PGPASSWORD="$DB_PASSWORD" psql "host=$DB_HOST port=5432 user=scout_user dbname=multimodal_scout sslmode=require"
 
-# 4. Execute your migration SQL (example)
-PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -p 9470 -U scout_user -d multimodal_scout -c "
-ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_topics JSON DEFAULT '[]'::json;
-UPDATE users SET custom_topics = '[]'::json WHERE custom_topics IS NULL;
-"
-
-# 5. Stop proxy
-pkill cloud_sql_proxy
+# Or run Alembic migrations directly
+DATABASE_URL="postgresql://scout_user:$DB_PASSWORD@$DB_HOST:5432/multimodal_scout?sslmode=require" alembic upgrade head
 ```
 
 ### 🔍 Checking Migration Status
@@ -247,10 +236,7 @@ SELECT relname, n_live_tup FROM pg_stat_user_tables ORDER BY n_live_tup DESC;
 
 ### Cloud Database Cleanup
 ```bash
-# Connect via Cloud SQL Proxy
-cloud_sql_proxy -instances=PROJECT_ID:us-central1:multimodal-scout-db=tcp:9470
-
-# Then connect with psql
+DB_HOST=$(gcloud compute instances describe multimodal-scout-db --zone=us-central1-a --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
 DB_PASSWORD=$(gcloud secrets versions access latest --secret="database-password")
-PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -p 9470 -U scout_user -d multimodal_scout
+PGPASSWORD="$DB_PASSWORD" psql "host=$DB_HOST port=5432 user=scout_user dbname=multimodal_scout sslmode=require"
 ```

@@ -39,14 +39,13 @@ In production, the pipeline runs via Google Cloud Scheduler:
 
 ```bash
 # Deploy with automated pipeline
-./scripts/configure-env.sh cloud
 gcloud/deploy-services.sh YOUR_PROJECT_ID us-central1
 ```
 
 **Cloud Features:**
-- ⏰ Runs every 30 minutes via Cloud Scheduler  
+- ⏰ Runs every 30 minutes via Cloud Scheduler
 - 📊 Built-in logging and monitoring
-- 🔒 OIDC authentication for security
+- 🔒 Bearer token authentication via Secret Manager
 - 💰 Scales to zero when not processing
 
 ## Schedule & Performance

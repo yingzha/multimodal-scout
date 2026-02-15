@@ -20,8 +20,8 @@ A smart content discovery platform that automatically finds, curates, and helps 
 - 📖 **[User Guide](docs/user-guide.md)** - Complete walkthrough of all features and controls
 - 🛠️ **[Development Guide](docs/development.md)** - Local setup, testing, and workflows
 - 🔗 **[API Reference](docs/api.md)** - Complete REST API documentation
-- ⏰ **[Automation Guide](docs/cron-jobs.md)** - Pipeline and content processing
-- ☁️ **[Cloud Setup](GOOGLE_CLOUD_SETUP.md)** - Google Cloud deployment guide
+- ⏰ **[Automation Guide](docs/cron.md)** - Pipeline and content processing
+- ☁️ **[Cloud Setup](docs/GOOGLE_CLOUD_SETUP.md)** - Google Cloud deployment guide
 
 ## 🚀 Quick Start
 
@@ -64,8 +64,9 @@ A smart content discovery platform that automatically finds, curates, and helps 
    echo -n 'YOUR_KEY' | gcloud secrets create google-api-key --data-file=- --project=YOUR_PROJECT_ID
    echo -n 'YOUR_KEY' | gcloud secrets create firebase-api-key --data-file=- --project=YOUR_PROJECT_ID
 
-   # Set up infrastructure (run once)
+   # Set up infrastructure and database (run once)
    gcloud/setup-infrastructure.sh YOUR_PROJECT_ID us-central1
+   gcloud/setup-db-instance.sh YOUR_PROJECT_ID us-central1-a
    ```
 
 2. **Deploy Services:**
