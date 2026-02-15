@@ -84,7 +84,7 @@ async def lifespan(app: FastAPI):
             logger.warning(
                 f"⚠️ Database connection failed: {conn_error} - migration skipped"
             )
-            logger.warning("💡 Manual migration may be needed using Cloud SQL Proxy")
+            logger.warning("💡 Manual migration may be needed via SSH tunnel")
             return
 
     except Exception as e:

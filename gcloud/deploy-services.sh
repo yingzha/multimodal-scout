@@ -38,8 +38,18 @@ gcloud builds submit \
 echo "✅ Backend image built and pushed successfully!"
 echo ""
 
-# Get Cloud SQL connection name
-CONNECTION_NAME="$PROJECT_ID:$REGION:$DB_INSTANCE_NAME"
+# Get database host IP from Compute Engine instance
+DB_ZONE="${REGION}-a"
+DB_HOST=$(gcloud compute instances describe $DB_INSTANCE_NAME \
+  --zone=$DB_ZONE --project=$PROJECT_ID \
+  --format='get(networkInterfaces[0].accessConfigs[0].natIP)' 2>/dev/null)
+
+if [ -z "$DB_HOST" ]; then
+  echo "❌ Could not get DB_HOST from Compute Engine instance $DB_INSTANCE_NAME"
+  echo "   Run setup-db-instance.sh first: ./gcloud/setup-db-instance.sh $PROJECT_ID $DB_ZONE"
+  exit 1
+fi
+echo "📍 Database host: $DB_HOST"
 
 # Deploy backend service first
 echo "🖥️ Deploying backend service..."
@@ -52,8 +62,7 @@ gcloud run deploy multimodal-scout-backend \
   --set-env-vars FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID \
   --set-env-vars DB_USER=scout_user \
   --set-env-vars DB_NAME=multimodal_scout \
-  --set-env-vars INSTANCE_CONNECTION_NAME=$CONNECTION_NAME \
-  --add-cloudsql-instances $CONNECTION_NAME \
+  --set-env-vars DB_HOST=$DB_HOST \
   --cpu 1 \
   --memory 512Mi \
   --min-instances 0 \
@@ -146,4 +155,4 @@ echo "💡 Next steps:"
 echo "1. Run database migrations if needed" 
 echo "2. Test the application"
 echo ""
-echo "💰 Estimated cost: ~\$20-30/month for <10 DAU (Cloud SQL ~\$9, Cloud Run ~\$6-8, Gemini API ~\$3-8, Artifact Registry ~\$1)"
+echo "💰 Estimated cost: ~\$10-20/month for <10 DAU (DB VM free tier, Cloud Run ~\$6-8, Gemini API ~\$3-8, Artifact Registry ~\$1)"

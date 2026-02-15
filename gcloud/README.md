@@ -4,34 +4,34 @@ This directory contains all Google Cloud deployment files for the Multimodal Sco
 
 ## Files
 
+- `setup-infrastructure.sh` - Initial infrastructure setup (APIs, secrets, service accounts)
+- `setup-db-instance.sh` - Database VM provisioning (PostgreSQL 18 on Compute Engine e2-micro)
+- `pg-startup.sh` - PostgreSQL startup script used by the VM
 - `deploy-services.sh` - Main deployment script for Cloud Run services
-- `setup-infrastructure.sh` - Initial infrastructure setup (databases, secrets, etc.)
 - `cloudbuild.backend.yaml` - Cloud Build configuration for backend
 - `cloudbuild.frontend.yaml` - Cloud Build configuration for frontend
-- `cron_env.sh` - Environment setup for cron jobs
 
-**Note:** Secrets (API keys) are stored in Google Secret Manager. Local dev uses `.env` in the project root.
+**Note:** Secrets (API keys, database password) are stored in Google Secret Manager. Local dev uses `.env` in the project root.
 
 ## Usage
 
 ### Initial Setup
 
 ```bash
-cd gcloud
-./setup-infrastructure.sh YOUR_PROJECT_ID us-central1
+./gcloud/setup-infrastructure.sh YOUR_PROJECT_ID us-central1
+./gcloud/setup-db-instance.sh YOUR_PROJECT_ID us-central1-a
 ```
 
 ### Deployment
 
 ```bash
-cd gcloud
-./deploy-services.sh YOUR_PROJECT_ID us-central1
+./gcloud/deploy-services.sh YOUR_PROJECT_ID us-central1
 ```
 
 ## Configuration
 
 The deployment uses:
 - Cloud Run for serverless container hosting
-- Cloud SQL (PostgreSQL) for database
+- Compute Engine e2-micro (free tier) for self-managed PostgreSQL 18
 - Cloud Scheduler for periodic tasks
 - Secret Manager for sensitive data

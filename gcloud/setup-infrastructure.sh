@@ -8,7 +8,6 @@ set -e
 # Configuration
 PROJECT_ID=${1:-"your-project-id"}
 REGION=${2:-"us-central1"}
-DB_INSTANCE_NAME="multimodal-scout-db"
 
 echo "🚀 Starting Google Cloud deployment for Multimodal Scout"
 echo "Project ID: $PROJECT_ID"
@@ -19,8 +18,7 @@ echo "📋 Enabling required APIs..."
 gcloud services enable \
   cloudbuild.googleapis.com \
   run.googleapis.com \
-  sql-component.googleapis.com \
-  sqladmin.googleapis.com \
+  compute.googleapis.com \
   secretmanager.googleapis.com \
   cloudscheduler.googleapis.com \
   artifactregistry.googleapis.com
@@ -33,72 +31,45 @@ gcloud artifacts repositories create multimodal-scout \
   --description="Multimodal Scout container images" \
   || echo "Repository already exists"
 
-# Step 3: Create Cloud SQL micro instance (cost-optimized)
-echo "💾 Creating Cloud SQL micro instance..."
-gcloud sql instances create $DB_INSTANCE_NAME \
-  --database-version=POSTGRES_15 \
-  --tier=db-f1-micro \
-  --region=$REGION \
-  --storage-type=HDD \
-  --storage-size=10GB \
-  --backup-start-time=03:00 \
-  --maintenance-release-channel=production \
-  --maintenance-window-day=SUN \
-  --maintenance-window-hour=4 \
-  --deletion-protection \
-  || echo "Instance already exists"
-
-# Step 4: Create database
-echo "🗄️ Creating database..."
-gcloud sql databases create multimodal_scout \
-  --instance=$DB_INSTANCE_NAME \
-  || echo "Database already exists"
-
-# Step 5: Generate database password
-echo "🔐 Generating database password..."
-DB_PASSWORD=$(openssl rand -base64 32)
-
-# Step 6: Create database user
-echo "👤 Creating database user..."
-gcloud sql users create scout_user \
-  --instance=$DB_INSTANCE_NAME \
-  --password="$DB_PASSWORD" \
-  || echo "User already exists"
-
-# Step 7: Store secrets
+# Step 3: Store secrets
 echo "🔐 Storing secrets in Secret Manager..."
-echo -n "$DB_PASSWORD" | gcloud secrets create database-password --data-file=-
+
+# Database password (may already exist from setup-db-instance.sh)
+if ! gcloud secrets describe database-password --project=$PROJECT_ID &>/dev/null; then
+  DB_PASSWORD=$(openssl rand -base64 32)
+  echo -n "$DB_PASSWORD" | gcloud secrets create database-password --data-file=-
+  echo "Created database-password secret"
+else
+  echo "database-password secret already exists"
+fi
+
 echo -n "$GOOGLE_API_KEY" | gcloud secrets create google-api-key --data-file=- \
-  || echo "Secrets may already exist"
+  || echo "google-api-key secret already exists"
 
 # Generate and store pipeline secret
-PIPELINE_SECRET=$(openssl rand -base64 32)
-echo -n "$PIPELINE_SECRET" | gcloud secrets create pipeline-secret --data-file=- \
-  || echo "Pipeline secret may already exist"
+if ! gcloud secrets describe pipeline-secret --project=$PROJECT_ID &>/dev/null; then
+  PIPELINE_SECRET=$(openssl rand -base64 32)
+  echo -n "$PIPELINE_SECRET" | gcloud secrets create pipeline-secret --data-file=-
+  echo "Created pipeline-secret"
+else
+  echo "pipeline-secret already exists"
+fi
 
-# Step 8: Create service accounts
+# Step 4: Create service accounts
 echo "🔑 Creating service accounts..."
 gcloud iam service-accounts create multimodal-scout-backend \
   --display-name="Multimodal Scout Backend Service Account" \
   || echo "Backend service account exists"
 
-# Cron service account removed - using backend service for scheduled jobs
-
 gcloud iam service-accounts create multimodal-scout-scheduler \
   --display-name="Multimodal Scout Scheduler Service Account" \
   || echo "Scheduler service account exists"
 
-# Step 9: Grant permissions
+# Step 5: Grant permissions
 echo "🛡️ Granting permissions..."
 gcloud projects add-iam-policy-binding $PROJECT_ID \
   --member="serviceAccount:multimodal-scout-backend@$PROJECT_ID.iam.gserviceaccount.com" \
-  --role="roles/cloudsql.client"
-
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:multimodal-scout-backend@$PROJECT_ID.iam.gserviceaccount.com" \
   --role="roles/secretmanager.secretAccessor"
-
-# Cron service permissions removed - backend service handles scheduled jobs
 
 gcloud projects add-iam-policy-binding $PROJECT_ID \
   --member="serviceAccount:multimodal-scout-scheduler@$PROJECT_ID.iam.gserviceaccount.com" \
@@ -107,7 +78,8 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
 echo "✅ Infrastructure setup complete!"
 echo ""
 echo "Next steps:"
-echo "1. Deploy services: ./deploy-services.sh $PROJECT_ID $REGION"
+echo "1. Setup database: ./setup-db-instance.sh $PROJECT_ID ${REGION}-a"
+echo "2. Deploy services: ./deploy-services.sh $PROJECT_ID $REGION"
 echo ""
-echo "💰 Estimated monthly cost: ~\$20-30 (Cloud SQL ~\$9, Cloud Run ~\$6-8, Gemini API ~\$3-8)"
+echo "💰 Estimated monthly cost: ~\$10-20 (DB VM free tier, Cloud Run ~\$6-8, Gemini API ~\$3-8)"
 echo "🎯 Perfect for <10 DAU with auto-scaling to zero"

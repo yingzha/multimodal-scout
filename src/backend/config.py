@@ -64,18 +64,16 @@ class Config:
     def database_url(self) -> str:
         """Get database URL with appropriate connection string for environment."""
         if self.is_cloud_environment:
-            # Cloud SQL connection via Unix socket
             db_user = os.getenv("DB_USER", "scout_user")
             db_password = self.get_secret("database-password")
             db_name = os.getenv("DB_NAME", "multimodal_scout")
-            instance_connection_name = os.getenv("INSTANCE_CONNECTION_NAME")
+            db_host = os.getenv("DB_HOST")
+            db_port = os.getenv("DB_PORT", "5432")
 
-            if not all([db_password, instance_connection_name]):
-                raise ValueError(
-                    "Missing required database configuration for Cloud SQL"
-                )
+            if not all([db_password, db_host]):
+                raise ValueError("Missing DB_HOST or database password")
 
-            return f"postgresql://{db_user}:{db_password}@/{db_name}?host=/cloudsql/{instance_connection_name}"
+            return f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}?sslmode=require"
         else:
             # Local development
             return os.getenv(
