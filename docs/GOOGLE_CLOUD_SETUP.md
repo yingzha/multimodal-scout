@@ -101,12 +101,15 @@ Current setup auto-scales from 0 to handle traffic spikes:
 
 ### Database Access
 
-The database runs on a Compute Engine e2-micro VM (`multimodal-scout-db`). Connect directly over SSL:
+The database runs on a Compute Engine e2-micro VM (`multimodal-scout-db`). Connect via SSH tunnel:
 
 ```bash
-DB_HOST=$(gcloud compute instances describe multimodal-scout-db --zone=us-central1-a --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
-DB_PASSWORD=$(gcloud secrets versions access latest --secret="database-password")
-PGPASSWORD="$DB_PASSWORD" psql "host=$DB_HOST port=5432 user=scout_user dbname=multimodal_scout sslmode=require"
+# 1. Open SSH tunnel (in a separate terminal)
+gcloud compute ssh multimodal-scout-db --zone=us-central1-a -- -L 15432:localhost:5432
+
+# 2. Connect with psql
+PGPASSWORD=$(gcloud secrets versions access latest --secret=database-password) \
+  psql -h 127.0.0.1 -p 15432 -U scout_user -d multimodal_scout
 ```
 
 **SSH into the VM** (for PostgreSQL admin, logs, etc.):
@@ -124,11 +127,14 @@ sudo tail -f /var/log/postgresql/postgresql-18-main.log  # logs
 gcloud/deploy-services.sh your-project-id us-central1
 ```
 
-**Database migrations:**
+**Database access** (requires SSH tunnel on port 15432):
 ```bash
-DB_HOST=$(gcloud compute instances describe multimodal-scout-db --zone=us-central1-a --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
-DB_PASSWORD=$(gcloud secrets versions access latest --secret="database-password")
-DATABASE_URL="postgresql://scout_user:$DB_PASSWORD@$DB_HOST:5432/multimodal_scout?sslmode=require" alembic upgrade head
+# 1. Open SSH tunnel (in a separate terminal)
+gcloud compute ssh multimodal-scout-db --zone=us-central1-a -- -L 15432:localhost:5432
+
+# 2. Connect with psql
+PGPASSWORD=$(gcloud secrets versions access latest --secret=database-password) \
+  psql -h 127.0.0.1 -p 15432 -U scout_user -d multimodal_scout
 ```
 
 **Restart PostgreSQL** (if needed):
