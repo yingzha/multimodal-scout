@@ -177,7 +177,13 @@ class DatabaseManager:
 
         self._is_test_environment = bool(os.getenv("PYTEST_CURRENT_TEST"))
 
-        self.engine = create_engine(database_url)
+        self.engine = create_engine(
+            database_url,
+            pool_size=5,
+            max_overflow=5,
+            pool_recycle=1800,
+            pool_pre_ping=True,
+        )
         self.SessionLocal = sessionmaker(
             autocommit=False, autoflush=False, bind=self.engine
         )

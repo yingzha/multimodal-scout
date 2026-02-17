@@ -42,7 +42,7 @@ echo ""
 DB_ZONE="${REGION}-a"
 DB_HOST=$(gcloud compute instances describe $DB_INSTANCE_NAME \
   --zone=$DB_ZONE --project=$PROJECT_ID \
-  --format='get(networkInterfaces[0].accessConfigs[0].natIP)' 2>/dev/null)
+  --format='get(networkInterfaces[0].networkIP)' 2>/dev/null)
 
 if [ -z "$DB_HOST" ]; then
   echo "❌ Could not get DB_HOST from Compute Engine instance $DB_INSTANCE_NAME"
@@ -63,6 +63,9 @@ gcloud run deploy multimodal-scout-backend \
   --set-env-vars DB_USER=scout_user \
   --set-env-vars DB_NAME=multimodal_scout \
   --set-env-vars DB_HOST=$DB_HOST \
+  --network default \
+  --subnet default \
+  --vpc-egress private-ranges-only \
   --cpu 1 \
   --memory 512Mi \
   --min-instances 0 \
