@@ -89,23 +89,14 @@ gcloud compute ssh $INSTANCE_NAME --zone=$ZONE --project=$PROJECT_ID --command="
   sudo -u postgres psql -d multimodal_scout -c \"GRANT ALL ON SCHEMA public TO scout_user;\"
 "
 
-# Display connection info
-DB_HOST=$(gcloud compute instances describe $INSTANCE_NAME \
-  --zone=$ZONE --project=$PROJECT_ID \
-  --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
-
 echo ""
 echo "================================================"
 echo "PostgreSQL instance ready!"
 echo "================================================"
 echo ""
-echo "  DB_HOST=$DB_HOST"
-echo "  DB_PORT=5432"
-echo "  DB_USER=scout_user"
-echo "  DB_NAME=multimodal_scout"
-echo ""
-echo "Test connectivity:"
-echo "  PGPASSWORD=\$(gcloud secrets versions access latest --secret=database-password) \\"
-echo "    psql -h $DB_HOST -U scout_user -d multimodal_scout -c 'SELECT 1'"
+echo "Connect via SSH tunnel:"
+echo "  1. Open tunnel:  gcloud compute ssh $INSTANCE_NAME --zone=$ZONE -- -L 15432:localhost:5432"
+echo "  2. Connect:      PGPASSWORD=\$(gcloud secrets versions access latest --secret=database-password) \\"
+echo "                      psql -h 127.0.0.1 -p 15432 -U scout_user -d multimodal_scout"
 echo ""
 echo "Next: deploy services with ./deploy-services.sh $PROJECT_ID"
