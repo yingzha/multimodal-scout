@@ -56,8 +56,8 @@ else
     --action=ALLOW \
     --rules=tcp:5432 \
     --target-tags=postgres-server \
-    --source-ranges=10.0.0.0/8 \
-    --description="Allow PostgreSQL access from internal VPC only (Cloud Run Direct VPC egress)"
+    --source-ranges=35.192.0.0/12 \
+    --description="Allow PostgreSQL access from Google Cloud us-central1 only"
 fi
 
 # Wait for PostgreSQL to be ready
