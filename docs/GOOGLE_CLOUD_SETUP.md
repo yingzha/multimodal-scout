@@ -69,7 +69,7 @@ export GOOGLE_API_KEY="your-gemini-api-key-here"
 - Service accounts with minimal permissions
 - Secrets stored in Secret Manager
 - Private cron endpoints (no public access)
-- PostgreSQL with SSL and scram-sha-256 authentication
+- PostgreSQL with SSL and scram-sha-256 password authentication
 
 ### Monitoring & Logs
 

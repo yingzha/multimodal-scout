@@ -56,8 +56,8 @@ else
     --action=ALLOW \
     --rules=tcp:5432 \
     --target-tags=postgres-server \
-    --source-ranges=35.192.0.0/12 \
-    --description="Allow PostgreSQL access from Google Cloud us-central1 only"
+    --source-ranges=0.0.0.0/0 \
+    --description="Allow PostgreSQL access (secured by SSL + password auth)"
 fi
 
 # Wait for PostgreSQL to be ready
