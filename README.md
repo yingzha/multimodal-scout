@@ -1,3 +1,5 @@
+
+
 # Multimodal Scout
 
 A smart content discovery platform that automatically finds, curates, and helps you bookmark the latest multimodal AI research papers and industry articles. Built with FastAPI, Next.js, and PostgreSQL, powered by Google Gemini AI.
@@ -38,7 +40,7 @@ A smart content discovery platform that automatically finds, curates, and helps 
    git clone https://github.com/yingzha/multimodal-scout.git
    cd multimodal-scout
    
-   # Add your Gemini API key and Firebase config to .env
+   # Add DATABASE_URL=postgresql://scout_user:scout_password@postgres:5432/multimodal_scout, your Gemini API key, and Firebase config to .env
    ```
 
 2. **Start All Services:**
