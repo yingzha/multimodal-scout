@@ -12,6 +12,7 @@ from .utils import (
 from .cache import comment_insights_cache
 
 from .constants import MIN_COMMENTS_FOR_INSIGHTS, COMMENT_INSIGHTS_ENABLED
+from .config import config
 from .database import db_manager, Source
 from .search import _get_embedding
 
@@ -42,21 +43,25 @@ async def enrich_sources_with_summaries(
         f"Found {len(sources_with_summaries)} sources with existing summaries, generating for {len(sources_needing_summaries)} remaining sources..."
     )
 
+    # A local model server handles few requests at a time, so cap what is in flight
+    llm_slots = asyncio.Semaphore(config.llm_max_concurrency)
+
     async def generate_with_retry(source: SourceSchema) -> SourceSchema:
         """Generate summary for a single source with retry logic."""
-        # Generate from source_link first
-        new_summary = await asyncio.to_thread(
-            generate_summary_from_link, source.source_link, source.title
-        )
-
-        # Retry with alternate link if first attempt fails
-        if new_summary is None and str(source.source_link) != str(source.link):
-            logger.warning(
-                f"2nd attempt to generate summary from link for: {source.link}"
-            )
+        async with llm_slots:
+            # Generate from source_link first
             new_summary = await asyncio.to_thread(
-                generate_summary_from_link, source.link, source.title
+                generate_summary_from_link, source.source_link, source.title
             )
+
+            # Retry with alternate link if first attempt fails
+            if new_summary is None and str(source.source_link) != str(source.link):
+                logger.warning(
+                    f"2nd attempt to generate summary from link for: {source.link}"
+                )
+                new_summary = await asyncio.to_thread(
+                    generate_summary_from_link, source.link, source.title
+                )
 
         if new_summary:
             source.summary = new_summary
@@ -68,7 +73,7 @@ async def enrich_sources_with_summaries(
 
         return source
 
-    # Process all summaries in parallel
+    # Process summaries in parallel, bounded by the semaphore above
     if sources_needing_summaries:
         results = await asyncio.gather(
             *[generate_with_retry(source) for source in sources_needing_summaries],
@@ -108,7 +113,7 @@ def enrich_hackernews_comments(sources: List[SourceSchema]) -> None:
     Optimized with parallel processing and batching.
     """
     if not COMMENT_INSIGHTS_ENABLED:
-        logger.info("Comment insights enrichment disabled to manage API costs")
+        logger.info("Comment insights enrichment disabled to keep pipeline runs short")
         return
 
     hn_sources = [s for s in sources if "news.ycombinator.com" in str(s.link).lower()]

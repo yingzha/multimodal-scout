@@ -20,11 +20,11 @@ from sqlalchemy import (
 from sqlalchemy.types import JSON, TypeDecorator
 import json
 from sqlalchemy.dialects.postgresql import ARRAY, TSVECTOR
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
-import secrets
 from .config import config
 from .logger import logger
 from .cache import source_processing_cache
@@ -104,7 +104,7 @@ class EmbeddingCache(Base):
     text = Column(Text, nullable=False, index=True)
     text_hash = Column(String(64), unique=True, nullable=False, index=True)
     embedding = Column(EmbeddingArrayType(), nullable=False)
-    model_name = Column(String, nullable=False, default="gemini-embedding-001")
+    model_name = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
 
 
@@ -114,25 +114,10 @@ class User(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(String, unique=True, nullable=False, index=True)
     username = Column(String, unique=True, nullable=False, index=True)
-    firebase_uid = Column(String, unique=True, nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
     last_login = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     custom_topics = Column(JSON, nullable=True, default=lambda: [])
-
-
-class UserSession(Base):
-    __tablename__ = "user_sessions"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
-    )
-    session_token = Column(String, unique=True, nullable=False, index=True)
-    expires_at = Column(DateTime, nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.now, nullable=False)
-    last_accessed = Column(DateTime, default=datetime.now, nullable=False)
-    is_active = Column(Boolean, default=True, nullable=False)
 
 
 class Bookmark(Base):
@@ -647,91 +632,26 @@ class DatabaseManager:
 
     # --- User Management Methods ---
 
-    def find_or_create_firebase_user(self, firebase_uid: str, email: str, username: str) -> str:
-        """Find existing user by firebase_uid or email, or create a new one."""
+    def get_or_create_local_user(self, email: str) -> str:
+        """Find the single local user by email, or create it."""
         with self.get_session() as session:
-            # First try to find by firebase_uid
-            user = session.query(User).filter(User.firebase_uid == firebase_uid).first()
-            if user:
-                user.last_login = datetime.now()
-                session.commit()
-                logger.info(f"Firebase user authenticated: {email}")
-                return str(user.id)
-
-            # Then try to find by email (links existing users on first Google sign-in)
             user = session.query(User).filter(User.email == email).first()
             if user:
-                user.firebase_uid = firebase_uid
-                user.last_login = datetime.now()
-                if username:
-                    user.username = username
-                session.commit()
-                logger.info(f"Linked existing user to Firebase: {email}")
                 return str(user.id)
 
-            # Create new user, handle username collisions
-            final_username = username
-            existing_username = session.query(User).filter(User.username == username).first()
-            if existing_username:
-                final_username = f"{username}_{str(uuid.uuid4())[:8]}"
-
-            new_user = User(
-                email=email,
-                username=final_username,
-                firebase_uid=firebase_uid,
-                last_login=datetime.now(),
+            # Handle username collisions
+            username = email.split("@")[0]
+            existing_username = (
+                session.query(User).filter(User.username == username).first()
             )
+            if existing_username:
+                username = f"{username}_{str(uuid.uuid4())[:8]}"
+
+            new_user = User(email=email, username=username)
             session.add(new_user)
             session.commit()
-            logger.info(f"Created new Firebase user: {email} ({final_username})")
+            logger.info(f"Created local user: {email} ({username})")
             return str(new_user.id)
-
-    def create_user_session(self, user_id: str) -> str:
-        """Create a new session for the user"""
-        with self.get_session() as session:
-            session_token = secrets.token_urlsafe(32)
-            expires_at = datetime.now() + timedelta(days=30)  # 30 day sessions
-
-            new_session = UserSession(
-                user_id=user_id, session_token=session_token, expires_at=expires_at
-            )
-            session.add(new_session)
-            session.commit()
-            return session_token
-
-    def validate_session(self, session_token: str) -> Optional[str]:
-        """Validate session token and return user_id if valid"""
-        with self.get_session() as session:
-            user_session = (
-                session.query(UserSession)
-                .filter(
-                    UserSession.session_token == session_token,
-                    UserSession.is_active == True,
-                    UserSession.expires_at > datetime.now(),
-                )
-                .first()
-            )
-
-            if user_session:
-                user_session.last_accessed = datetime.now()
-                session.commit()
-                return str(user_session.user_id)
-            return None
-
-    def logout_user(self, session_token: str) -> bool:
-        """Logout user by invalidating session"""
-        with self.get_session() as session:
-            user_session = (
-                session.query(UserSession)
-                .filter(UserSession.session_token == session_token)
-                .first()
-            )
-
-            if user_session:
-                user_session.is_active = False
-                session.commit()
-                return True
-            return False
 
     def get_user_by_id(self, user_id: str) -> Optional[User]:
         """Get user by ID"""
@@ -766,18 +686,10 @@ class DatabaseManager:
             if not user:
                 return {
                     "user_deleted": False,
-                    "sessions_deleted": 0,
                     "bookmarks_deleted": 0,
                 }
 
             user_id = user.id
-
-            # Delete user sessions
-            sessions_deleted = (
-                session.query(UserSession)
-                .filter(UserSession.user_id == user_id)
-                .delete(synchronize_session=False)
-            )
 
             # Delete bookmarks
             bookmarks_deleted = (
@@ -792,12 +704,11 @@ class DatabaseManager:
             session.commit()
 
             logger.info(
-                f"Deleted user {email} and their data. Sessions: {sessions_deleted}, Bookmarks: {bookmarks_deleted}"
+                f"Deleted user {email} and their data. Bookmarks: {bookmarks_deleted}"
             )
 
             return {
                 "user_deleted": True,
-                "sessions_deleted": sessions_deleted,
                 "bookmarks_deleted": bookmarks_deleted,
             }
 
@@ -1036,12 +947,15 @@ class DatabaseManager:
     # --- Embedding Cache Methods ---
 
     def get_embedding_from_cache(
-        self, text_hash
+        self, text_hash, model_name: str
     ) -> Optional[List[float]] | Dict[str, Optional[List[float]]]:
         """Gets embedding(s) from cache for single hash or list of hashes.
 
+        Vectors produced by a different model are treated as cache misses.
+
         Args:
             text_hash: Either a single string hash or a list of string hashes
+            model_name: The embedding model the vectors must come from
 
         Returns:
             For single hash: Optional[List[float]]
@@ -1052,7 +966,10 @@ class DatabaseManager:
             with self.get_session() as session:
                 cached = (
                     session.query(EmbeddingCache)
-                    .filter(EmbeddingCache.text_hash == text_hash)
+                    .filter(
+                        EmbeddingCache.text_hash == text_hash,
+                        EmbeddingCache.model_name == model_name,
+                    )
                     .first()
                 )
                 if cached:
@@ -1068,7 +985,10 @@ class DatabaseManager:
         with self.get_session() as session:
             cached_embeddings = (
                 session.query(EmbeddingCache)
-                .filter(EmbeddingCache.text_hash.in_(text_hash))
+                .filter(
+                    EmbeddingCache.text_hash.in_(text_hash),
+                    EmbeddingCache.model_name == model_name,
+                )
                 .all()
             )
 
@@ -1089,21 +1009,24 @@ class DatabaseManager:
     def add_embedding_to_cache(
         self, text: str, text_hash: str, embedding: List[float], model_name: str
     ) -> None:
+        """Stores an embedding, replacing a vector cached for the same text by another model."""
         with self.get_session() as session:
-            existing = (
-                session.query(EmbeddingCache)
-                .filter(EmbeddingCache.text_hash == text_hash)
-                .first()
+            stmt = pg_insert(EmbeddingCache).values(
+                text=text,
+                text_hash=text_hash,
+                embedding=embedding,
+                model_name=model_name,
+            )  # EmbeddingArrayType handles conversion
+            stmt = stmt.on_conflict_do_update(
+                index_elements=[EmbeddingCache.text_hash],
+                set_={
+                    "embedding": stmt.excluded.embedding,
+                    "model_name": stmt.excluded.model_name,
+                    "created_at": stmt.excluded.created_at,
+                },
             )
-            if not existing:
-                new_cache = EmbeddingCache(
-                    text=text,
-                    text_hash=text_hash,
-                    embedding=embedding,
-                    model_name=model_name,
-                )  # EmbeddingArrayType handles conversion
-                session.add(new_cache)
-                session.commit()
+            session.execute(stmt)
+            session.commit()
 
     def get_embedding_cache_stats(self) -> dict:
         with self.get_session() as session:
@@ -1206,21 +1129,24 @@ class DatabaseManager:
         raise ValueError("text must be either a string or a list of strings")
 
     def get_embedding_for_text(
-        self, text
+        self, text, model_name: str
     ) -> Optional[List[float]] | Dict[str, Optional[List[float]]]:
         """Gets an embedding for the given text(s), using the cache if available.
 
         Args:
             text: Either a single string or a list of strings
+            model_name: The embedding model the vectors must come from
 
         Returns:
             For single string: Optional[List[float]]
             For list of strings: Dict[str, Optional[List[float]]]
         """
         text_hash = self._get_text_hash(text)
-        return self.get_embedding_from_cache(text_hash)
+        return self.get_embedding_from_cache(text_hash, model_name)
 
-    def get_embeddings_for_texts(self, texts: List[str]) -> List[Optional[List[float]]]:
+    def get_embeddings_for_texts(
+        self, texts: List[str], model_name: str
+    ) -> List[Optional[List[float]]]:
         """
         Gets cached embeddings for a list of texts in a single database query.
 
@@ -1232,7 +1158,7 @@ class DatabaseManager:
             return []
 
         text_hashes = self._get_text_hash(texts)
-        cached = self.get_embedding_from_cache(text_hashes)
+        cached = self.get_embedding_from_cache(text_hashes, model_name)
 
         if not isinstance(cached, dict):
             return [None] * len(texts)

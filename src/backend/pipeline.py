@@ -22,7 +22,7 @@ from .schema import SourceSchema
 from .utils import get_hn_comment_insights_with_summaries
 from .database import db_manager, Source
 from .search import keyword_search, semantic_search_with_scores
-from .constants import RESEARCH_THRESHOLD, INDUSTRY_THRESHOLD
+from .config import config
 from .merger import (
     enrich_sources_with_summaries_and_embeddings,
     enrich_hackernews_comments,
@@ -98,8 +98,8 @@ async def _apply_balanced_filtering(
             else:
                 industry_candidates.append(source)
 
-        research_threshold = RESEARCH_THRESHOLD
-        industry_threshold = INDUSTRY_THRESHOLD
+        research_threshold = config.research_threshold
+        industry_threshold = config.industry_threshold
 
         # Run semantic searches in parallel for better performance
         search_tasks = []
@@ -530,7 +530,7 @@ async def process_content_pipeline(
                     initial_progress = current_progress + (summary_weight * 0.1)
                     yield {
                         "type": "progress",
-                        "message": f"Starting GenAI processing...",
+                        "message": f"Starting AI processing...",
                         "processed": int((initial_progress / total_weight) * 100),
                         "total": 100,
                     }
@@ -555,7 +555,7 @@ async def process_content_pipeline(
                     final_progress = current_progress + (summary_weight * 0.9)
                     yield {
                         "type": "progress",
-                        "message": "GenAI processing complete...",
+                        "message": "AI processing complete...",
                         "processed": int((final_progress / total_weight) * 100),
                         "total": 100,
                     }
@@ -578,7 +578,7 @@ async def process_content_pipeline(
                         )
                         yield {
                             "type": "status",
-                            "message": f"Updated with GenAI summaries...",
+                            "message": f"Updated with AI summaries...",
                         }
                 else:
                     logger.info("All new sources already have summaries")

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import hashlib
 import os
 
-from src.backend.database import DatabaseManager, Source, Base
+from src.backend.database import DatabaseManager, Source, EmbeddingCache, Base
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -46,9 +46,9 @@ class TestDatabaseManager(unittest.TestCase):
     def test_get_embedding_for_text(self, mock_get_embedding_from_cache):
         mock_get_embedding_from_cache.return_value = [0.1, 0.2, 0.3]
         text = "sample text"
-        embedding = self.mock_db_manager.get_embedding_for_text(text)
+        embedding = self.mock_db_manager.get_embedding_for_text(text, "test-model")
         self.assertEqual(embedding, [0.1, 0.2, 0.3])
-        mock_get_embedding_from_cache.assert_called_once_with(self.mock_db_manager._get_text_hash(text))
+        mock_get_embedding_from_cache.assert_called_once_with(self.mock_db_manager._get_text_hash(text), "test-model")
 
     @patch('src.backend.database.DatabaseManager.add_embedding_to_cache')
     def test_add_embedding_for_text(self, mock_add_embedding_to_cache):
@@ -126,6 +126,25 @@ class TestDatabaseManager(unittest.TestCase):
         # Test cleanup using the current method
         result = self.mock_db_manager.cleanup_summaries_and_embeddings(days_to_keep=30)
         self.assertEqual(result["summaries_cleaned"], 1)
+
+    def test_embedding_cache_is_model_aware(self):
+        text = "http://test model aware embedding text"
+        try:
+            self.mock_db_manager.add_embedding_for_text(text, [0.1, 0.2, 0.3], "model-a")
+            self.assertEqual(self.mock_db_manager.get_embedding_for_text(text, "model-a"), [0.1, 0.2, 0.3])
+
+            # A vector from another model is a cache miss
+            self.assertIsNone(self.mock_db_manager.get_embedding_for_text(text, "model-b"))
+            self.assertEqual(self.mock_db_manager.get_embeddings_for_texts([text], "model-b"), [None])
+
+            # Writing with the new model replaces the old vector
+            self.mock_db_manager.add_embedding_for_text(text, [0.4, 0.5], "model-b")
+            self.assertEqual(self.mock_db_manager.get_embedding_for_text(text, "model-b"), [0.4, 0.5])
+            self.assertIsNone(self.mock_db_manager.get_embedding_for_text(text, "model-a"))
+        finally:
+            with self.SessionLocal() as session:
+                session.query(EmbeddingCache).filter(EmbeddingCache.text == text).delete(synchronize_session=False)
+                session.commit()
 
     def test_cleanup_summaries_and_embeddings(self):
         # Add an old source with summary that should be cleaned up

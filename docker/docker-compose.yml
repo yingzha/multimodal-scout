@@ -1,14 +1,12 @@
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_DB: multimodal_scout
       POSTGRES_USER: scout_user
       POSTGRES_PASSWORD: scout_password
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+      - postgres18_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U scout_user -d multimodal_scout"]
       interval: 10s
@@ -24,26 +22,25 @@ services:
         condition: service_healthy
     env_file:
       - ../.env
-    environment:
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ../src:/app/src
       - ../tests:/app/tests
       - ../alembic:/app/alembic
       - ../alembic.ini:/app/alembic.ini
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     command: >
       sh -c "
         echo 'Database ready. Starting FastAPI server...' &&
         uvicorn src.backend.app:app --host 0.0.0.0 --port 8000 --reload
       "
 
-  cron:
+  pipeline:
     build:
       context: ..
       dockerfile: docker/Dockerfile.backend
-    user: root
     depends_on:
       postgres:
         condition: service_healthy
@@ -51,21 +48,16 @@ services:
         condition: service_started
     env_file:
       - ../.env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ../src:/app/src
-      - ../crontab:/etc/cron.d/multimodal-scout
-      - ../gcloud/cron_env.sh:/app/cron_env.sh
-      - cron_logs:/var/log
     command: >
       sh -c "
-        echo '🕐 Starting cron service...' &&
-        apt-get update -qq && apt-get install -y -qq cron &&
-        chmod 0644 /etc/cron.d/multimodal-scout &&
-        chmod +x /app/cron_env.sh &&
-        mkdir -p /var/log && touch /var/log/cron.log &&
-        crontab /etc/cron.d/multimodal-scout &&
-        echo '✅ Pipeline will run every 30 minutes' &&
-        cron && tail -f /var/log/cron.log
+        while true; do
+          python -m src.backend.run_pipeline;
+          sleep $${PIPELINE_INTERVAL_SECONDS:-1800};
+        done
       "
 
   frontend:
@@ -75,7 +67,7 @@ services:
     depends_on:
       - backend
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     env_file:
       - ../.env
     environment:
@@ -86,5 +78,4 @@ services:
       - /app/.next
 
 volumes:
-  postgres_data:
-  cron_logs:
+  postgres18_data:

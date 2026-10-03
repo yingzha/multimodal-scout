@@ -2,28 +2,26 @@
 
 A comprehensive guide to using Multimodal Scout effectively.
 
-**🌐 Live Demo**: [https://multimodal-scout.app/](https://multimodal-scout.app/)
-
 ## Getting Started
 
-Visit [https://multimodal-scout.app/](https://multimodal-scout.app/) to start exploring! The platform works in two modes:
-- **Guest Mode**: Browse and search content (limited searches/day)
-- **Signed-in User**: Unlimited searches + bookmark management
+Multimodal Scout runs on your own machine. Start it with the steps in the [README](../README.md#-quick-start), then open http://localhost:3000.
+
+There is no sign-in: the app runs as a single local user, and searches, bookmarks and custom topics are always available.
 
 ## Main Interface Overview
 
 ### 🏠 Homepage Controls
 - **🏠 Home Button**: Return to main search interface
-- **📚 Bookmarks Button**: View your saved bookmarks (*sign-in required*)
+- **📚 Bookmarks Button**: View your saved bookmarks
 - **⚙️ Settings Button**: Access advanced search options (time range, content balance, result count)
 - **🌙 Theme Toggle**: Switch between light and dark modes
-- **👤 User Button**: Sign in with Google or access user menu when signed in
 
 ### 🔍 Search & Discovery
 1. **Topic Keywords**: 
    - Default topics are provided (multimodal, image understanding, etc.)
    - Add custom keywords using the "+" button
    - Remove custom keywords with the "×" button
+   - Custom keywords are saved and restored the next time you open the app
    - 🔒 locked topics are system defaults (cannot be removed)
 
 2. **Discovery Mode Toggle**: 
@@ -37,7 +35,7 @@ Each result card shows:
 - **Source Tags**: Click to filter results by source type
 - **Matched Keywords**: See which keywords triggered this result
 - **"New!" Badge**: Indicates recently discovered content
-- **⭐ Bookmark Button**: Save to your personal library (*sign-in required*)
+- **⭐ Bookmark Button**: Save to your personal library
 - **Title & Summary**: AI-generated content overview with "Read more/less" expansion
 - **"Read the original post →"**: Visit the source article
 
@@ -47,11 +45,10 @@ Each result card shows:
 - **Active Filters**: View and remove applied filters with "×" button
 - **Pagination**: Navigate through large result sets
 
-## 📚 Bookmark Management (*Sign-in Required*)
+## 📚 Bookmark Management
 
 ### Accessing Bookmarks
 - Click the **Bookmarks** button in the top navigation
-- Requires Google Sign-In for privacy and data persistence
 
 ### Bookmark Features
 - **Time Filters**: View bookmarks from last 1, 3, 7, or 30 days, or all time
@@ -78,22 +75,10 @@ Each result card shows:
 - **Multiple URLs**: Separate multiple URLs with commas
 - **Automatic Processing**: 
   - Extracts article title and content
-  - Generates AI summary using Google Gemini
+  - Generates an AI summary with your local model
   - Categorizes as Research/Industry/General
   - Adds to your bookmark collection
 - **Progress Tracking**: Real-time progress bar for multiple URL processing
-
-## 👤 User Account Management
-
-### Sign In
-- Click **Sign In** and authenticate with your Google account
-- **Guest Users**: Limited searches per day, no bookmarking
-- **Signed-in Users**: Unlimited searches, full bookmark management, HN comment insights
-
-### Account Features
-- **Google Sign-In**: One-click authentication, no passwords to manage
-- **Session Persistence**: Stay signed in across browser sessions
-- **Secure Logout**: Invalidate session tokens for security
 
 ## 💡 Pro Tips
 
@@ -114,7 +99,7 @@ Multimodal Scout automatically discovers content from:
 
 ## 🤖 AI Features
 
-- **Smart Summarization**: Google Gemini generates concise summaries
+- **Smart Summarization**: Your local model generates concise summaries
 - **Auto-Categorization**: Content automatically tagged as Research/Industry/General
 - **Semantic Search**: Find content similar to your interests
 - **Quality Filtering**: AI filters low-quality or irrelevant content
@@ -122,10 +107,11 @@ Multimodal Scout automatically discovers content from:
 ## 🛟 Troubleshooting
 
 ### Common Issues
-- **"Login required" messages**: Sign in with Google for unlimited access and bookmarking
-- **Search limit reached**: Guest users have limited searches/day - sign in for unlimited access
-- **Slow loading**: First-time visits may take a few seconds due to server startup
-- **Export not working**: Ensure you're signed in and have bookmarks to export
+- **"No content found"**: The pipeline has not finished its first run yet, or the model server was not running when it tried. Check `docker-compose -f docker/docker-compose.yml logs pipeline`
+- **Few or no semantic matches**: The similarity thresholds depend on the embedding model. See "Search Thresholds" in the [Development Guide](development.md)
+- **Slow first search or upload**: The model may need to load into memory before it can answer
+- **"Failed to fetch items"**: The backend is not running or not reachable at http://localhost:8000
+- **Export not working**: Ensure you have bookmarks to export
 
 ### Getting Help
 - Check the [Development Guide](development.md) for technical details

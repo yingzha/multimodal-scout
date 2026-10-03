@@ -4,49 +4,13 @@ RESTful API built with FastAPI for content discovery and bookmark management. Al
 
 ## Base URL
 
-- **Local Development**: `http://localhost:8000`
-- **Production**: `https://your-backend-service.region.run.app`
+`http://localhost:8000`
 
-## Authentication
+## Access
 
-Authentication uses Firebase Google Sign-In. Protected endpoints require a bearer token in the `Authorization` header.
+There is no authentication. The API serves a single local user, who owns all bookmarks and preferences (`LOCAL_USER_EMAIL`, default `local@localhost`).
 
-`Authorization: Bearer <session_token>`
-
-### Authentication Endpoints
-
-**POST /api/auth/google**
-- **Description**: Authenticate via Firebase Google Sign-In. Creates or links user account automatically.
-- **Request Body**:
-  ```json
-  {
-    "id_token": "firebase-id-token-from-google-sign-in"
-  }
-  ```
-- **Response**:
-  ```json
-  {
-    "success": true,
-    "session_token": "session-token-here"
-  }
-  ```
-
-**POST /api/auth/logout**
-- **Description**: Invalidate the session token.
-- **Authentication**: Required.
-- **Response**: `{"success": true, "message": "Logged out successfully"}`
-
-**GET /api/auth/me**
-- **Description**: Get current user info.
-- **Authentication**: Required.
-- **Response**:
-  ```json
-  {
-    "user_id": "user-uuid-here",
-    "email": "user@example.com",
-    "username": "your_username"
-  }
-  ```
+Browsers may only call the API from the origins listed in `CORS_ORIGINS` (default `http://localhost:3000,http://127.0.0.1:3000`). The default Docker setup publishes the API on `127.0.0.1` only.
 
 ## Endpoints
 
@@ -63,13 +27,10 @@ Authentication uses Firebase Google Sign-In. Protected endpoints require a beare
 
 **GET /api/config**
 - **Description**: Get application configuration values for client-side validation
-- **Authentication**: Not required
 - **Response**:
   ```json
   {
-    "max_urls_per_request": 5,
-    "user_content_daily_limit": 10,
-    "guest_daily_limit": 3
+    "max_urls_per_request": 5
   }
   ```
 - **Purpose**: Allows frontend to dynamically adapt to backend configuration changes
@@ -78,7 +39,6 @@ Authentication uses Firebase Google Sign-In. Protected endpoints require a beare
 
 **GET /api/topics**
 - **Description**: Get the default interested topics configured in the backend
-- **Authentication**: Not required
 - **Caching**: Cached for 1 hour (client & server-side)
 - **Headers**: `Cache-Control: public, max-age=3600`
 - **Response**:
@@ -97,8 +57,6 @@ Authentication uses Firebase Google Sign-In. Protected endpoints require a beare
 
 **POST /api/content/search**
 - **Description**: Search for content from various sources based on topics and time range
-- **Authentication**: Optional (guest users: 3 searches/day, authenticated: unlimited)
-- **HN Comment Insights**: Only available for authenticated users
 - **Request Body**:
   ```json
   {
@@ -135,11 +93,10 @@ Authentication uses Firebase Google Sign-In. Protected endpoints require a beare
     "sources": ["Hugging Face", "Hacker News"]
   }
   ```
-- **Note**: `comment_insights` and `comment_count` fields are only included for Hacker News sources and when accessed by registered users. Guest users will not see these fields.
+- **Note**: `comment_insights` and `comment_count` fields are only included for Hacker News sources, and only when comment insights are enabled (see below).
 
 **POST /api/content/search/stream**
 - **Description**: Streaming version of content search with real-time progress updates via Server-Sent Events (SSE)
-- **Authentication**: Optional (same rate limits as `/api/content/search`)
 - **Request Body**: Same as `/api/content/search`
 - **Response**: Server-Sent Events stream with progress updates and final result
 - **Content-Type**: `text/event-stream`
@@ -161,8 +118,6 @@ Authentication uses Firebase Google Sign-In. Protected endpoints require a beare
 
 **POST /api/content**
 - **Description**: Create content items from user-provided URLs with automatic processing
-- **Authentication**: Required
-- **Rate Limiting**: 10 requests per day per authenticated user
 - **Request Body**:
   ```json
   {
@@ -202,20 +157,10 @@ Authentication uses Firebase Google Sign-In. Protected endpoints require a beare
       "limit": 5
     }
     ```
-  - **429**: Rate limit exceeded
-    ```json
-    {
-      "error": "rate_limit_exceeded",
-      "message": "Daily content processing limit exceeded (10 requests/day)",
-      "reset_in_hours": 12.5,
-      "current_usage": 10,
-      "daily_limit": 10
-    }
-    ```
 - **Features**:
   - Batch processing of multiple URLs
   - Automatic title extraction from webpages
-  - AI-powered content summarization using Google Gemini
+  - AI-powered content summarization with the configured model
   - Smart categorization as Research, Industry, or General
   - Automatic bookmark creation for processed content
   - Partial success handling (some URLs may fail while others succeed)
@@ -226,7 +171,6 @@ Authentication uses Firebase Google Sign-In. Protected endpoints require a beare
 
 **GET /api/bookmarks**
 - **Description**: Get all user bookmarks with optional filtering
-- **Authentication**: Required
 - **Query Parameters** (optional):
   - `limit` (default: 100): Maximum number of bookmarks to return
   - `days`: Filter bookmarks from the last N days
@@ -248,11 +192,10 @@ Authentication uses Firebase Google Sign-In. Protected endpoints require a beare
     "sources": ["Bookmarks"]
   }
   ```
-- **Note**: For HN bookmarks, the API returns two-section summaries combining original content with community insights. Authentication is required, so comment insights are always included for eligible sources.
+- **Note**: For HN bookmarks, the API returns two-section summaries combining original content with community insights.
 
 **POST /api/bookmarks**
 - **Description**: Add a new bookmark
-- **Authentication**: Required.
 - **Request Body**:
   ```json
   {
@@ -275,7 +218,6 @@ Authentication uses Firebase Google Sign-In. Protected endpoints require a beare
 
 **GET /api/bookmarks/{bookmark_id}**
 - **Description**: Get a specific bookmark by ID
-- **Authentication**: Required.
 - **Path Parameters**:
   - `bookmark_id` (required): UUID of the bookmark
 - **Response**:
@@ -297,7 +239,6 @@ Authentication uses Firebase Google Sign-In. Protected endpoints require a beare
 
 **DELETE /api/bookmarks/{bookmark_id}**
 - **Description**: Delete a specific bookmark by ID
-- **Authentication**: Required.
 - **Path Parameters**:
   - `bookmark_id` (required): UUID of the bookmark
 - **Response**:
@@ -310,7 +251,6 @@ Authentication uses Firebase Google Sign-In. Protected endpoints require a beare
 
 **PATCH /api/bookmarks/{bookmark_id}**
 - **Description**: Update a bookmark's summary by ID
-- **Authentication**: Required.
 - **Path Parameters**:
   - `bookmark_id` (required): UUID of the bookmark
 - **Request Body**:
@@ -331,14 +271,12 @@ Authentication uses Firebase Google Sign-In. Protected endpoints require a beare
 
 **GET /api/bookmarks/export**
 - **Description**: Export all bookmarks to Excel (.xlsx) file
-- **Authentication**: Required.
 - **Response**: Excel file download with columns: Title, Summary, Link, Source, Date Added
 - **Content-Type**: `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
 - **Headers**: `Content-Disposition: attachment; filename="multimodal_scout_bookmarks_{timestamp}.xlsx"`
 
 **GET /api/bookmarks/export/chrome**
 - **Description**: Export bookmarks in Chrome-compatible HTML format with optional filtering
-- **Authentication**: Required
 - **Query Parameters** (optional):
   - `selected_tags`: Comma-separated list of source tags to filter
   - `search_query`: Text search filter for title/summary
@@ -375,55 +313,15 @@ Error responses include details:
 }
 ```
 
-## Rate Limiting
-
-The API implements rate limiting to ensure fair usage and prevent abuse:
-
-### Search Endpoints
-- **Authenticated Users**: Unlimited access to all endpoints
-- **Guest Users**: 3 searches per day for `/api/content/search` and `/api/content/search/stream` (rate limited by IP address)
-
-### Content Processing Endpoints  
-- **Authenticated Users**: 10 requests per day for `/api/content` (rate limited per user)
-- **Guest Users**: No access to `/api/content` (authentication required)
-
-### Configuration
-- **Window**: 24-hour rolling window for all rate limits
-- **Limits**: Configurable via backend constants, exposed through `/api/config`
-
-### Rate Limit Response
-
-When rate limit is exceeded, the API returns:
-
-**Status Code**: 429 (Too Many Requests)
-
-**Response**:
-```json
-{
-  "error": "rate_limit_exceeded",
-  "message": "Daily search limit exceeded for guest users (3 searches/day). Please register for unlimited access.",
-  "reset_in_hours": 12.5,
-  "current_usage": 3,
-  "daily_limit": 3
-}
-```
-
-### Hybrid Access Model
-
-The API supports both authenticated and guest access:
-- **Guest Access**: Limited searches per day, no bookmark management, no HN comment insights
-- **Authenticated Access**: Unlimited searches, full bookmark management, HN comment insights, export capabilities
-
 ## Hacker News Comment Insights
 
-The API automatically generates AI-powered insights from Hacker News discussions for registered users.
+The pipeline can generate AI-powered insights from Hacker News discussions. This is off by default; set `COMMENT_INSIGHTS_ENABLED = True` in `src/backend/constants.py` to turn it on.
 
 ### Features
 - **Smart Caching**: 5-minute TTL prevents redundant processing of recently updated sources
 - **Minimum Threshold**: Only posts with 10+ comments receive insights
 - **Batch Processing**: Efficient database operations for multiple HN sources
 - **Two-Section Display**: Combined content summary and community discussion format
-- **User Restriction**: Only registered users see comment insights (incentivizes registration)
 
 ### Response Fields
 - `comment_insights` (string, optional): AI-generated bullet points of key community discussion themes
@@ -431,7 +329,7 @@ The API automatically generates AI-powered insights from Hacker News discussions
 - Enhanced `summary` field: For HN sources, includes both content and community sections
 
 ### Processing Logic
-- Comments are fetched from HN Firebase API during automated pipeline runs
+- Comments are fetched from the Hacker News API during automated pipeline runs
 - AI analysis identifies main themes, technical concerns, and expert insights
 - Results are cached with 5-minute TTL to optimize performance
 - Only meaningful updates (10+ new comments) trigger reprocessing

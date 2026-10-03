@@ -2,21 +2,15 @@
 
 import { useState, useEffect, useRef } from 'react'
 import ThemeToggle from './components/ThemeToggle'
-import AuthModal from './components/AuthModal'
-import { useAuth } from './contexts/AuthContext'
 
 export default function Home() {
-  const { user, sessionToken, isAuthenticated, isLoading: authLoading, login, logout } = useAuth()
-
   // API configuration
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
   // UI State
-  const [showAuthModal, setShowAuthModal] = useState(false)
   const [showResults, setShowResults] = useState(false)
   const [showBookmarks, setShowBookmarks] = useState(false)
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
-  const [showUserMenu, setShowUserMenu] = useState(false)
 
   // Content and Data State
   const [fetchedItems, setFetchedItems] = useState<any[]>([])
@@ -64,8 +58,7 @@ export default function Home() {
   const [deleteConfirmItem, setDeleteConfirmItem] = useState<any>(null)
   const [deleteConfirmPosition, setDeleteConfirmPosition] = useState<{top: number, left: number} | null>(null)
 
-  // Navigation and Session State
-  const [previousViewState, setPreviousViewState] = useState<{showResults: boolean, showBookmarks: boolean} | null>(null)
+  // Session State
   const [sessionId] = useState(() => {
     // Try to get existing session ID from localStorage first
     if (typeof window !== 'undefined') {
@@ -89,27 +82,6 @@ export default function Home() {
     setTimeout(() => setKeywordMessage(''), duration)
   }
 
-  // Reset to fresh homepage view
-  const resetToHomepage = () => {
-    setShowResults(false)
-    setShowBookmarks(false)
-    setShowAdvancedSettings(false)
-    setShowAuthModal(false)
-    setShowUserMenu(false)
-    setKeywordMessage('')
-    setFetchedItems([])
-    setBookmarkedCards([])
-    setPaginatedItems([])
-    setPaginatedBookmarks([])
-    setCurrentPage(1)
-    setBookmarksPage(1)
-    setExpandedSummaries(new Set())
-    setShowReadMore(new Set())
-    setBookmarkSearchQuery('')
-    setHomepageSearchQuery('')
-    setSelectedTags(new Set())
-  }
-
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1)
   const [bookmarksPage, setBookmarksPage] = useState(1)
@@ -119,7 +91,6 @@ export default function Home() {
 
   // Refs
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const userMenuRef = useRef<HTMLDivElement>(null)
 
   // Debounced search values to reduce API calls
   const [debouncedHomepageSearch, setDebouncedHomepageSearch] = useState(homepageSearchQuery)
@@ -162,24 +133,6 @@ export default function Home() {
       }
     }
   }, [bookmarkSearchQuery])
-
-  // Handle clicking outside user menu to close it
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
-        setShowUserMenu(false)
-      }
-    }
-
-    if (showUserMenu) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [showUserMenu])
-
 
   // Handle gear button clicks (single and double click)
   const handleGearClick = () => {
@@ -244,12 +197,9 @@ export default function Home() {
   }
 
   const fetchUserPreferences = async () => {
-    if (!isAuthenticated || !sessionToken) return
-    
     try {
       const response = await fetch(`${apiUrl}/api/user/preferences`, {
         headers: {
-          'Authorization': `Bearer ${sessionToken}`,
           'Cache-Control': 'no-cache'
         }
       })
@@ -267,14 +217,11 @@ export default function Home() {
   }
 
   const saveUserPreferences = async (topics: string[]) => {
-    if (!isAuthenticated || !sessionToken) return
-    
     try {
       const response = await fetch(`${apiUrl}/api/user/preferences`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionToken}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           custom_topics: topics
@@ -292,23 +239,9 @@ export default function Home() {
   useEffect(() => {
     fetchDefaultTopics()
     fetchConfig()
+    loadBookmarkStatus()
+    fetchUserPreferences()
   }, [])
-
-  useEffect(() => {
-    if (isAuthenticated && !authLoading) {
-      loadBookmarkStatus()
-      fetchUserPreferences()
-    } else if (!authLoading) {
-      // Clear custom topics for guest users
-      setCustomTopics([])
-    }
-  }, [isAuthenticated, authLoading])
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setBookmarkedItems(new Set())
-    }
-  }, [isAuthenticated])
 
   const handleAddKeyword = () => {
     const trimmedKeyword = newKeyword.trim()
@@ -328,41 +261,25 @@ export default function Home() {
     setCustomTopics(updatedTopics)
     setNewKeyword('')
     showTemporaryMessage('Keyword added successfully!', 1000)
-    
-    // Save to backend for authenticated users
-    if (isAuthenticated) {
-      saveUserPreferences(updatedTopics)
-    }
+
+    saveUserPreferences(updatedTopics)
   }
 
   const handleRemoveCustomTopic = (topicToRemove: string) => {
     const updatedTopics = customTopics.filter(topic => topic !== topicToRemove)
     setCustomTopics(updatedTopics)
-    
-    // Save to backend for authenticated users
-    if (isAuthenticated) {
-      saveUserPreferences(updatedTopics)
-    }
+
+    saveUserPreferences(updatedTopics)
   }
 
   const handleBookmark = async (item: any) => {
-    if (!isAuthenticated) {
-      showTemporaryMessage('⚠️ Login required: Please click the login icon to bookmark items', 4000)
-      return
-    }
-
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       const isCurrentlyBookmarked = bookmarkedItems.has(item.link)
-      // sessionToken is available from useAuth hook above
 
       if (isCurrentlyBookmarked) {
         // Remove bookmark
         const response = await fetch(`${apiUrl}/api/bookmarks?link=${encodeURIComponent(item.link)}`, {
           method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${sessionToken}`,
-          },
         })
 
         if (response.ok) {
@@ -378,7 +295,6 @@ export default function Home() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${sessionToken}`,
           },
           body: JSON.stringify({
             title: item.title,
@@ -398,15 +314,8 @@ export default function Home() {
   }
 
   const loadBookmarkStatus = async () => {
-    if (!isAuthenticated || !sessionToken) return
-
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-      const response = await fetch(`${apiUrl}/api/bookmarks`, {
-        headers: {
-          'Authorization': `Bearer ${sessionToken}`,
-        },
-      })
+      const response = await fetch(`${apiUrl}/api/bookmarks`)
 
       if (response.ok) {
         const data = await response.json()
@@ -490,10 +399,7 @@ export default function Home() {
   }, [paginatedItems, paginatedBookmarks, expandedSummaries])
 
   const refreshBookmarks = async (searchDays?: number | null, searchLimit?: number) => {
-    if (!isAuthenticated || !sessionToken) return
-
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       const params = new URLSearchParams()
 
       const days = searchDays !== undefined ? searchDays : bookmarkSearchDays
@@ -507,11 +413,7 @@ export default function Home() {
       const url = `${apiUrl}/api/bookmarks?${params.toString()}`
       console.log('Fetching bookmarks from:', url)
 
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${sessionToken}`,
-        },
-      })
+      const response = await fetch(url)
 
       if (response.ok) {
         const data = await response.json()
@@ -526,17 +428,6 @@ export default function Home() {
   }
 
   const handleReturnHome = () => {
-    // Close auth modal if open and restore previous view if available
-    if (showAuthModal && previousViewState) {
-      setShowResults(previousViewState.showResults)
-      setShowBookmarks(previousViewState.showBookmarks)
-      setPreviousViewState(null)
-      setShowAuthModal(false)
-      return
-    } else if (showAuthModal) {
-      setShowAuthModal(false)
-    }
-
     // Reset to default search state
     if (showBookmarks) {
       setShowBookmarks(false)
@@ -565,11 +456,6 @@ export default function Home() {
   }
 
   const handleViewBookmarks = async () => {
-    if (!isAuthenticated) {
-      showTemporaryMessage('⚠️ Login required: Please click the login icon to access bookmarks', 4000)
-      return
-    }
-
     setShowAdvancedSettings(false)
 
     if (showBookmarks) {
@@ -598,15 +484,11 @@ export default function Home() {
 
 
   const confirmDelete = async () => {
-    if (!deleteConfirmItem || !sessionToken) return
+    if (!deleteConfirmItem) return
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       const response = await fetch(`${apiUrl}/api/bookmarks?link=${encodeURIComponent(deleteConfirmItem.link)}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${sessionToken}`,
-        },
       })
 
       if (response.ok) {
@@ -638,18 +520,14 @@ export default function Home() {
   }
 
   const handleSaveSummary = async (link: string) => {
-    if (!editedSummaryText.trim() || !sessionToken) {
+    if (!editedSummaryText.trim()) {
       return
     }
 
     setIsUpdatingSummary(true)
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       const response = await fetch(`${apiUrl}/api/bookmarks/summary?link=${encodeURIComponent(link)}&summary=${encodeURIComponent(editedSummaryText)}`, {
         method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${sessionToken}`,
-        },
       })
 
       if (response.ok) {
@@ -666,12 +544,6 @@ export default function Home() {
   }
 
   const handleUploadLink = async () => {
-    if (!isAuthenticated) {
-      setUploadMessage('⚠️ Login required: Please click the login icon to upload bookmarks')
-      setTimeout(() => setUploadMessage(''), 4000)
-      return
-    }
-
     if (!uploadUrl.trim()) {
       setUploadMessage('Please enter at least one URL')
       setTimeout(() => setUploadMessage(''), 3000)
@@ -711,7 +583,6 @@ export default function Home() {
     setUploadProgress(0)
     setUploadProgressMessage(`Starting to process ${validUrls.length} URL${validUrls.length > 1 ? 's' : ''}...`)
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
     let successful = 0
     let failed = 0
 
@@ -728,7 +599,6 @@ export default function Home() {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${sessionToken}`,
             },
             body: JSON.stringify({ urls: [currentUrl] })
           })
@@ -818,14 +688,7 @@ export default function Home() {
 
 
   const handleExportBookmarks = async () => {
-    if (!isAuthenticated || !sessionToken) {
-      showTemporaryMessage('⚠️ Login required: Please click the login icon to export bookmarks', 4000)
-      return
-    }
-
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-
       // Build URL with filter parameters based on current state
       const params = new URLSearchParams()
 
@@ -846,9 +709,6 @@ export default function Home() {
       const url = `${apiUrl}/api/bookmarks/export/chrome?${params.toString()}`
       const response = await fetch(url, {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${sessionToken}`,
-        },
       })
 
       if (response.ok) {
@@ -1003,44 +863,23 @@ export default function Home() {
     setIsLoading(true)
     setShowBookmarks(false)
     setShowAdvancedSettings(false) // Close settings panel when search starts
-    setShowAuthModal(false) // Close auth modal when search starts
     setProgressMessage('Starting fetch...')
 
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000)
+    // A local model may need to load before it can embed new topics
+    const timeoutId = setTimeout(() => controller.abort(), 120000)
 
     try {
       const allTopics = [...defaultTopics, ...customTopics]
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (sessionToken) {
-        headers['Authorization'] = `Bearer ${sessionToken}`
-      }
 
       const response = await fetch(`${apiUrl}/api/content/search/stream`, {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ selectedDays, topics: allTopics, maxResults, researchRatio, sessionId, discoveryMode }),
         signal: controller.signal
       })
 
       if (!response.ok) {
-        // Check for rate limiting first
-        if (response.status === 429) {
-          try {
-            const errorData = await response.json()
-            if (errorData.error === 'rate_limit_exceeded') {
-              throw new Error(`RATE_LIMIT: ${errorData.message}`)
-            }
-            // If 429 but not our expected rate limit format, still treat as rate limit
-            throw new Error(`RATE_LIMIT: Daily search limit exceeded for guest users. Please register for unlimited access.`)
-          } catch (parseError) {
-            // If we can't parse a 429 response, assume it's rate limiting
-            throw new Error(`RATE_LIMIT: Daily search limit exceeded for guest users. Please register for unlimited access.`)
-          }
-        }
-        // For other HTTP errors, throw generic error
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
@@ -1053,14 +892,9 @@ export default function Home() {
 
     } catch (error) {
       console.error('Failed to fetch items:', error)
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
 
       if (error instanceof DOMException && error.name === 'AbortError') {
         setProgressMessage('Search timed out. Please try again.')
-      } else if (errorMessage.startsWith('RATE_LIMIT:')) {
-        const rateLimitMessage = errorMessage.replace('RATE_LIMIT: ', '')
-        showTemporaryMessage(`⚠️ ${rateLimitMessage}`, 8000)
-        setProgressMessage('Rate limit exceeded')
       } else {
         alert('Failed to fetch items. Please check if the backend server is running.')
         setProgressMessage('Failed to fetch items')
@@ -1362,71 +1196,6 @@ export default function Home() {
                 </svg>
               </button>
               <ThemeToggle />
-
-              {isAuthenticated ? (
-                <div className="relative" ref={userMenuRef}>
-                  <button
-                    onClick={() => setShowUserMenu(!showUserMenu)}
-                    className="bg-gray-100 p-3 text-gray-700 hover:text-gray-900 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors flex items-center justify-center"
-                    data-tooltip="User Menu"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  </button>
-
-                  {showUserMenu && (
-                    <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-3 px-4 z-50">
-                      <div className="flex items-center gap-3 mb-3 pb-3 border-b border-gray-100">
-                        <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                          <span className="text-gray-600 font-medium text-sm">
-                            {user?.username?.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900">Hello, {user?.username}!</p>
-                          <p className="text-xs text-gray-500">{user?.email}</p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => {
-                          logout()
-                          resetToHomepage()
-                        }}
-                        className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-md transition-colors"
-                      >
-                        Logout
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <button
-                  onClick={() => {
-                    if (showAuthModal) {
-                      // If modal is open, close it and restore previous view
-                      if (previousViewState) {
-                        setShowResults(previousViewState.showResults)
-                        setShowBookmarks(previousViewState.showBookmarks)
-                        setPreviousViewState(null)
-                      }
-                      setShowAuthModal(false)
-                    } else {
-                      // If modal is closed, open it
-                      setPreviousViewState({ showResults, showBookmarks })
-                      setShowResults(false)
-                      setShowBookmarks(false)
-                      setShowAuthModal(true)
-                    }
-                  }}
-                  className="bg-gray-100 p-3 text-gray-700 hover:text-gray-900 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors flex items-center justify-center"
-                  data-tooltip="Login"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                </button>
-              )}
             </div>
 
             {!showBookmarks && (
@@ -2109,42 +1878,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Login Page View */}
-        {showAuthModal && !showResults && !showBookmarks && (
-          <div className="mt-12">
-            <AuthModal
-              isOpen={showAuthModal}
-              onClose={() => {
-                if (previousViewState) {
-                  setShowResults(previousViewState.showResults)
-                  setShowBookmarks(previousViewState.showBookmarks)
-                  setPreviousViewState(null)
-                }
-                setShowAuthModal(false)
-              }}
-              onSuccess={(sessionToken, userInfo) => {
-                login(sessionToken, userInfo)
-                loadBookmarkStatus()
-                setShowAuthModal(false)
-                setPreviousViewState(null)
-              }}
-              asPage={true}
-            />
-          </div>
-        )}
-
-        {/* Authentication Modal (for other cases) */}
-        {showAuthModal && (showResults || showBookmarks) && (
-          <AuthModal
-            isOpen={showAuthModal}
-            onClose={() => setShowAuthModal(false)}
-            onSuccess={(sessionToken, userInfo) => {
-              login(sessionToken, userInfo)
-              loadBookmarkStatus()
-              setShowAuthModal(false)
-            }}
-          />
-        )}
       </div>
     </main>
   )

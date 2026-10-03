@@ -7,7 +7,8 @@ from typing import List
 from .logger import logger
 from .schema import SourceSchema
 from .database import db_manager
-from .client import genai_client, is_genai_enabled
+from .client import embed_text, is_llm_enabled
+from .config import config
 
 
 # In-memory cache for keyword embeddings (avoids repeated DB/API lookups within process lifetime)
@@ -23,18 +24,20 @@ def _normalize_text(text: str) -> str:
 
 
 async def _get_embedding(text: str) -> np.ndarray:
-    """Get embedding for text using Google Gemini with database caching."""
-    if not is_genai_enabled():
+    """Get embedding for text from the configured embedding model with database caching."""
+    if not is_llm_enabled():
         return np.array([])
 
     if not text or text.strip() == "":
         logger.warning("Cannot generate embedding for empty or None text")
         return np.array([])
 
+    model_name = config.llm_embedding_model
+
     # Check cache first using the new abstracted method
     try:
         cached_embedding = await asyncio.to_thread(
-            db_manager.get_embedding_for_text, text
+            db_manager.get_embedding_for_text, text, model_name
         )
         if cached_embedding is not None:
             logger.info(f"Using cached embedding for text: {text[:50]}...")
@@ -44,30 +47,22 @@ async def _get_embedding(text: str) -> np.ndarray:
 
     # Generate new embedding
     try:
-        result = genai_client.models.embed_content(
-            model="gemini-embedding-001", contents=text
-        )
+        embedding_values = await asyncio.to_thread(embed_text, text)
 
-        if hasattr(result, "embeddings") and len(result.embeddings) > 0:
-            embedding = result.embeddings[0]
-            if hasattr(embedding, "values"):
-                embedding_values = list(embedding.values)
+        if not embedding_values:
+            logger.error(f"No embedding returned for text: {text[:50]}...")
+            return np.array([])
 
-                # Cache the new embedding using the new abstracted method
-                try:
-                    db_manager.add_embedding_for_text(
-                        text, embedding_values, "gemini-embedding-001"
-                    )
-                    logger.info(
-                        f"Generated and cached new embedding for text: {text[:50]}..."
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to cache embedding: {e}")
+        # Cache the new embedding using the new abstracted method
+        try:
+            await asyncio.to_thread(
+                db_manager.add_embedding_for_text, text, embedding_values, model_name
+            )
+            logger.info(f"Generated and cached new embedding for text: {text[:50]}...")
+        except Exception as e:
+            logger.warning(f"Failed to cache embedding: {e}")
 
-                return np.array(embedding_values)
-
-        logger.error(f"No embeddings found in result: {result}")
-        return np.array([])
+        return np.array(embedding_values)
 
     except Exception as e:
         logger.error(f"Failed to get embedding for text '{text[:50]}...': {e}")
@@ -154,7 +149,7 @@ async def semantic_search_with_scores(
     sources: List[SourceSchema], keywords: List[str], threshold: float = None
 ) -> List[tuple[SourceSchema, float, List[str]]]:
     """
-    Performs a semantic search on sources with summaries using Google Gemini embeddings.
+    Performs a semantic search on sources with summaries using embeddings.
     Returns sources with their similarity scores and matched keywords.
 
     Args:
@@ -167,7 +162,7 @@ async def semantic_search_with_scores(
     """
     start_time = time.time()
 
-    if not is_genai_enabled() or not sources:
+    if not is_llm_enabled() or not sources:
         logger.warning("Semantic search is disabled or no sources provided")
         return []
 
@@ -210,7 +205,7 @@ async def semantic_search_with_scores(
             return []
 
         logger.info(
-            f"Running Gemini semantic search on {len(sources)} sources with {len(keyword_embeddings)} keyword embeddings"
+            f"Running semantic search on {len(sources)} sources with {len(keyword_embeddings)} keyword embeddings"
         )
 
         # Process sources with summaries
@@ -221,7 +216,7 @@ async def semantic_search_with_scores(
         # Fetch cached embeddings in a single DB call to avoid sequential queries
         summaries = [source.summary for source in valid_sources]
         cached_embeddings = await asyncio.to_thread(
-            db_manager.get_embeddings_for_texts, summaries
+            db_manager.get_embeddings_for_texts, summaries, config.llm_embedding_model
         )
 
         # Initialize embeddings list while tracking cache misses
@@ -268,11 +263,11 @@ async def semantic_search_with_scores(
                         [f"'{kw}' ({score:.3f})" for kw, score in matching_keywords]
                     )
                     logger.info(
-                        f"Gemini semantic match found for: '{source.title}' with keywords: {matching_keywords_str}"
+                        f"Semantic match found for: '{source.title}' with keywords: {matching_keywords_str}"
                     )
 
     except Exception as e:
-        logger.error(f"Error in Gemini semantic search: {e}")
+        logger.error(f"Error in semantic search: {e}")
         return []
 
     # Sort by similarity score in descending order

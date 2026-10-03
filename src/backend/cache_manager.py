@@ -6,10 +6,16 @@ This script provides management functionality for the summary cache database.
 """
 
 import argparse
+import asyncio
 import sys
 from datetime import datetime, timedelta
 
-from .database import db_manager
+import numpy as np
+
+from .config import config
+from .constants import INTERESTED_KEYWORDS
+from .database import db_manager, Source
+from .search import _get_embedding, semantic_search_with_scores
 
 
 def print_cache_stats(cache_type: str = "all", email: str | None = None):
@@ -178,7 +184,6 @@ def cleanup_cache(cache_type: str, days: int = 30, email: str | None = None):
             result = db_manager.cleanup_user(email=email)
             if result["user_deleted"]:
                 print(f"Successfully deleted user with email: {email}")
-                print(f"  - Deleted {result['sessions_deleted']} sessions.")
                 print(f"  - Deleted {result['bookmarks_deleted']} bookmarks.")
             else:
                 print(f"User with email {email} not found.")
@@ -186,7 +191,7 @@ def cleanup_cache(cache_type: str, days: int = 30, email: str | None = None):
         elif cache_type == "all":
             summary_result = db_manager.cleanup_summaries_and_embeddings(days)
             remaining_embedding_count = db_manager.cleanup_embeddings(days)
-            bookmark_count = db_manager.cleanup_bookmarks(min(days, 90))
+            bookmark_count = db_manager.cleanup_bookmarks(max(days, 90))
             total_embeddings = (
                 summary_result["embeddings_cleaned"] + remaining_embedding_count
             )
@@ -198,11 +203,89 @@ def cleanup_cache(cache_type: str, days: int = 30, email: str | None = None):
         print(f"Error cleaning up {cache_type} cache: {e}")
 
 
+def reembed_summaries(days: int = 7):
+    """Embed recent summaries with the current embedding model."""
+    start_date = datetime.now() - timedelta(days=days)
+    entries = db_manager.get_summaries_by_date(start_date)
+    print(
+        f"=== Embedding {len(entries)} summaries (last {days} days) with {config.llm_embedding_model} ==="
+    )
+
+    async def embed_all() -> int:
+        embedded = 0
+        for entry in entries:
+            embedding = await _get_embedding(entry["summary"])
+            if len(embedding) > 0:
+                embedded += 1
+        return embedded
+
+    embedded = asyncio.run(embed_all())
+    print(f"Embedded {embedded} of {len(entries)} summaries")
+    if embedded < len(entries):
+        sys.exit(1)
+
+
+def calibrate_thresholds(days: int = 7):
+    """Print how similar recent sources are to the default topics, to choose thresholds."""
+    from .pipeline import _convert_db_to_schemas
+
+    cutoff_date = datetime.now() - timedelta(days=days)
+    with db_manager.get_session() as session:
+        db_sources = (
+            session.query(Source).filter(Source.created_at >= cutoff_date).all()
+        )
+        sources, _ = _convert_db_to_schemas(db_sources)
+
+    groups = {"research": [], "industry": []}
+    for source in sources:
+        is_research = bool(source.tags) and (source.tags[0] or "").lower() == "research"
+        groups["research" if is_research else "industry"].append(source)
+
+    thresholds = {
+        "research": config.research_threshold,
+        "industry": config.industry_threshold,
+    }
+    print(
+        f"=== Similarity to {INTERESTED_KEYWORDS} with {config.llm_embedding_model} (last {days} days) ==="
+    )
+    for name, group in groups.items():
+        matches = asyncio.run(
+            semantic_search_with_scores(group, INTERESTED_KEYWORDS, threshold=None)
+        )
+        scores = [score for _, score, _ in matches]
+        print(
+            f"\n--- {name}: {len(scores)} sources scored, current threshold {thresholds[name]} ---"
+        )
+        if not scores:
+            continue
+
+        print(
+            "Percentiles: "
+            + ", ".join(
+                f"p{p}={np.percentile(scores, p):.3f}" for p in (50, 75, 90, 95, 99)
+            )
+        )
+        for cutoff in np.arange(0.30, 0.75, 0.05):
+            above = sum(score > cutoff for score in scores)
+            print(f"  above {cutoff:.2f}: {above} sources")
+        # Titles ranked around the cutoff show where results stop being on topic
+        threshold = thresholds[name]
+        threshold_shown = False
+        print("Ranked titles:")
+        for source, score, _ in matches:
+            if score < threshold - 0.05:
+                break
+            if not threshold_shown and score <= threshold:
+                print(f"  ----- current threshold {threshold} -----")
+                threshold_shown = True
+            print(f"  {score:.3f}  {' '.join(source.title.split())[:80]}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Cache Management Utility")
     parser.add_argument(
         "command",
-        choices=["stats", "recent", "search", "cleanup", "init"],
+        choices=["stats", "recent", "search", "cleanup", "init", "reembed", "calibrate"],
         help="Command to execute",
     )
 
@@ -217,7 +300,7 @@ def main():
         "--days",
         type=int,
         default=7,
-        help="Number of days (for recent/cleanup commands)",
+        help="Number of days (for recent/cleanup/reembed/calibrate commands)",
     )
     parser.add_argument("--query", type=str, help="Search query (for search command)")
     parser.add_argument(
@@ -264,6 +347,12 @@ def main():
 
     elif args.command == "cleanup":
         cleanup_cache(args.cache_type, args.days, email=args.email)
+
+    elif args.command == "reembed":
+        reembed_summaries(args.days)
+
+    elif args.command == "calibrate":
+        calibrate_thresholds(args.days)
 
 
 if __name__ == "__main__":

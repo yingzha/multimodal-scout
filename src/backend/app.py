@@ -6,8 +6,6 @@ Provides REST API endpoints for fetching topics and scraping content.
 # Standard library imports
 import asyncio
 import json
-import os
-import time
 import uvicorn
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -16,7 +14,7 @@ from io import BytesIO, StringIO
 from typing import Optional
 
 # Third-party imports
-from fastapi import FastAPI, HTTPException, Header, Depends, Request
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import StreamingResponse, Response
@@ -35,7 +33,7 @@ from pydantic import ValidationError
 from .config import config
 from .logger import logger
 from .database import db_manager
-from .pipeline import process_content_pipeline, search_db_sources
+from .pipeline import search_db_sources
 from .utils import (
     get_hn_comment_insights_with_summaries,
     generate_summary_from_link,
@@ -54,9 +52,6 @@ from .schema import (
     BookmarkResponse,
     UploadLinkRequest,
     UploadLinkResponse,
-    GoogleAuthRequest,
-    AuthResponse,
-    UserResponse,
     ConfigResponse,
     UserPreferencesResponse,
     UpdateUserPreferencesRequest,
@@ -72,20 +67,11 @@ async def lifespan(app: FastAPI):
         logger.info("🚀 Initializing database tables...")
         db_manager.create_tables()
 
-        # Check if we need to run migrations automatically
-        logger.info("🔄 Checking database schema and running migrations if needed...")
+        with db_manager.engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+            logger.info("✅ Database connection verified")
 
-        # Test database connection first
-        try:
-            with db_manager.engine.connect() as conn:
-                conn.execute(text("SELECT 1"))
-                logger.info("✅ Database connection verified")
-        except Exception as conn_error:
-            logger.warning(
-                f"⚠️ Database connection failed: {conn_error} - migration skipped"
-            )
-            logger.warning("💡 Manual migration may be needed via SSH tunnel")
-            return
+        get_current_user()
 
     except Exception as e:
         logger.error(f"❌ Failed to initialize database: {e}", exc_info=True)
@@ -142,80 +128,25 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 # Add CORS middleware to allow frontend connections
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development
-    allow_credentials=True,
+    allow_origins=config.cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
 
-# Rate limiting storage (in production, use Redis or database)
-guest_rate_limits = {}
-user_content_rate_limits = {}  # Rate limiting for /api/content endpoint
-GUEST_DAILY_LIMIT = 3  # 3 searches per day for guest users
-USER_CONTENT_DAILY_LIMIT = 10  # 10 content requests per day for authenticated users
-RATE_LIMIT_WINDOW = 24 * 60 * 60  # 24 hours in seconds
 MAX_URLS_PER_REQUEST = 5  # Maximum URLs per /api/content request
 
-
-def check_rate_limit(identifier: str, limit: int, storage: dict) -> bool:
-    """Generic rate limiting function."""
-    current_time = time.time()
-
-    if identifier not in storage:
-        storage[identifier] = {"count": 0, "window_start": current_time}
-
-    rate_data = storage[identifier]
-
-    # Reset window if 24 hours have passed
-    if current_time - rate_data["window_start"] > RATE_LIMIT_WINDOW:
-        rate_data["count"] = 0
-        rate_data["window_start"] = current_time
-
-    # Check if limit exceeded
-    if rate_data["count"] >= limit:
-        return False
-
-    # Increment count
-    rate_data["count"] += 1
-    return True
+# The app runs as a single local user, resolved once and reused
+_local_user_id: Optional[str] = None
 
 
-def check_guest_rate_limit(client_ip: str) -> bool:
-    """Check if guest user has exceeded rate limit."""
-    return check_rate_limit(client_ip, GUEST_DAILY_LIMIT, guest_rate_limits)
-
-
-def check_user_content_rate_limit(user_id: str) -> bool:
-    """Check if authenticated user has exceeded content processing rate limit."""
-    return check_rate_limit(user_id, USER_CONTENT_DAILY_LIMIT, user_content_rate_limits)
-
-
-async def get_current_user_optional(
-    authorization: Optional[str] = Header(None),
-) -> Optional[str]:
-    """Get current user if authenticated, return None if not."""
-    if not authorization or not authorization.startswith("Bearer "):
-        return None
-
-    token = authorization.split(" ")[1]
-    user_id = db_manager.validate_session(token)
-    return user_id
-
-
-# Authentication dependency
-async def get_current_user(authorization: Optional[str] = Header(None)) -> str:
-    """Extract and validate user from session token"""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Authentication required")
-
-    token = authorization.split(" ")[1]
-    user_id = db_manager.validate_session(token)
-
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Invalid or expired session")
-
-    return user_id
+def get_current_user() -> str:
+    """Return the id of the local user that owns bookmarks and preferences."""
+    global _local_user_id
+    if _local_user_id is None:
+        _local_user_id = db_manager.get_or_create_local_user(config.local_user_email)
+    return _local_user_id
 
 
 @app.get("/")
@@ -240,11 +171,7 @@ async def health_check():
 @app.get("/api/config", response_model=ConfigResponse)
 async def get_config():
     """Get application configuration values"""
-    return ConfigResponse(
-        max_urls_per_request=MAX_URLS_PER_REQUEST,
-        user_content_daily_limit=USER_CONTENT_DAILY_LIMIT,
-        guest_daily_limit=GUEST_DAILY_LIMIT,
-    )
+    return ConfigResponse(max_urls_per_request=MAX_URLS_PER_REQUEST)
 
 
 @app.get("/api/topics", response_model=TopicResponse)
@@ -275,47 +202,17 @@ async def get_default_topics():
 
 @app.post("/api/content/search", response_model=FetchResponse)
 async def search_content(
-    request: FetchRequest,
-    request_obj: Request,
-    authorization: Optional[str] = Header(None),
+    request: FetchRequest, current_user: str = Depends(get_current_user)
 ):
     """
     Search for content from various sources based on topics and time range.
-    Hybrid access:
-    - Authenticated users: Unlimited searches
-    - Guest users: 3 searches per day (rate limited by IP)
     """
     try:
-        # Check if user is authenticated
-        current_user = await get_current_user_optional(authorization)
-        client_ip = request_obj.client.host
-
-        if current_user:
-            # Authenticated user - unlimited access
-            user_type = f"authenticated user {current_user}"
-        else:
-            # Guest user - check rate limit
-            if not check_guest_rate_limit(client_ip):
-                remaining_hours = RATE_LIMIT_WINDOW - (
-                    time.time() - guest_rate_limits[client_ip]["window_start"]
-                )
-                raise HTTPException(
-                    status_code=429,
-                    detail={
-                        "error": "rate_limit_exceeded",
-                        "message": f"Daily search limit exceeded for guest users ({GUEST_DAILY_LIMIT} searches/day). Please register for unlimited access.",
-                        "reset_in_hours": round(remaining_hours / 3600, 1),
-                        "current_usage": guest_rate_limits[client_ip]["count"],
-                        "daily_limit": GUEST_DAILY_LIMIT,
-                    },
-                )
-            user_type = f"guest user (IP: {client_ip})"
-
         mode_msg = (
             "discovery mode" if request.discoveryMode else f"topics: {request.topics}"
         )
         logger.info(
-            f"{user_type}: Fetching items for {request.selectedDays} days with {mode_msg}"
+            f"Fetching items for {request.selectedDays} days with {mode_msg}"
         )
 
         search_generator = search_db_sources(
@@ -386,62 +283,22 @@ async def search_content(
 
 @app.post("/api/content/search/stream")
 async def search_content_stream(
-    request: FetchRequest,
-    request_obj: Request,
-    authorization: Optional[str] = Header(None),
+    request: FetchRequest, current_user: str = Depends(get_current_user)
 ):
     """
     Search for content with streaming progress updates using the core pipeline.
     Uses Server-Sent Events (SSE) to provide real-time progress.
-    Hybrid access:
-    - Authenticated users: Unlimited searches
-    - Guest users: 3 searches per day (rate limited by IP)
     """
-
-    # Check authentication and rate limiting before starting stream
-    current_user = await get_current_user_optional(authorization)
-    client_ip = request_obj.client.host
-
-    if current_user:
-        user_type = f"authenticated user {current_user}"
-    else:
-        # Guest user - check rate limit (but don't increment here, increment in stream)
-        if client_ip in guest_rate_limits:
-            rate_data = guest_rate_limits[client_ip]
-            current_time = time.time()
-
-            # Reset window if needed
-            if current_time - rate_data["window_start"] > RATE_LIMIT_WINDOW:
-                rate_data["count"] = 0
-                rate_data["window_start"] = current_time
-
-            if rate_data["count"] >= GUEST_DAILY_LIMIT:
-                remaining_hours = RATE_LIMIT_WINDOW - (
-                    current_time - rate_data["window_start"]
-                )
-                raise HTTPException(
-                    status_code=429,
-                    detail={
-                        "error": "rate_limit_exceeded",
-                        "message": f"Daily search limit exceeded for guest users ({GUEST_DAILY_LIMIT} searches/day). Please register for unlimited access.",
-                        "reset_in_hours": round(remaining_hours / 3600, 1),
-                    },
-                )
-        user_type = f"guest user (IP: {client_ip})"
 
     async def generate_stream():
         try:
-            # Increment rate limit for guest users (after auth check passes)
-            if not current_user:
-                check_guest_rate_limit(client_ip)
-
             mode_msg = (
                 "discovery mode"
                 if request.discoveryMode
                 else f"topics: {request.topics}"
             )
             logger.info(
-                f"{user_type}: Starting streaming fetch for {request.selectedDays} days with {mode_msg}"
+                f"Starting streaming fetch for {request.selectedDays} days with {mode_msg}"
             )
 
             search_generator = search_db_sources(
@@ -475,88 +332,8 @@ async def search_content_stream(
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "Access-Control-Allow-Origin": "*",
         },
     )
-
-
-@app.post("/api/auth/google", response_model=AuthResponse)
-async def google_auth(request: GoogleAuthRequest):
-    """Authenticate via Firebase Google Sign-In"""
-    try:
-        import google.auth.transport.requests
-        import google.oauth2.id_token
-
-        http_request = google.auth.transport.requests.Request()
-        firebase_project_id = os.getenv("FIREBASE_PROJECT_ID", os.getenv("GOOGLE_CLOUD_PROJECT"))
-        decoded_token = google.oauth2.id_token.verify_firebase_token(
-            request.id_token, http_request, audience=firebase_project_id
-        )
-        firebase_uid = decoded_token["sub"]
-        email = decoded_token.get("email")
-        display_name = decoded_token.get("name") or email.split("@")[0]
-
-        if not email:
-            raise HTTPException(
-                status_code=400, detail="Email not available from Google account"
-            )
-
-        user_id = db_manager.find_or_create_firebase_user(
-            firebase_uid=firebase_uid,
-            email=email,
-            username=display_name,
-        )
-        session_token = db_manager.create_user_session(user_id)
-
-        return AuthResponse(
-            success=True,
-            message="Authentication successful",
-            session_token=session_token,
-            user_id=user_id,
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Google auth error: {e}", exc_info=True)
-        raise HTTPException(status_code=401, detail="Authentication failed")
-
-
-@app.post("/api/auth/logout")
-async def logout_user(
-    current_user: str = Depends(get_current_user), authorization: str = Header(None)
-):
-    """Logout user"""
-    try:
-        token = authorization.split(" ")[1] if authorization else None
-        if token:
-            db_manager.logout_user(token)
-        return {"success": True, "message": "Logged out successfully"}
-    except Exception as e:
-        logger.error(f"Failed to logout: {e}")
-        return {"success": False, "message": "Logout failed"}
-
-
-@app.get("/api/auth/me", response_model=UserResponse)
-async def get_current_user_info(current_user: str = Depends(get_current_user)):
-    """Get current user information"""
-    try:
-        user = db_manager.get_user_by_id(current_user)
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-
-        return UserResponse(
-            user_id=str(user.id),
-            email=user.email,
-            username=user.username,
-            created_at=user.created_at.isoformat(),
-            last_login=user.last_login.isoformat() if user.last_login else None,
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        create_user_friendly_error(
-            "database_error", "Unable to get user information.", str(e), 500
-        )
 
 
 @app.get("/api/user/preferences", response_model=UserPreferencesResponse)
@@ -592,7 +369,7 @@ async def update_user_preferences(
 
 
 @app.get("/api/keywords/suggestions", response_model=KeywordSuggestionsResponse)
-async def get_keyword_suggestions(current_user: str = Depends(get_current_user)):
+def get_keyword_suggestions(current_user: str = Depends(get_current_user)):
     """Generate keyword suggestions based on user's bookmarked content"""
     try:
         # Get user's existing custom topics/keywords
@@ -877,12 +654,12 @@ async def update_bookmark(
 
 
 @app.post("/api/content", response_model=UploadLinkResponse)
-async def create_content(
+def create_content(
     request: UploadLinkRequest, current_user: str = Depends(get_current_user)
 ):
-    """Create content items from user-provided links with security restrictions"""
+    """Create content items from user-provided links"""
     try:
-        # Security check 1: URL count validation (max 5 URLs per request)
+        # URL count validation (max 5 URLs per request)
         if len(request.urls) > MAX_URLS_PER_REQUEST:
             raise HTTPException(
                 status_code=400,
@@ -891,22 +668,6 @@ async def create_content(
                     "message": f"Maximum {MAX_URLS_PER_REQUEST} URLs allowed per request",
                     "provided": len(request.urls),
                     "limit": MAX_URLS_PER_REQUEST,
-                },
-            )
-
-        # Security check 2: Rate limiting (10 requests per 24h for authenticated users)
-        if not check_user_content_rate_limit(current_user):
-            remaining_hours = RATE_LIMIT_WINDOW - (
-                time.time() - user_content_rate_limits[current_user]["window_start"]
-            )
-            raise HTTPException(
-                status_code=429,
-                detail={
-                    "error": "rate_limit_exceeded",
-                    "message": f"Daily content processing limit exceeded ({USER_CONTENT_DAILY_LIMIT} requests/day)",
-                    "reset_in_hours": round(remaining_hours / 3600, 1),
-                    "current_usage": user_content_rate_limits[current_user]["count"],
-                    "daily_limit": USER_CONTENT_DAILY_LIMIT,
                 },
             )
 
@@ -1093,86 +854,6 @@ async def export_bookmarks(current_user: str = Depends(get_current_user)):
         logger.error(f"Failed to export bookmarks: {e}", exc_info=True)
         raise HTTPException(
             status_code=500, detail=f"Failed to export bookmarks: {str(e)}"
-        )
-
-
-@app.post("/pipeline")
-async def pipeline_cron_job(authorization: Optional[str] = Header(None)):
-    """
-    Pipeline endpoint for scheduled jobs.
-    Cloud: Requires pipeline-secret from Secret Manager
-    Local: No authentication required for development
-    """
-
-    # In cloud environment, require pipeline secret
-    if config.is_cloud_environment:
-        pipeline_secret = config.get_secret("pipeline-secret")
-        if not pipeline_secret:
-            logger.error("Pipeline endpoint disabled - pipeline-secret not configured")
-            raise HTTPException(
-                status_code=503, detail="Pipeline endpoint not configured"
-            )
-
-        # Verify authorization header
-        if not authorization or not authorization.startswith("Bearer "):
-            logger.warning("Pipeline endpoint accessed without valid authorization")
-            raise HTTPException(status_code=401, detail="Authorization required")
-
-        # Extract and validate token
-        token = authorization.split(" ", 1)[1] if " " in authorization else ""
-        if token != pipeline_secret:
-            logger.warning("Pipeline endpoint accessed with invalid secret")
-            raise HTTPException(status_code=403, detail="Access denied")
-
-        logger.info("🔓 Pipeline authenticated via Secret Manager")
-    else:
-        # Local development - no authentication required
-        logger.info("🔓 Pipeline accessed in local development mode")
-    try:
-        logger.info("🚀 Starting pipeline via HTTP endpoint...")
-
-        # Run pipeline with Cloud Scheduler (every 30 minutes)
-        pipeline_generator = process_content_pipeline(
-            topics=[],  # No topic filtering for cron jobs
-            max_results=50,  # Match the config file setting
-            research_ratio=0.5,
-            selected_days=1,
-        )
-
-        # Process pipeline events (simplified for HTTP context)
-        final_result = None
-        async for event in pipeline_generator:
-            if event.get("type") == "result":
-                final_result = event.get("data", {})
-                break
-
-        if final_result:
-            total_items = final_result.get("total_count", 0)
-            sources = final_result.get("sources", [])
-            logger.info(
-                f"✅ Pipeline completed: {total_items} items from {len(sources)} sources"
-            )
-
-            return {
-                "status": "success",
-                "message": "Pipeline completed successfully",
-                "total_items": total_items,
-                "sources": sources,
-            }
-        else:
-            logger.warning("⚠️ Pipeline completed without results")
-            return {
-                "status": "success",
-                "message": "Pipeline completed with no new results",
-                "total_items": 0,
-                "sources": [],
-            }
-
-    except Exception as e:
-        logger.error(f"❌ Pipeline failed: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail={"status": "error", "message": f"Pipeline failed: {str(e)}"},
         )
 
 
@@ -1377,4 +1058,4 @@ async def export_chrome_bookmarks(
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")

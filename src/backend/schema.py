@@ -91,37 +91,10 @@ class UploadLinkResponse(BaseModel):
     failed_urls: List[str] = []  # URLs that failed to process
 
 
-class GoogleAuthRequest(BaseModel):
-    """Request model for Google Sign-In via Firebase"""
-
-    id_token: str
-
-
-class AuthResponse(BaseModel):
-    """Response model for authentication operations"""
-
-    success: bool
-    message: str
-    session_token: str = None
-    user_id: str = None
-
-
-class UserResponse(BaseModel):
-    """Response model for user information"""
-
-    user_id: str
-    email: str
-    username: str
-    created_at: str
-    last_login: str = None
-
-
 class ConfigResponse(BaseModel):
     """Response model for application configuration"""
 
     max_urls_per_request: int
-    user_content_daily_limit: int
-    guest_daily_limit: int
 
 
 class UserPreferencesResponse(BaseModel):

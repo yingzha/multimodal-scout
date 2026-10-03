@@ -1,17 +1,17 @@
 # Multimodal Scout
 
-A smart content discovery platform that automatically finds, curates, and helps you bookmark the latest multimodal AI research papers and industry articles. Built with FastAPI, Next.js, and PostgreSQL, powered by Google Gemini AI.
+A smart content discovery platform that automatically finds, curates, and helps you bookmark the latest multimodal AI research papers and industry articles. Built with FastAPI, Next.js, and PostgreSQL. It runs entirely on your own machine, with summaries and search powered by an open source model served by [Ollama](https://ollama.com) or any OpenAI-compatible server.
 
-**🌐 Live Demo**: [https://multimodal-scout.app/](https://multimodal-scout.app/)
+> **Note:** The hosted demo has been shut down, and its former domain is no longer affiliated with this project. Multimodal Scout is now self-hosted only; follow the Quick Start below to run it locally.
 
 ![Multimodal Scout Interface](./assets/screenshot.png)
 
 ## ✨ Features
 
 - 🤖 **AI-Powered Curation**: Auto-discovers and summarizes multimodal AI research and industry content
-- 💬 **HN Comment Insights**: Smart analysis of Hacker News discussions for registered users
+- 💬 **HN Comment Insights**: Optional analysis of Hacker News discussions (off by default)
 - 🔍 **Smart Search**: Advanced filtering, real-time search, and "Discovery Mode" for exploration  
-- 📚 **Personal Library**: Secure bookmarking with editing, export, and management
+- 📚 **Personal Library**: Bookmarking with editing, export, and management
 - 🌙 **Modern UI**: Clean, responsive interface with dark mode support
 - ⚡ **Real-time Updates**: Live content processing with progress tracking
 
@@ -21,66 +21,52 @@ A smart content discovery platform that automatically finds, curates, and helps 
 - 🛠️ **[Development Guide](docs/development.md)** - Local setup, testing, and workflows
 - 🔗 **[API Reference](docs/api.md)** - Complete REST API documentation
 - ⏰ **[Automation Guide](docs/cron.md)** - Pipeline and content processing
-- ☁️ **[Cloud Setup](docs/GOOGLE_CLOUD_SETUP.md)** - Google Cloud deployment guide
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 - Docker and Docker Compose
-- Google Gemini API key
-- Firebase project with Google Sign-In enabled
-- Google Cloud CLI (for cloud deployment)
+- [Ollama](https://ollama.com) running on the host, with one chat model and one embedding model:
+  ```bash
+  ollama pull gemma3:4b
+  ollama pull bge-m3
+  ```
 
-### Local Development
+### Run Locally
 
 1. **Clone & Setup:**
    ```bash
    git clone https://github.com/yingzha/multimodal-scout.git
    cd multimodal-scout
-   
-   # Add your Gemini API key and Firebase config to .env
+
+   cp .env.example .env
    ```
 
 2. **Start All Services:**
    ```bash
    docker-compose -f docker/docker-compose.yml up -d
    ```
-   
+
    This launches:
-   - 🗄️ **PostgreSQL** (port 5432)
-   - 🖥️ **Backend API** (port 8000) 
+   - 🗄️ **PostgreSQL** (internal to Docker)
+   - 🖥️ **Backend API** (port 8000)
    - 🌐 **Frontend** (port 3000)
-   - ⏰ **Cron Pipeline** (every 30 min)
+   - ⏰ **Pipeline** (every 30 min)
 
 3. **Access Applications:**
    - **Main App**: http://localhost:3000
    - **API Docs**: http://localhost:8000/docs
 
-### Production Deployment
+The first pipeline run starts with the containers and fills the database; search returns results once it has finished.
 
-1. **Prepare Environment:**
-   ```bash
-   # Store secrets in Secret Manager
-   echo -n 'YOUR_KEY' | gcloud secrets create google-api-key --data-file=- --project=YOUR_PROJECT_ID
-   echo -n 'YOUR_KEY' | gcloud secrets create firebase-api-key --data-file=- --project=YOUR_PROJECT_ID
-
-   # Set up infrastructure and database (run once)
-   gcloud/setup-infrastructure.sh YOUR_PROJECT_ID us-central1
-   gcloud/setup-db-instance.sh YOUR_PROJECT_ID us-central1-a
-   ```
-
-2. **Deploy Services:**
-   ```bash
-   # Build and deploy all services
-   gcloud/deploy-services.sh YOUR_PROJECT_ID us-central1
-   ```
+The app runs as a single local user with no sign-in, and its ports are published on `127.0.0.1` only. Put your own authentication in front of it before exposing it to a network.
 
 ## 🏗️ Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                            Frontend (Next.js)                           │ 
-│                     Real-time UI + Authentication                       │
+│                              Real-time UI                               │
 └─────────────────────────┬───────────────────────────────────────────────┘
                           │ REST API + SSE
                           ▼
@@ -91,8 +77,8 @@ A smart content discovery platform that automatically finds, curates, and helps 
       │                             │
       ▼                             ▼
 ┌──────────────┐            ┌───────────────────┐
-│  PostgreSQL  |            |    Google Gemini  │
-│   Database   │            │      AI API       │
+│  PostgreSQL  │            │     Local LLM     │
+│   Database   │            │ (Ollama default)  │
 │              │            │                   │
 │ • Bookmarks  │            │ • Summarization   │
 │ • Content    │            │ • Categorization  │
@@ -115,8 +101,17 @@ A smart content discovery platform that automatically finds, curates, and helps 
 
 ## 🔧 Configuration
 
-- **Local dev**: Configure `.env` with your API keys and Firebase config
-- **Cloud deployment**: Secrets stored in Google Secret Manager, Firebase config derived from project ID
+All settings live in `.env` (see `.env.example`):
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `LLM_BASE_URL` | `http://host.docker.internal:11434/v1` | OpenAI-compatible API to use. Point it at LM Studio, llama.cpp, vLLM or a hosted provider to switch away from Ollama |
+| `LLM_API_KEY` | `ollama` | API key sent to that server (Ollama ignores it) |
+| `LLM_CHAT_MODEL` | `gemma3:4b` | Model for summaries and categorization |
+| `LLM_EMBEDDING_MODEL` | `bge-m3` | Model for semantic search |
+| `LOCAL_USER_EMAIL` | `local@localhost` | Owner of bookmarks and custom topics |
+
+See the [Development Guide](docs/development.md) for the remaining options, including the search thresholds to re-tune when you change the embedding model.
 
 ## ☕ Support
 

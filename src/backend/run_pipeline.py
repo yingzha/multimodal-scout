@@ -11,6 +11,7 @@ import time
 from datetime import datetime
 
 from .logger import logger
+from .client import is_llm_enabled, is_llm_ready
 from .pipeline import process_content_pipeline
 
 
@@ -23,6 +24,13 @@ async def main():
     logger.info("=" * 80)
     logger.info(f"🤖 PIPELINE CRON JOB STARTED: {timestamp}")
     logger.info("=" * 80)
+
+    # A local model server is not always running, and its models may not be pulled
+    # yet. Skipping the run keeps new sources from being saved with their title as
+    # a permanent fallback summary.
+    if is_llm_enabled() and not is_llm_ready():
+        logger.warning("⏭️  LLM not ready, skipping this pipeline run")
+        return
 
     try:
         logger.info("🚀 Starting full content processing pipeline...")
