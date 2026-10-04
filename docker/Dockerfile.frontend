@@ -3,9 +3,6 @@ FROM node:18-alpine
 # Set working directory
 WORKDIR /app
 
-# Install su-exec for production user switching
-RUN apk add --no-cache su-exec
-
 # Install dependencies first (for better Docker caching)
 COPY src/frontend/package*.json ./
 RUN npm ci
@@ -13,25 +10,7 @@ RUN npm ci
 # Copy frontend source code
 COPY src/frontend/ ./
 
-# Set build-time environment variables
-ARG NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+EXPOSE 3000
 
-# Expose port (override with the PORT environment variable)
-EXPOSE 8080
-
-# Conditional build and start based on NODE_ENV
-# For development: just start dev server
-# For production: build and start standalone server
-CMD if [ "$NODE_ENV" = "production" ]; then \
-      npm run build && \
-      cp -r public .next/standalone/ 2>/dev/null || true && \
-      cp -r .next/static .next/standalone/.next/ 2>/dev/null || true && \
-      addgroup -g 1001 -S nodejs && \
-      adduser -S nextjs -u 1001 && \
-      chown -R nextjs:nodejs /app && \
-      cd .next/standalone && \
-      su-exec nextjs env PORT=${PORT:-8080} HOSTNAME=0.0.0.0 node server.js; \
-    else \
-      npm run dev -- -p ${PORT:-3000}; \
-    fi
+# Start the Next.js dev server
+CMD ["npm", "run", "dev"]

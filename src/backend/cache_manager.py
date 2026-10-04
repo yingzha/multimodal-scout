@@ -18,7 +18,12 @@ from .database import db_manager, Source
 from .search import _get_embedding, semantic_search_with_scores
 
 
-def print_cache_stats(cache_type: str = "all", email: str | None = None):
+def _local_user_id() -> str:
+    """Id of the local user that owns the bookmarks."""
+    return db_manager.get_or_create_local_user(config.local_user_email)
+
+
+def print_cache_stats(cache_type: str = "all"):
     """Print cache statistics."""
     try:
         if cache_type in ["all", "summary"]:
@@ -45,27 +50,22 @@ def print_cache_stats(cache_type: str = "all", email: str | None = None):
                 print(f"Average per day: {avg_per_day:.1f}")
 
         if cache_type in ["all", "bookmark"]:
-            if not email:
-                print(
-                    "\nNOTE: Bookmark statistics require an email address. Use the --email option."
-                )
-            else:
-                bookmark_stats = db_manager.get_bookmark_cache_stats(email=email)
-                print("\n=== Bookmark Cache Statistics ===")
-                print(f"Total bookmarks: {bookmark_stats['total_bookmarks']}")
-                print(
-                    f"Recent bookmarks (7 days): {bookmark_stats['recent_bookmarks_7_days']}"
-                )
+            bookmark_stats = db_manager.get_bookmark_cache_stats(_local_user_id())
+            print("\n=== Bookmark Cache Statistics ===")
+            print(f"Total bookmarks: {bookmark_stats['total_bookmarks']}")
+            print(
+                f"Recent bookmarks (7 days): {bookmark_stats['recent_bookmarks_7_days']}"
+            )
 
-                if bookmark_stats["total_bookmarks"] > 0:
-                    avg_per_day = bookmark_stats["recent_bookmarks_7_days"] / 7
-                    print(f"Average per day: {avg_per_day:.1f}")
+            if bookmark_stats["total_bookmarks"] > 0:
+                avg_per_day = bookmark_stats["recent_bookmarks_7_days"] / 7
+                print(f"Average per day: {avg_per_day:.1f}")
 
     except Exception as e:
         print(f"Error getting stats: {e}")
 
 
-def print_recent_entries(cache_type: str, days: int = 7, email: str | None = None):
+def print_recent_entries(cache_type: str, days: int = 7):
     """Print recent cache entries."""
     try:
         start_date = datetime.now() - timedelta(days=days)
@@ -88,12 +88,7 @@ def print_recent_entries(cache_type: str, days: int = 7, email: str | None = Non
                 print(f"Hash: {entry['text_hash'][:16]}...")
 
         elif cache_type == "bookmark":
-            if not email:
-                print(
-                    "\nNOTE: Bookmark entries require an email address. Use the --email option."
-                )
-                return
-            entries = db_manager.get_bookmarks_by_date(start_date, email=email)
+            entries = db_manager.get_bookmarks_by_date(_local_user_id(), start_date)
             print(f"=== Recent Bookmarks (Last {days} days) ===")
             for entry in entries:
                 print(f"\nDate: {entry['bookmarked_at']}")
@@ -107,7 +102,7 @@ def print_recent_entries(cache_type: str, days: int = 7, email: str | None = Non
         print(f"Error getting recent {cache_type} entries: {e}")
 
 
-def search_cache(cache_type: str, query: str, limit: int = 5, email: str | None = None):
+def search_cache(cache_type: str, query: str, limit: int = 5):
     """Search cache entries containing query."""
     try:
         if cache_type == "summary":
@@ -136,12 +131,7 @@ def search_cache(cache_type: str, query: str, limit: int = 5, email: str | None 
                 print("-" * 80)
 
         elif cache_type == "bookmark":
-            if not email:
-                print(
-                    "\nNOTE: Bookmark search requires an email address. Use the --email option."
-                )
-                return
-            results = db_manager.search_bookmarks(query, limit, email=email)
+            results = db_manager.search_bookmarks(_local_user_id(), query, limit)
             print(f"=== Bookmark Search Results for '{query}' ===")
             if not results:
                 print("No results found.")
@@ -159,8 +149,8 @@ def search_cache(cache_type: str, query: str, limit: int = 5, email: str | None 
         print(f"Error searching {cache_type} cache: {e}")
 
 
-def cleanup_cache(cache_type: str, days: int = 30, email: str | None = None):
-    """Clean up old cache entries."""
+def cleanup_cache(cache_type: str, days: int = 30):
+    """Clean up old cache entries. Bookmarks are only removed when asked for by name."""
     try:
         if cache_type == "summary":
             result = db_manager.cleanup_summaries_and_embeddings(days)
@@ -177,26 +167,14 @@ def cleanup_cache(cache_type: str, days: int = 30, email: str | None = None):
             deleted_count = db_manager.cleanup_bookmarks(days)
             print(f"Cleaned up {deleted_count} bookmarks older than {days} days")
 
-        elif cache_type == "user":
-            if not email:
-                print("Error: --email is required for user cleanup.")
-                sys.exit(1)
-            result = db_manager.cleanup_user(email=email)
-            if result["user_deleted"]:
-                print(f"Successfully deleted user with email: {email}")
-                print(f"  - Deleted {result['bookmarks_deleted']} bookmarks.")
-            else:
-                print(f"User with email {email} not found.")
-
         elif cache_type == "all":
             summary_result = db_manager.cleanup_summaries_and_embeddings(days)
             remaining_embedding_count = db_manager.cleanup_embeddings(days)
-            bookmark_count = db_manager.cleanup_bookmarks(max(days, 90))
             total_embeddings = (
                 summary_result["embeddings_cleaned"] + remaining_embedding_count
             )
             print(
-                f"Cleaned up {summary_result['summaries_cleaned']} summaries, {total_embeddings} embeddings ({summary_result['embeddings_cleaned']} linked to summaries + {remaining_embedding_count} others), {bookmark_count} bookmarks"
+                f"Cleaned up {summary_result['summaries_cleaned']} summaries, {total_embeddings} embeddings ({summary_result['embeddings_cleaned']} linked to summaries + {remaining_embedding_count} others)"
             )
 
     except Exception as e:
@@ -291,9 +269,9 @@ def main():
 
     parser.add_argument(
         "--cache-type",
-        choices=["summary", "embedding", "bookmark", "all", "user"],
+        choices=["summary", "embedding", "bookmark", "all"],
         default="all",
-        help="Cache type to operate on",
+        help="Cache type to operate on (cleanup with 'all' leaves bookmarks alone)",
     )
 
     parser.add_argument(
@@ -306,7 +284,6 @@ def main():
     parser.add_argument(
         "--limit", type=int, default=5, help="Limit results (for search command)"
     )
-    parser.add_argument("--email", type=str, help="User email for bookmark operations")
 
     args = parser.parse_args()
 
@@ -324,7 +301,7 @@ def main():
         pass
 
     if args.command == "stats":
-        print_cache_stats(args.cache_type, email=args.email)
+        print_cache_stats(args.cache_type)
 
     elif args.command == "recent":
         if args.cache_type == "all":
@@ -332,7 +309,7 @@ def main():
                 "Error: --cache-type must be specific (summary, embedding, or bookmark) for recent command"
             )
             sys.exit(1)
-        print_recent_entries(args.cache_type, args.days, email=args.email)
+        print_recent_entries(args.cache_type, args.days)
 
     elif args.command == "search":
         if not args.query:
@@ -343,10 +320,10 @@ def main():
                 "Error: --cache-type must be specific (summary, embedding, or bookmark) for search command"
             )
             sys.exit(1)
-        search_cache(args.cache_type, args.query, args.limit, email=args.email)
+        search_cache(args.cache_type, args.query, args.limit)
 
     elif args.command == "cleanup":
-        cleanup_cache(args.cache_type, args.days, email=args.email)
+        cleanup_cache(args.cache_type, args.days)
 
     elif args.command == "reembed":
         reembed_summaries(args.days)

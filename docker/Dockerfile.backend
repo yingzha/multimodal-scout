@@ -34,7 +34,7 @@ USER appuser
 # Use uv to run Python
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Expose port (if needed for future API)
+# API port
 EXPOSE 8000
 
 # Default command - run FastAPI app with uvicorn

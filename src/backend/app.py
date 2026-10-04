@@ -103,10 +103,6 @@ def create_user_friendly_error(
     # Map common error types to user-friendly messages
     error_messages = {
         "database_error": "We're having trouble accessing our database. Please try again in a moment.",
-        "external_api_error": "We're having trouble connecting to external services. Please try again.",
-        "validation_error": "The information provided doesn't meet our requirements. Please check and try again.",
-        "not_found_error": "The requested item could not be found.",
-        "rate_limit_error": "Too many requests. Please wait a moment before trying again.",
         "processing_error": "We're having trouble processing your request. Please try again.",
     }
 
@@ -507,7 +503,7 @@ async def get_bookmark(bookmark_id: str, current_user: str = Depends(get_current
             raise HTTPException(status_code=404, detail="Bookmark not found")
 
         # Get the edited summary if available, otherwise use the original
-        summary_edited = getattr(bookmark, "summary_edited", None)
+        summary_edited = bookmark.summary_edited
         display_summary = summary_edited or bookmark.summary or "No summary available"
 
         return {
@@ -541,7 +537,7 @@ async def get_bookmarks(
         bookmark_links = []
         original_summaries = {}
         for bookmark in bookmarks:
-            summary_edited = getattr(bookmark, "summary_edited", None)
+            summary_edited = bookmark.summary_edited
             display_summary = (
                 summary_edited or bookmark.summary or "No summary available"
             )
@@ -555,8 +551,7 @@ async def get_bookmarks(
 
         bookmark_items = []
         for bookmark in bookmarks:
-            # Handle both old and new schema gracefully
-            summary_edited = getattr(bookmark, "summary_edited", None)
+            summary_edited = bookmark.summary_edited
             display_summary = (
                 summary_edited or bookmark.summary or "No summary available"
             )
@@ -806,7 +801,7 @@ async def export_bookmarks(current_user: str = Depends(get_current_user)):
         # Add bookmark data
         for row, bookmark in enumerate(bookmarks, 2):
             # Handle both edited and original summaries
-            summary_edited = getattr(bookmark, "summary_edited", None)
+            summary_edited = bookmark.summary_edited
             display_summary = (
                 summary_edited or bookmark.summary or "No summary available"
             )

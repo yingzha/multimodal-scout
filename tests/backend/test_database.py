@@ -11,7 +11,7 @@ from sqlalchemy.orm import sessionmaker
 class TestDatabaseManager(unittest.TestCase):
 
     def setUp(self):
-        # Use the same PostgreSQL database as production but in test mode
+        # Runs against the database named by DATABASE_URL; point it at a scratch database
         test_db_url = os.getenv('DATABASE_URL', 'postgresql://scout_user:scout_password@postgres:5432/multimodal_scout')
         self.engine = create_engine(test_db_url)
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
@@ -304,7 +304,7 @@ class TestDatabaseManager(unittest.TestCase):
             "http://test-data.example": "Data science is cool with no special terms."
         })
 
-        # Use a very unique search term that won't match production data
+        # Use a very unique search term that won't match existing data
         results = self.mock_db_manager.search_summaries("unique_test_term_xyz_ai_search")
         
         # Should find exactly 1 result

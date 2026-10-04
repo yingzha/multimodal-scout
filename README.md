@@ -80,7 +80,7 @@ The app serves a single local user without authentication, and its ports are pub
 │              │            │                   │
 │ • Bookmarks  │            │ • Summarization   │
 │ • Content    │            │ • Categorization  │
-│ • Users      │            │ • Comment Insights│
+│ • Topics     │            │ • Comment Insights│
 │ • Cache      │            │ • Smart Filters   │
 └──────────────┘            └───────────────────┘
 

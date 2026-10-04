@@ -3,9 +3,9 @@
 .gitignore
 
 # Docker
-Dockerfile.backend
-Dockerfile.frontend
-docker-compose.yml
+docker/Dockerfile.backend
+docker/Dockerfile.frontend
+docker/docker-compose.yml
 .dockerignore
 
 # Python
@@ -50,7 +50,6 @@ build/
 Thumbs.db
 
 # Project specific
-summary_cache.json
 *.log
 
 # Documentation
