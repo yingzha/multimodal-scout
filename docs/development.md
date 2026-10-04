@@ -177,6 +177,10 @@ curl -s -X DELETE "http://localhost:8000/api/bookmarks/BOOKMARK_ID"
     docker-compose -f docker/docker-compose.yml up -d --build <service_name>
     # e.g., docker-compose -f docker/docker-compose.yml up -d --build backend
     ```
+    The frontend keeps `node_modules` in an anonymous volume that survives a rebuild, so after changing `package.json` also renew that volume:
+    ```bash
+    docker-compose -f docker/docker-compose.yml up -d --build --renew-anon-volumes frontend
+    ```
 
 ## Code Quality Tools
 
