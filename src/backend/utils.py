@@ -7,13 +7,14 @@ from bs4 import BeautifulSoup
 from pydantic import HttpUrl
 
 from .constants import (
-    GEMINI_MODEL_NAME,
     USER_AGENT,
     MIN_COMMENTS_FOR_INSIGHTS,
     COMMENT_INSIGHTS_ENABLED,
+    MAX_SUGGESTION_SUMMARY_CHARS,
+    MAX_SUGGESTION_PROMPT_CHARS,
 )
 from .logger import logger
-from .client import genai_client, is_genai_enabled
+from .client import generate_text, is_llm_enabled
 from .database import db_manager
 
 
@@ -68,8 +69,8 @@ def _fetch_article_text(link: HttpUrl) -> Optional[str]:
 
 
 def generate_summary_from_link(link: HttpUrl, title: str = None) -> Optional[str]:
-    """Generates a summary for a given URL using the Gemini API."""
-    if not is_genai_enabled():
+    """Generates a summary for a given URL using the configured LLM."""
+    if not is_llm_enabled():
         return None
 
     # Skip obvious test/invalid URLs to avoid unnecessary network requests
@@ -103,15 +104,12 @@ Article text:
 
 Provide a clear English summary:"""
 
-        response = genai_client.models.generate_content(
-            model=GEMINI_MODEL_NAME, contents=[prompt]
-        )
-        return response.text.strip()
+        return generate_text(prompt)
 
     try:
         return _retry_with_backoff(_generate_summary, max_retries=3, base_delay=2.0)
     except Exception as e:
-        logger.error(f"Error generating summary with Gemini after retries: {e}")
+        logger.error(f"Error generating summary after retries: {e}")
         return title or "No summary available"
 
 
@@ -141,7 +139,7 @@ def extract_title_from_url(url: HttpUrl) -> Optional[str]:
 
 def categorize_content(title: str, content: str, url: str) -> str:
     """Categorize content as Research, Industry, or General based on various signals."""
-    if not is_genai_enabled():
+    if not is_llm_enabled():
         return "General"
 
     try:
@@ -206,17 +204,15 @@ Content preview: {content[:1000]}
 
 Respond with only one word: Research, Industry, or General"""
 
-            response = genai_client.models.generate_content(
-                model=GEMINI_MODEL_NAME, contents=[prompt]
-            )
-            return response.text.strip()
+            return generate_text(prompt)
 
         try:
             category = _retry_with_backoff(_categorize, max_retries=2, base_delay=1.0)
 
-            # Validate the response
-            if category in ["Research", "Industry", "General"]:
-                return category
+            # Validate the response (small models often add punctuation or extra words)
+            match = re.search(r"\b(research|industry|general)\b", category, re.IGNORECASE)
+            if match:
+                return match.group(1).capitalize()
             else:
                 logger.warning(
                     f"AI returned invalid category '{category}', defaulting to General"
@@ -344,16 +340,16 @@ def fetch_hackernews_comments(hn_comment_link: str, max_comments: int = 50) -> d
 
 
 def generate_comment_insights(comments: list, title: str) -> Optional[str]:
-    """Generate key insights from HN comments using Gemini API."""
+    """Generate key insights from HN comments using the configured LLM."""
     if not comments:
         return None
 
     if not COMMENT_INSIGHTS_ENABLED:
-        logger.info("Comment insights disabled to manage API costs")
+        logger.info("Comment insights disabled to keep pipeline runs short")
         return None
 
-    if not is_genai_enabled():
-        logger.warning("GenAI not enabled, skipping comment insights generation")
+    if not is_llm_enabled():
+        logger.warning("LLM not enabled, skipping comment insights generation")
         return None
 
     try:
@@ -395,14 +391,10 @@ Comments:
 Key Insights:"""
 
         def generate_insights():
-            response = genai_client.models.generate_content(
-                model=GEMINI_MODEL_NAME, contents=[prompt]
-            )
-            summary = response.text.strip()
-            return summary
+            return generate_text(prompt)
 
         logger.info(
-            f"🤖 Calling Gemini API for insights on '{title[:50]}...' with {len(comment_texts)} substantial comments"
+            f"🤖 Calling LLM for insights on '{title[:50]}...' with {len(comment_texts)} substantial comments"
         )
         insights = _retry_with_backoff(generate_insights)
 
@@ -435,19 +427,31 @@ def generate_keyword_suggestions_from_bookmarks(
     Returns:
         List of suggested keywords (distinct from existing ones)
     """
-    if not bookmark_titles_and_summaries or not is_genai_enabled():
+    if not bookmark_titles_and_summaries or not is_llm_enabled():
         return []
 
     try:
-        # Combine all bookmark content for analysis
+        # Combine bookmark content for analysis, bounded so the prompt fits
+        # the default context window of a local model
         content_pieces = []
+        content_length = 0
         for bookmark in bookmark_titles_and_summaries:
             title = bookmark.get("title", "").strip()
-            summary = bookmark.get("summary", "").strip()
-            if title:
-                content_pieces.append(f"Title: {title}")
-            if summary:
-                content_pieces.append(f"Summary: {summary}")
+            summary = bookmark.get("summary", "").strip()[:MAX_SUGGESTION_SUMMARY_CHARS]
+            piece = "\n".join(
+                part
+                for part in (
+                    f"Title: {title}" if title else "",
+                    f"Summary: {summary}" if summary else "",
+                )
+                if part
+            )
+            if not piece:
+                continue
+            if content_length + len(piece) > MAX_SUGGESTION_PROMPT_CHARS:
+                break
+            content_pieces.append(piece)
+            content_length += len(piece)
 
         if not content_pieces:
             return []
@@ -473,13 +477,10 @@ Bookmarked Content:
 New Keywords:"""
 
         def generate_keywords():
-            response = genai_client.models.generate_content(
-                model=GEMINI_MODEL_NAME, contents=[prompt]
-            )
-            return response.text.strip()
+            return generate_text(prompt)
 
         logger.info(
-            f"🤖 Calling Gemini API to generate keyword suggestions from {len(bookmark_titles_and_summaries)} bookmarks"
+            f"🤖 Calling LLM to generate keyword suggestions from {len(bookmark_titles_and_summaries)} bookmarks"
         )
         keywords_response = _retry_with_backoff(generate_keywords)
 
@@ -488,8 +489,9 @@ New Keywords:"""
 
         # Parse the response and clean up keywords
         suggested_keywords = []
-        for keyword in keywords_response.split(","):
-            clean_keyword = keyword.strip().strip('"').strip("'").lower()
+        # Small models sometimes answer with one keyword per line or a bulleted list
+        for keyword in re.split(r"[,\n]", keywords_response):
+            clean_keyword = keyword.strip(" \t\"'-*•").lower()
             if (
                 clean_keyword
                 and len(clean_keyword) > 2
@@ -524,7 +526,7 @@ async def get_hn_comment_insights_with_summaries(
     Args:
         links: List of links to process
         original_summaries: Dict mapping link -> original summary
-        user_id: User ID (insights only shown to registered users)
+        user_id: User ID
 
     Returns:
         Dict mapping link -> (final_summary, comment_insights, comment_count)

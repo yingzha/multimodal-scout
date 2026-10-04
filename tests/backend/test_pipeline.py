@@ -4,6 +4,11 @@ import asyncio
 from unittest.mock import patch, MagicMock
 from datetime import datetime
 
+import os
+import threading
+import time
+
+from src.backend.merger import enrich_sources_with_summaries
 from src.backend.pipeline import process_content_pipeline, _apply_balanced_filtering
 from src.backend.schema import SourceSchema
 
@@ -30,10 +35,11 @@ mock_hn_story = SourceSchema(
 
 class TestPipeline(unittest.TestCase):
 
+    @patch('src.backend.search.embed_text', return_value=[0.1, 0.2, 0.3])  # Mock the embedding model
     @patch('requests.get')  # Mock all HTTP requests
     @patch('src.backend.pipeline.scrape_all_sources_concurrent')  # Mock scraping (external API calls)
     @patch('src.backend.database.db_manager.get_session')  # Mock database sessions
-    def test_process_content_pipeline_full_flow(self, mock_get_session, mock_scrape_all, mock_requests):
+    def test_process_content_pipeline_full_flow(self, mock_get_session, mock_scrape_all, mock_requests, mock_embed_text):
         """Test pipeline flow by running the async test method."""
         asyncio.run(self._async_test_process_content_pipeline_full_flow(
             mock_get_session, mock_scrape_all, mock_requests
@@ -131,6 +137,42 @@ class TestPipeline(unittest.TestCase):
         # Result is a tuple (filtered_sources, matched_keywords_map)
         filtered_sources, matched_keywords_map = result
         self.assertEqual(len(filtered_sources), 1)
+
+    def test_summary_generation_is_capped(self):
+        """Test that no more than LLM_MAX_CONCURRENCY summaries are generated at once."""
+        sources = [
+            SourceSchema(
+                title=f"Article {i}",
+                authors=["Author"],
+                link=f"http://fake-test.example/article/{i}",
+                source_link=f"http://fake-test.example/article/{i}",
+                summary=None,
+                tags=["industry"],
+                date=datetime.now()
+            )
+            for i in range(6)
+        ]
+
+        lock = threading.Lock()
+        in_flight = 0
+        max_in_flight = 0
+
+        def slow_summary(link, title=None):
+            nonlocal in_flight, max_in_flight
+            with lock:
+                in_flight += 1
+                max_in_flight = max(max_in_flight, in_flight)
+            time.sleep(0.05)
+            with lock:
+                in_flight -= 1
+            return f"Summary of {title}"
+
+        with patch.dict(os.environ, {"LLM_MAX_CONCURRENCY": "2"}), \
+                patch('src.backend.merger.generate_summary_from_link', side_effect=slow_summary):
+            enriched = asyncio.run(enrich_sources_with_summaries(sources))
+
+        self.assertEqual(max_in_flight, 2)
+        self.assertTrue(all(source.summary for source in enriched))
 
 if __name__ == '__main__':
     unittest.main()

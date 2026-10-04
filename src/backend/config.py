@@ -1,100 +1,84 @@
 """
-Configuration management for Google Cloud deployment.
-Handles environment variables and secrets from Google Secret Manager.
+Configuration management.
+All settings are read from environment variables.
 """
 
 import os
-from typing import Optional
-from .logger import logger
-
-# Conditionally import Google Cloud modules only if needed
-try:
-    from google.cloud import secretmanager
-
-    HAS_GOOGLE_CLOUD = True
-except ImportError:
-    secretmanager = None
-    HAS_GOOGLE_CLOUD = False
+from typing import List
 
 
 class Config:
-    """Configuration class for managing environment variables and secrets."""
-
-    def __init__(self):
-        self.project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
-        self.is_cloud_environment = bool(self.project_id and HAS_GOOGLE_CLOUD)
-
-        if self.is_cloud_environment:
-            self.secret_client = secretmanager.SecretManagerServiceClient()
-        else:
-            self.secret_client = None
-
-    def get_secret(
-        self, secret_name: str, default: Optional[str] = None
-    ) -> Optional[str]:
-        """
-        Get a secret from Google Secret Manager in cloud environment,
-        or from environment variables in local development.
-        """
-        # First try environment variable (for local development)
-        env_value = os.getenv(secret_name.upper().replace("-", "_"))
-        if env_value:
-            return env_value
-
-        # In cloud environment, try Secret Manager
-        if self.is_cloud_environment and self.secret_client:
-            try:
-                secret_path = (
-                    f"projects/{self.project_id}/secrets/{secret_name}/versions/latest"
-                )
-                response = self.secret_client.access_secret_version(
-                    request={"name": secret_path}
-                )
-                secret_value = response.payload.data.decode("UTF-8")
-                logger.info(f"Retrieved secret '{secret_name}' from Secret Manager")
-                return secret_value
-            except Exception as e:
-                logger.warning(
-                    f"Failed to retrieve secret '{secret_name}' from Secret Manager: {e}"
-                )
-
-        return default
+    """Configuration class for managing environment variables."""
 
     @property
     def database_url(self) -> str:
-        """Get database URL with appropriate connection string for environment."""
-        if self.is_cloud_environment:
-            db_user = os.getenv("DB_USER", "scout_user")
-            db_password = self.get_secret("database-password")
-            db_name = os.getenv("DB_NAME", "multimodal_scout")
-            db_host = os.getenv("DB_HOST")
-            db_port = os.getenv("DB_PORT", "5432")
+        """Get database URL."""
+        return os.getenv(
+            "DATABASE_URL",
+            "postgresql://scout_user:scout_password@localhost:5432/multimodal_scout",
+        )
 
-            if not all([db_password, db_host]):
-                raise ValueError("Missing DB_HOST or database password")
-
-            return f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}?sslmode=require"
-        else:
-            # Local development
-            return os.getenv(
-                "DATABASE_URL",
-                "postgresql://scout_user:scout_password@localhost:5432/multimodal_scout",
-            )
+    # --- LLM (any OpenAI-compatible API, Ollama by default) ---
 
     @property
-    def google_api_key(self) -> str:
-        """Get Google API key from secrets or environment."""
-        api_key = self.get_secret("google-api-key") or os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise ValueError(
-                "Google API key not found in secrets or environment variables"
-            )
-        return api_key
+    def llm_base_url(self) -> str:
+        """Base URL of the OpenAI-compatible API. Set to empty to disable AI features."""
+        return os.getenv("LLM_BASE_URL", "http://localhost:11434/v1").rstrip("/")
 
     @property
-    def port(self) -> int:
-        """Get port from environment (Cloud Run sets this automatically)."""
-        return int(os.getenv("PORT", "8000"))
+    def llm_api_key(self) -> str:
+        """API key for the LLM server (Ollama ignores it)."""
+        return os.getenv("LLM_API_KEY", "ollama")
+
+    @property
+    def llm_chat_model(self) -> str:
+        """Model used for summaries, categorization and keyword suggestions."""
+        return os.getenv("LLM_CHAT_MODEL", "gemma3:4b")
+
+    @property
+    def llm_embedding_model(self) -> str:
+        """Model used for semantic search embeddings."""
+        return os.getenv("LLM_EMBEDDING_MODEL", "bge-m3")
+
+    @property
+    def llm_timeout_seconds(self) -> float:
+        """Timeout for a single LLM request."""
+        return float(os.getenv("LLM_TIMEOUT_SECONDS", "120"))
+
+    @property
+    def llm_max_concurrency(self) -> int:
+        """Maximum number of summaries generated at the same time."""
+        return max(1, int(os.getenv("LLM_MAX_CONCURRENCY", "2")))
+
+    # --- Search ---
+    # Cosine similarity cutoffs, measured for bge-m3. They depend on the embedding
+    # model, so re-measure them with `python -m src.backend.cache_manager calibrate`
+    # after changing it.
+
+    @property
+    def research_threshold(self) -> float:
+        """Minimum similarity for a research paper to match a topic."""
+        return float(os.getenv("RESEARCH_THRESHOLD", "0.52"))
+
+    @property
+    def industry_threshold(self) -> float:
+        """Minimum similarity for industry content to match a topic."""
+        return float(os.getenv("INDUSTRY_THRESHOLD", "0.52"))
+
+    # --- Web ---
+
+    @property
+    def cors_origins(self) -> List[str]:
+        """Origins allowed to call the API from a browser."""
+        origins = os.getenv(
+            "CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"
+        )
+        return [origin.strip() for origin in origins.split(",") if origin.strip()]
+
+    @property
+    def local_user_email(self) -> str:
+        """Email of the single local user that owns bookmarks and preferences."""
+        return os.getenv("LOCAL_USER_EMAIL", "local@localhost")
 
 
 # Global configuration instance

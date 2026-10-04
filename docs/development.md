@@ -6,14 +6,18 @@ Complete guide for developing Multimodal Scout. For quick setup, see the main [R
 
 ### Prerequisites
 - Docker and Docker Compose
-- [Google Gemini API key](https://aistudio.google.com/app/apikey)
+- [Ollama](https://ollama.com) running on the host (see [Local Model Setup](#-local-model-setup))
 
 ### Quick Start
 ```bash
 git clone https://github.com/yingzha/multimodal-scout.git
 cd multimodal-scout
 
-# Add your Gemini API key and Firebase config to .env
+cp .env.example .env
+
+# Pull the default models
+ollama pull gemma3:4b
+ollama pull bge-m3
 
 # Start all services
 docker-compose -f docker/docker-compose.yml up -d
@@ -21,6 +25,50 @@ docker-compose -f docker/docker-compose.yml up -d
 # Verify everything works
 curl http://localhost:8000/health
 curl http://localhost:3000
+```
+
+The backend and frontend are published on `127.0.0.1` only, and PostgreSQL is reachable only from the other containers. The app does not authenticate requests, so add your own authentication before exposing it beyond your machine.
+
+## 🤖 Local Model Setup
+
+The backend talks to any OpenAI-compatible API. The defaults target Ollama running natively on the host, which lets it use the GPU (Docker on macOS cannot).
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `LLM_BASE_URL` | `http://localhost:11434/v1` (`http://host.docker.internal:11434/v1` in `.env.example`) | Base URL of the API. Set it to empty to turn AI features off |
+| `LLM_API_KEY` | `ollama` | API key sent as a bearer token |
+| `LLM_CHAT_MODEL` | `gemma3:4b` | Summaries, categorization, keyword suggestions |
+| `LLM_EMBEDDING_MODEL` | `bge-m3` | Semantic search embeddings |
+| `LLM_TIMEOUT_SECONDS` | `120` | Timeout for one request |
+| `LLM_MAX_CONCURRENCY` | `2` | Summaries generated at the same time |
+
+```bash
+# Check that the containers can reach the model server
+docker-compose -f docker/docker-compose.yml exec backend curl -s http://host.docker.internal:11434/v1/models
+```
+
+**Linux**: Ollama listens on `127.0.0.1` by default, which containers cannot reach. Make it listen on the Docker bridge address (for example `OLLAMA_HOST=172.17.0.1` in the Ollama service environment) and keep `LLM_BASE_URL` pointing at `host.docker.internal`.
+
+**Other servers**: For LM Studio, llama.cpp, vLLM or a hosted provider, set `LLM_BASE_URL`, `LLM_API_KEY` and the two model names to match. The server must offer both `/chat/completions` and `/embeddings`.
+
+### Search Thresholds
+
+Semantic search keeps a source when its cosine similarity to a topic is above `RESEARCH_THRESHOLD` or `INDUSTRY_THRESHOLD` (both default to `0.52`, measured for `bge-m3`). Similarity scores are specific to the embedding model, so re-measure the thresholds after changing `LLM_EMBEDDING_MODEL`:
+
+```bash
+# Print the score distribution of recent sources against the default topics,
+# and the titles ranked around the current thresholds
+docker-compose -f docker/docker-compose.yml exec backend python -m src.backend.cache_manager calibrate --days 7
+```
+
+Pick the cutoffs where the titles stop being on topic and set them in `.env`. With `bge-m3`, scores sit in a narrow band (on-topic items around 0.52 to 0.65), so small changes move a lot of results.
+
+### Changing the Embedding Model
+
+Cached embeddings are tied to the model that produced them. After changing `LLM_EMBEDDING_MODEL`, old vectors are ignored and replaced as texts are embedded again. To do that up front instead of during the first search:
+
+```bash
+docker-compose -f docker/docker-compose.yml exec backend python -m src.backend.cache_manager reembed --days 7
 ```
 
 ## 🛠️ Common Commands
@@ -47,14 +95,10 @@ docker-compose -f docker/docker-compose.yml up -d --build [service]
 ### Pipeline Control
 ```bash
 # Watch automated pipeline (every 30 min)
-docker-compose -f docker/docker-compose.yml logs -f cron
+docker-compose -f docker/docker-compose.yml logs -f pipeline
 
 # Manual pipeline trigger
-curl -X POST localhost:8000/pipeline \
-  -H "Authorization: Bearer test-token"
-
-# Check pipeline status
-curl localhost:8000/health
+docker-compose -f docker/docker-compose.yml run --rm pipeline python -m src.backend.run_pipeline
 ```
 
 ## Making Changes
@@ -69,21 +113,26 @@ The project is configured for hot reloading. When you save changes to a file, th
 
 ### Backend Unit Tests
 
-Run the backend test suite using `pytest`. The testing dependencies live in the `dev` extra, so include it when invoking `uv`:
+Run the backend test suite using `pytest`. The database tests insert and clean up rows, so run them against a scratch database, never the one holding your bookmarks:
 
 ```bash
-docker-compose -f docker/docker-compose.yml run --rm backend uv run --extra dev pytest tests/backend/
+# One-time: create the scratch database
+docker-compose -f docker/docker-compose.yml exec postgres createdb -U scout_user multimodal_scout_test
+
+# Run the tests in the running backend container (dev dependencies live in the `dev` extra)
+TEST_DB=postgresql://scout_user:scout_password@postgres:5432/multimodal_scout_test
+docker-compose -f docker/docker-compose.yml exec --user root -e DATABASE_URL=$TEST_DB backend python -m src.backend.cache_manager init
+docker-compose -f docker/docker-compose.yml exec --user root -e DATABASE_URL=$TEST_DB backend uv run --extra dev pytest tests/backend/
 ```
 
-> Tip: if you plan to run tests repeatedly in the same container, sync the dev extra once first (`docker-compose -f docker/docker-compose.yml exec backend uv sync --extra dev`) and then use `uv run pytest …` without the extra flag on subsequent runs.
+The tests mock the model server, so Ollama does not need to be running.
 
 ### Frontend Checks
 
-Verify TypeScript compilation and basic functionality.
+Type-check the frontend:
 ```bash
-docker-compose -f docker/docker-compose.yml exec frontend timeout 10s npm run dev || echo "✅ Frontend TypeScript compilation passed"
+docker-compose -f docker/docker-compose.yml exec frontend npx tsc --noEmit
 ```
-> **Note**: The frontend uses Next.js App Router which provides integrated TypeScript checking. The `timeout` command stops the dev server after compilation succeeds, avoiding the need for a full production build during testing.
 
 ### Integration Tests (API)
 
@@ -97,17 +146,13 @@ curl -s -X POST "http://localhost:8000/api/content/search" \
   -H "Content-Type: application/json" \
   -d '{"selectedDays": 1, "topics": ["ai"], "maxResults": 10, "researchRatio": 0.5}'
 
-# Auth (sign in via browser, then use session token from response)
-curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/auth/me
-
-# Bookmarks (requires auth)
-curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/bookmarks
+# Preferences and bookmarks (everything belongs to the local user)
+curl -s http://localhost:8000/api/user/preferences
+curl -s http://localhost:8000/api/bookmarks
 curl -s -X POST "http://localhost:8000/api/bookmarks" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
   -d '{"title": "Test", "link": "http://example.com", "source": "Test", "summary": "Test summary"}'
-curl -s -X DELETE -H "Authorization: Bearer $TOKEN" "http://localhost:8000/api/bookmarks/BOOKMARK_ID"
-curl -s -X POST -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/auth/logout
+curl -s -X DELETE "http://localhost:8000/api/bookmarks/BOOKMARK_ID"
 ```
 
 ## Common Docker Commands
@@ -141,20 +186,28 @@ The backend includes code quality and formatting tools:
 
 ```bash
 # Format Python code with black
-docker-compose -f docker/docker-compose.yml exec backend uv run --extra dev black src/backend/
+docker-compose -f docker/docker-compose.yml exec --user root backend uv run --extra dev black src/backend/
 
 # Run pylint for code quality analysis
-docker-compose -f docker/docker-compose.yml exec backend uv run --extra dev pylint src/backend/
+docker-compose -f docker/docker-compose.yml exec --user root backend uv run --extra dev pylint src/backend/
 
 # Install/sync new dependencies (includes dev tools)
-docker-compose -f docker/docker-compose.yml exec backend uv sync --extra dev
+docker-compose -f docker/docker-compose.yml exec --user root backend uv sync --extra dev
 ```
 
 ## 🗄️ Database Migrations
 
-When you change the database structure (add columns, tables, etc.), you need to create and apply migrations.
+On startup the backend creates any missing tables from the models in `src/backend/database.py`. It does not run Alembic, and it does not alter tables that already exist. When you change the structure of an existing database (add columns, etc.), create and apply a migration.
 
-### 📝 Creating Migrations (Local Development)
+### 📝 Creating Migrations
+
+A database created by the backend has no Alembic version recorded, and `alembic upgrade head` fails on it because the tables already exist. Record it as up to date once, before your first migration:
+
+```bash
+docker-compose -f docker/docker-compose.yml exec backend alembic stamp head
+```
+
+Then, for each schema change:
 
 1. **Modify your models** in `src/backend/database.py`
 2. **Generate migration**:
@@ -166,33 +219,6 @@ When you change the database structure (add columns, tables, etc.), you need to 
    docker-compose -f docker/docker-compose.yml exec backend alembic upgrade head
    ```
 
-### 🚀 Deploying Migrations to Cloud
-
-**Good news**: Migrations run automatically when you deploy!
-
-```bash
-# Just deploy as normal - migrations happen automatically
-gcloud/deploy-services.sh YOUR_PROJECT_ID us-central1
-```
-
-The backend will:
-- ✅ Check database connection
-- ✅ Run pending migrations automatically  
-- ✅ Start the service
-
-### 🔧 Manual Migration (If Automatic Fails)
-
-If you see migration errors in the logs, run this complete command:
-
-```bash
-# 1. Open SSH tunnel (in a separate terminal)
-gcloud compute ssh multimodal-scout-db --zone=us-central1-a -- -L 15432:localhost:5432
-
-# 2. Connect with psql
-PGPASSWORD=$(gcloud secrets versions access latest --secret=database-password) \
-  psql -h 127.0.0.1 -p 15432 -U scout_user -d multimodal_scout
-```
-
 ### 🔍 Checking Migration Status
 
 ```bash
@@ -202,8 +228,6 @@ docker-compose -f docker/docker-compose.yml exec backend alembic current
 # View all migrations
 docker-compose -f docker/docker-compose.yml exec backend alembic history
 ```
-
-**That's it!** Most of the time, migrations just work automatically when you deploy. 🎉
 
 ## 🧹 Database Cleanup
 
@@ -219,24 +243,15 @@ docker compose -f docker/docker-compose.yml up -d
 # Access database shell
 docker compose -f docker/docker-compose.yml exec postgres psql -U scout_user -d multimodal_scout
 
-# Clear all content (keep users)
-DELETE FROM summaries;
+# Clear all content (keep bookmarks)
+DELETE FROM sources;
 DELETE FROM seen_cards;
+DELETE FROM embedding_cache;
 
-# Clear all users and their data
+# Clear bookmarks and the local user (restart the backend afterwards to recreate the user)
 DELETE FROM bookmarks;
 DELETE FROM users;
 
 # Check table sizes
 SELECT relname, n_live_tup FROM pg_stat_user_tables ORDER BY n_live_tup DESC;
-```
-
-### Cloud Database Cleanup
-```bash
-# Open SSH tunnel first (in a separate terminal)
-gcloud compute ssh multimodal-scout-db --zone=us-central1-a -- -L 15432:localhost:5432
-
-# Then connect
-PGPASSWORD=$(gcloud secrets versions access latest --secret=database-password) \
-  psql -h 127.0.0.1 -p 15432 -U scout_user -d multimodal_scout
 ```
