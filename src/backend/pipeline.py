@@ -326,7 +326,9 @@ async def _build_result_items(
     existing_items = [item for item in all_items if not item["is_new"]]
     final_items = new_items + existing_items
 
-    source_names_list = list(source_names) if isinstance(source_names, set) else list(set(source_names))
+    source_names_list = (
+        list(source_names) if isinstance(source_names, set) else list(set(source_names))
+    )
     return final_items, source_names_list
 
 
@@ -385,14 +387,30 @@ async def search_db_sources(
     # Step 2: Convert and filter
     all_sources, source_names = _convert_db_to_schemas(db_sources)
 
-    yield {"type": "progress", "message": "Applying filters...", "processed": 30, "total": 100}
+    yield {
+        "type": "progress",
+        "message": "Applying filters...",
+        "processed": 30,
+        "total": 100,
+    }
 
     final_items, source_names_list = await _build_result_items(
-        all_sources, source_names, topics, max_results,
-        research_ratio, discovery_mode, session_id, user_id,
+        all_sources,
+        source_names,
+        topics,
+        max_results,
+        research_ratio,
+        discovery_mode,
+        session_id,
+        user_id,
     )
 
-    yield {"type": "progress", "message": "Building results...", "processed": 90, "total": 100}
+    yield {
+        "type": "progress",
+        "message": "Building results...",
+        "processed": 90,
+        "total": 100,
+    }
     yield {
         "type": "complete",
         "message": f"Search complete! Found {len(final_items)} relevant items.",
@@ -665,13 +683,21 @@ async def process_content_pipeline(
     yield {
         "type": "progress",
         "message": "Applying semantic search & balancing...",
-        "processed": int(((current_progress + filtering_weight * 0.5) / total_weight) * 100),
+        "processed": int(
+            ((current_progress + filtering_weight * 0.5) / total_weight) * 100
+        ),
         "total": 100,
     }
 
     final_items, source_names_list = await _build_result_items(
-        all_sources, source_names, topics, max_results,
-        research_ratio, discovery_mode, session_id, user_id,
+        all_sources,
+        source_names,
+        topics,
+        max_results,
+        research_ratio,
+        discovery_mode,
+        session_id,
+        user_id,
     )
 
     yield {

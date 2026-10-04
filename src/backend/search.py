@@ -10,7 +10,6 @@ from .database import db_manager
 from .client import embed_text, is_llm_enabled
 from .config import config
 
-
 # In-memory cache for keyword embeddings (avoids repeated DB/API lookups within process lifetime)
 _keyword_embedding_cache = {}
 

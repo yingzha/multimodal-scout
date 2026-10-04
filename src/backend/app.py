@@ -207,9 +207,7 @@ async def search_content(
         mode_msg = (
             "discovery mode" if request.discoveryMode else f"topics: {request.topics}"
         )
-        logger.info(
-            f"Fetching items for {request.selectedDays} days with {mode_msg}"
-        )
+        logger.info(f"Fetching items for {request.selectedDays} days with {mode_msg}")
 
         search_generator = search_db_sources(
             topics=request.topics,
@@ -956,8 +954,7 @@ async def export_chrome_bookmarks(
         timestamp = int(datetime.now().timestamp())
 
         html_buffer = StringIO()
-        html_buffer.write(
-            f"""<!DOCTYPE NETSCAPE-Bookmark-file-1>
+        html_buffer.write(f"""<!DOCTYPE NETSCAPE-Bookmark-file-1>
 <!-- This is an automatically generated file.
      It will be read and overwritten.
      DO NOT EDIT! -->
@@ -969,8 +966,7 @@ async def export_chrome_bookmarks(
     <DL><p>
         <DT><H3 ADD_DATE="{timestamp}" LAST_MODIFIED="{timestamp}">Research</H3>
         <DL><p>
-"""
-        )
+""")
 
         # Add research bookmarks
         for bookmark in research_bookmarks:
@@ -993,12 +989,10 @@ async def export_chrome_bookmarks(
                 f'            <DT><A HREF="{url}" ADD_DATE="{add_date}" DESCRIPTION="{summary}">{title}</A>\n'
             )
 
-        html_buffer.write(
-            f"""        </DL><p>
+        html_buffer.write(f"""        </DL><p>
         <DT><H3 ADD_DATE="{timestamp}" LAST_MODIFIED="{timestamp}">Industry</H3>
         <DL><p>
-"""
-        )
+""")
 
         # Add industry bookmarks
         for bookmark in industry_bookmarks:
@@ -1021,12 +1015,10 @@ async def export_chrome_bookmarks(
                 f'            <DT><A HREF="{url}" ADD_DATE="{add_date}" DESCRIPTION="{summary}">{title}</A>\n'
             )
 
-        html_buffer.write(
-            """        </DL><p>
+        html_buffer.write("""        </DL><p>
     </DL><p>
 </DL><p>
-"""
-        )
+""")
 
         # Generate filename with timestamp
         timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
