@@ -129,9 +129,10 @@ The tests mock the model server, so Ollama does not need to be running.
 
 ### Frontend Checks
 
-Type-check the frontend:
+Type-check and lint the frontend:
 ```bash
 docker-compose -f docker/docker-compose.yml exec frontend npx tsc --noEmit
+docker-compose -f docker/docker-compose.yml exec frontend npm run lint
 ```
 
 ### Integration Tests (API)
@@ -176,6 +177,10 @@ curl -s -X DELETE "http://localhost:8000/api/bookmarks/BOOKMARK_ID"
     ```bash
     docker-compose -f docker/docker-compose.yml up -d --build <service_name>
     # e.g., docker-compose -f docker/docker-compose.yml up -d --build backend
+    ```
+    The frontend keeps `node_modules` in an anonymous volume that survives a rebuild, so after changing `package.json` also renew that volume:
+    ```bash
+    docker-compose -f docker/docker-compose.yml up -d --build --renew-anon-volumes frontend
     ```
 
 ## Code Quality Tools

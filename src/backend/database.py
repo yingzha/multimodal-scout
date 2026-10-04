@@ -28,7 +28,6 @@ from .logger import logger
 from .cache import source_processing_cache
 from .schema import SourceSchema
 
-
 Base = declarative_base()
 
 
@@ -433,7 +432,9 @@ class DatabaseManager:
                 session.query(Source).filter(Source.link.in_(all_links)).all()
             )
             existing_by_canonical = (
-                session.query(Source).filter(Source.source_link.in_(all_canonical)).all()
+                session.query(Source)
+                .filter(Source.source_link.in_(all_canonical))
+                .all()
             )
 
             existing_links_map = {s.link: s for s in existing_by_link}

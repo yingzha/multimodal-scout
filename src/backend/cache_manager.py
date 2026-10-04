@@ -263,7 +263,15 @@ def main():
     parser = argparse.ArgumentParser(description="Cache Management Utility")
     parser.add_argument(
         "command",
-        choices=["stats", "recent", "search", "cleanup", "init", "reembed", "calibrate"],
+        choices=[
+            "stats",
+            "recent",
+            "search",
+            "cleanup",
+            "init",
+            "reembed",
+            "calibrate",
+        ],
         help="Command to execute",
     )
 

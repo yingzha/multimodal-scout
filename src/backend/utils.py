@@ -210,7 +210,9 @@ Respond with only one word: Research, Industry, or General"""
             category = _retry_with_backoff(_categorize, max_retries=2, base_delay=1.0)
 
             # Validate the response (small models often add punctuation or extra words)
-            match = re.search(r"\b(research|industry|general)\b", category, re.IGNORECASE)
+            match = re.search(
+                r"\b(research|industry|general)\b", category, re.IGNORECASE
+            )
             if match:
                 return match.group(1).capitalize()
             else:

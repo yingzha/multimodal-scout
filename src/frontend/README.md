@@ -17,7 +17,7 @@ Modern Next.js web interface for Multimodal Scout. Provides real-time content di
 ## 🏗️ Architecture
 
 **Tech Stack:**
-- Next.js 15 (App Router) + TypeScript
+- Next.js 16 (App Router) + TypeScript
 - CSS Variables for theme-aware styling
 - React Context for global state management
 
