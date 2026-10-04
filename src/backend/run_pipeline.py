@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Standalone script to run the full content processing pipeline.
-Designed to be called by cron jobs for complete content processing.
+Designed to be called on a schedule for complete content processing.
 """
 
 import sys
@@ -22,7 +22,7 @@ async def main():
 
     # Enhanced logging header
     logger.info("=" * 80)
-    logger.info(f"🤖 PIPELINE CRON JOB STARTED: {timestamp}")
+    logger.info(f"🤖 PIPELINE RUN STARTED: {timestamp}")
     logger.info("=" * 80)
 
     # A local model server is not always running, and its models may not be pulled
@@ -35,13 +35,13 @@ async def main():
     try:
         logger.info("🚀 Starting full content processing pipeline...")
 
-        # Run the full pipeline with reasonable defaults for cron job
+        # Run the full pipeline with reasonable defaults for a scheduled run
         # - topics: empty list means no topic filtering (process all content)
         # - max_results: 100 items should be plenty for regular updates
         # - research_ratio: 0.5 for balanced content
         # - selected_days: 1 day to process recent content
         pipeline_generator = process_content_pipeline(
-            topics=[],  # No topic filtering for cron jobs
+            topics=[],  # No topic filtering for scheduled runs
             max_results=100,
             research_ratio=0.5,
             selected_days=1,  # Process content from last day
@@ -87,7 +87,7 @@ async def main():
         end_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         logger.info("=" * 80)
-        logger.info(f"✅ SUCCESS: Pipeline cron job completed successfully")
+        logger.info(f"✅ SUCCESS: Pipeline run completed successfully")
         logger.info(f"⏱️  Total execution time: {total_time:.2f}s")
         logger.info(f"🏁 Job ended: {end_timestamp}")
         logger.info("=" * 80)
@@ -97,7 +97,7 @@ async def main():
         end_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         logger.error("=" * 80)
-        logger.error(f"❌ FAILURE: Pipeline cron job failed after {total_time:.2f}s")
+        logger.error(f"❌ FAILURE: Pipeline run failed after {total_time:.2f}s")
         logger.error(f"❌ Error: {e}")
         logger.error(f"🏁 Job ended: {end_timestamp}")
         logger.error("=" * 80)

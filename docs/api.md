@@ -8,7 +8,7 @@ RESTful API built with FastAPI for content discovery and bookmark management. Al
 
 ## Access
 
-There is no authentication. The API serves a single local user, who owns all bookmarks and preferences (`LOCAL_USER_EMAIL`, default `local@localhost`).
+The API serves a single local user, who owns all bookmarks and preferences (`LOCAL_USER_EMAIL`, default `local@localhost`). Requests need no credentials.
 
 Browsers may only call the API from the origins listed in `CORS_ORIGINS` (default `http://localhost:3000,http://127.0.0.1:3000`). The default Docker setup publishes the API on `127.0.0.1` only.
 
@@ -53,6 +53,36 @@ Browsers may only call the API from the origins listed in `CORS_ORIGINS` (defaul
   }
   ```
 
+**GET /api/user/preferences**
+- **Description**: Get the custom topics saved for the local user
+- **Response**:
+  ```json
+  {
+    "custom_topics": ["robotics", "world models"]
+  }
+  ```
+
+**PUT /api/user/preferences**
+- **Description**: Replace the saved custom topics
+- **Request Body**:
+  ```json
+  {
+    "custom_topics": ["robotics", "world models"]
+  }
+  ```
+- **Response**: `{"success": true, "message": "Preferences updated successfully"}`
+
+**GET /api/keywords/suggestions**
+- **Description**: Suggest up to 5 new keywords based on the titles and summaries of saved bookmarks. Calls the chat model, so it can take several seconds
+- **Response**:
+  ```json
+  {
+    "suggested_keywords": ["vision language models", "video agents"],
+    "existing_keywords": ["robotics"],
+    "total_bookmarks_analyzed": 12
+  }
+  ```
+
 ### Content Management
 
 **POST /api/content/search**
@@ -69,9 +99,9 @@ Browsers may only call the API from the origins listed in `CORS_ORIGINS` (defaul
   }
   ```
 - **Parameters**:
-  - `selectedDays` (required): Number of days to look back (1-30)
+  - `selectedDays` (required): Number of days to look back
   - `topics` (required): Array of keywords to search for
-  - `maxResults` (optional): Maximum results to return (5-50, default: 10)
+  - `maxResults` (optional): Maximum results to return (default: 10)
   - `researchRatio` (optional): Ratio of research vs industry content (0.0-1.0, default: 0.5)
   - `sessionId` (optional): Session identifier for tracking
   - `discoveryMode` (optional): Enable random content discovery (default: false)
@@ -213,6 +243,26 @@ Browsers may only call the API from the origins listed in `CORS_ORIGINS` (defaul
     "bookmark_id": "uuid-here"
   }
   ```
+- **Note**: Adding a link that is already bookmarked succeeds and returns the existing bookmark's id
+
+**DELETE /api/bookmarks**
+- **Description**: Remove a bookmark by its link
+- **Query Parameters**:
+  - `link` (required): URL of the bookmarked item
+- **Response**: `{"success": true, "message": "Bookmark removed successfully", "bookmark_id": null}`, or `{"success": false, "message": "Bookmark not found", "bookmark_id": null}` when no bookmark has that link
+
+**GET /api/bookmarks/check**
+- **Description**: Check whether a link is bookmarked
+- **Query Parameters**:
+  - `link` (required): URL to check
+- **Response**: `{"is_bookmarked": true}`
+
+**PUT /api/bookmarks/summary**
+- **Description**: Replace the summary of a bookmark, identified by its link
+- **Query Parameters**:
+  - `link` (required): URL of the bookmarked item
+  - `summary` (required): New summary text
+- **Response**: `{"success": true, "message": "Bookmark summary updated successfully", "bookmark_id": null}`
 
 #### Individual Resource Operations (RESTful)
 
@@ -268,12 +318,6 @@ Browsers may only call the API from the origins listed in `CORS_ORIGINS` (defaul
 - **Error Response** (404): `{"detail": "Bookmark not found"}`
 
 #### Export Operations
-
-**GET /api/bookmarks/export**
-- **Description**: Export all bookmarks to Excel (.xlsx) file
-- **Response**: Excel file download with columns: Title, Summary, Link, Source, Date Added
-- **Content-Type**: `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
-- **Headers**: `Content-Disposition: attachment; filename="multimodal_scout_bookmarks_{timestamp}.xlsx"`
 
 **GET /api/bookmarks/export/chrome**
 - **Description**: Export bookmarks in Chrome-compatible HTML format with optional filtering

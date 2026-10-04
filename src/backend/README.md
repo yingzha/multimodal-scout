@@ -4,12 +4,12 @@ FastAPI-based backend service for Multimodal Scout. Handles content discovery, A
 
 > For complete setup and usage instructions, see [docs/development.md](../../docs/development.md)  
 > For API documentation, see [docs/api.md](../../docs/api.md)  
-> For automated pipeline details, see [docs/cron.md](../../docs/cron.md)
+> For automated pipeline details, see [docs/pipeline.md](../../docs/pipeline.md)
 
 ## 🚀 Key Features
 
 - 🤖 **AI-Powered Processing**: Summaries and embeddings from a local model through any OpenAI-compatible API (Ollama by default)
-- 📡 **Multi-Source Scraping**: Hacker News, Substack, and Hugging Face content
+- 📡 **Multi-Source Scraping**: Hacker News, Substack, Hugging Face, and Engineering Blogs content
 - 📚 **Bookmarks**: Bookmark and preference storage for a single local user
 - 📊 **Real-time Updates**: Server-Sent Events for live progress tracking
 - 🗄️ **PostgreSQL Integration**: Robust data storage with Alembic migrations
@@ -21,7 +21,7 @@ FastAPI-based backend service for Multimodal Scout. Handles content discovery, A
 # Database console
 docker-compose -f docker/docker-compose.yml exec postgres psql -U scout_user -d multimodal_scout
 
-# Migrations
+# Migrations (run `alembic stamp head` once on a database created by the backend)
 docker-compose -f docker/docker-compose.yml exec backend alembic upgrade head
 docker-compose -f docker/docker-compose.yml exec backend alembic revision --autogenerate -m "Description"
 ```

@@ -4,7 +4,7 @@ Modern Next.js web interface for Multimodal Scout. Provides real-time content di
 
 > For complete setup and usage instructions, see [docs/development.md](../../docs/development.md)  
 > For API documentation, see [docs/api.md](../../docs/api.md)  
-> For automated pipeline details, see [docs/cron.md](../../docs/cron.md)
+> For automated pipeline details, see [docs/pipeline.md](../../docs/pipeline.md)
 
 ## 🚀 Key Features
 

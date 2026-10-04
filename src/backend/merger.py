@@ -295,7 +295,7 @@ async def enrich_sources_with_summaries_and_embeddings(
 ) -> List[SourceSchema]:
     """
     Generates summaries and embeddings for sources.
-    This should be used in cron jobs to pre-compute everything needed for search.
+    This is used by the pipeline to pre-compute everything needed for search.
 
     Args:
         sources: A list of SourceSchema objects.

@@ -5,7 +5,7 @@ Multimodal Scout automatically discovers and processes content using a pipeline 
 ## How It Works
 
 The automated pipeline:
-- 🔍 **Discovers** content from Hacker News, Substack, and Hugging Face
+- 🔍 **Discovers** content from Hacker News, Substack, Hugging Face, and Engineering Blogs
 - 🤖 **Processes** with your local model for summaries and embeddings
 - 🏷️ **Categorizes** content automatically
 - 💾 **Stores** in PostgreSQL for search
@@ -38,7 +38,7 @@ curl -X POST "http://localhost:8000/api/content/search" \
 
 - **Frequency**: Every 30 minutes, measured from the end of the previous run (`PIPELINE_INTERVAL_SECONDS`, default 1800)
 - **Duration**: Depends on your hardware and model. Summaries are generated at most `LLM_MAX_CONCURRENCY` at a time (default 2)
-- **Sources**: Hacker News, Substack, Hugging Face Papers
+- **Sources**: Hacker News, Substack, Hugging Face Papers, Engineering Blogs
 - **Model server down or model missing**: Each run first sends one small request to both models. If either fails, the run is skipped and retried at the next interval
 
 ## Monitoring
@@ -57,12 +57,12 @@ docker-compose -f docker/docker-compose.yml ps
 
 ### Log Format
 ```
-🤖 PIPELINE CRON JOB STARTED: 2024-08-19 16:00:00
+🤖 PIPELINE RUN STARTED: 2026-01-08 16:00:00
 📋 STATUS: Scraping content from sources...
 📋 STATUS: Found 110 items (60 new)
 ⏳ PROGRESS: 45% - Generating summaries...
 📊 FINAL RESULTS: 100 items processed
-✅ SUCCESS: Pipeline cron job completed successfully
+✅ SUCCESS: Pipeline run completed successfully
 ```
 
 ## Troubleshooting

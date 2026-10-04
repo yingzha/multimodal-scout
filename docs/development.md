@@ -27,7 +27,7 @@ curl http://localhost:8000/health
 curl http://localhost:3000
 ```
 
-The backend and frontend are published on `127.0.0.1` only, and PostgreSQL is reachable only from the other containers. The app has no sign-in, so add your own authentication before exposing it beyond your machine.
+The backend and frontend are published on `127.0.0.1` only, and PostgreSQL is reachable only from the other containers. The app does not authenticate requests, so add your own authentication before exposing it beyond your machine.
 
 ## 🤖 Local Model Setup
 
@@ -129,11 +129,10 @@ The tests mock the model server, so Ollama does not need to be running.
 
 ### Frontend Checks
 
-Verify TypeScript compilation and basic functionality.
+Type-check the frontend:
 ```bash
-docker-compose -f docker/docker-compose.yml exec frontend timeout 10s npm run dev || echo "✅ Frontend TypeScript compilation passed"
+docker-compose -f docker/docker-compose.yml exec frontend npx tsc --noEmit
 ```
-> **Note**: The frontend uses Next.js App Router which provides integrated TypeScript checking. The `timeout` command stops the dev server after compilation succeeds, avoiding the need for a full production build during testing.
 
 ### Integration Tests (API)
 
@@ -147,7 +146,7 @@ curl -s -X POST "http://localhost:8000/api/content/search" \
   -H "Content-Type: application/json" \
   -d '{"selectedDays": 1, "topics": ["ai"], "maxResults": 10, "researchRatio": 0.5}'
 
-# Preferences and bookmarks (no sign-in: everything belongs to the local user)
+# Preferences and bookmarks (everything belongs to the local user)
 curl -s http://localhost:8000/api/user/preferences
 curl -s http://localhost:8000/api/bookmarks
 curl -s -X POST "http://localhost:8000/api/bookmarks" \
@@ -201,6 +200,14 @@ docker-compose -f docker/docker-compose.yml exec --user root backend uv sync --e
 On startup the backend creates any missing tables from the models in `src/backend/database.py`. It does not run Alembic, and it does not alter tables that already exist. When you change the structure of an existing database (add columns, etc.), create and apply a migration.
 
 ### 📝 Creating Migrations
+
+A database created by the backend has no Alembic version recorded, and `alembic upgrade head` fails on it because the tables already exist. Record it as up to date once, before your first migration:
+
+```bash
+docker-compose -f docker/docker-compose.yml exec backend alembic stamp head
+```
+
+Then, for each schema change:
 
 1. **Modify your models** in `src/backend/database.py`
 2. **Generate migration**:

@@ -6,7 +6,7 @@ A comprehensive guide to using Multimodal Scout effectively.
 
 Multimodal Scout runs on your own machine. Start it with the steps in the [README](../README.md#-quick-start), then open http://localhost:3000.
 
-There is no sign-in: the app runs as a single local user, and searches, bookmarks and custom topics are always available.
+The app serves a single local user, so searches, bookmarks and custom topics are available as soon as it starts.
 
 ## Main Interface Overview
 
@@ -94,15 +94,15 @@ Each result card shows:
 Multimodal Scout automatically discovers content from:
 - **Hacker News**: Latest tech discussions and papers
 - **Substack Feeds**: AI/ML newsletters and blogs  
-- **Hugging Face**: Research papers and model releases
+- **Hugging Face**: Trending research papers
+- **Engineering Blogs**: Posts from company engineering blogs
 - **User Submissions**: Your own URLs via the upload feature
 
 ## 🤖 AI Features
 
 - **Smart Summarization**: Your local model generates concise summaries
 - **Auto-Categorization**: Content automatically tagged as Research/Industry/General
-- **Semantic Search**: Find content similar to your interests
-- **Quality Filtering**: AI filters low-quality or irrelevant content
+- **Semantic Search**: Finds content similar to your topics, beyond exact keyword matches
 
 ## 🛟 Troubleshooting
 

@@ -2,8 +2,6 @@
 
 A smart content discovery platform that automatically finds, curates, and helps you bookmark the latest multimodal AI research papers and industry articles. Built with FastAPI, Next.js, and PostgreSQL. It runs entirely on your own machine, with summaries and search powered by an open source model served by [Ollama](https://ollama.com) or any OpenAI-compatible server.
 
-> **Note:** The hosted demo has been shut down, and its former domain is no longer affiliated with this project. Multimodal Scout is now self-hosted only; follow the Quick Start below to run it locally.
-
 ![Multimodal Scout Interface](./assets/screenshot.png)
 
 ## ✨ Features
@@ -20,7 +18,7 @@ A smart content discovery platform that automatically finds, curates, and helps 
 - 📖 **[User Guide](docs/user-guide.md)** - Complete walkthrough of all features and controls
 - 🛠️ **[Development Guide](docs/development.md)** - Local setup, testing, and workflows
 - 🔗 **[API Reference](docs/api.md)** - Complete REST API documentation
-- ⏰ **[Automation Guide](docs/cron.md)** - Pipeline and content processing
+- ⏰ **[Pipeline Guide](docs/pipeline.md)** - Scheduled content discovery and processing
 
 ## 🚀 Quick Start
 
@@ -59,7 +57,7 @@ A smart content discovery platform that automatically finds, curates, and helps 
 
 The first pipeline run starts with the containers and fills the database; search returns results once it has finished.
 
-The app runs as a single local user with no sign-in, and its ports are published on `127.0.0.1` only. Put your own authentication in front of it before exposing it to a network.
+The app serves a single local user without authentication, and its ports are published on `127.0.0.1` only. Put your own authentication in front of it before exposing it to a network.
 
 ## 🏗️ Architecture
 
@@ -95,7 +93,7 @@ The app runs as a single local user with no sign-in, and its ports are published
 │ • Hacker News         →  • Summarization   →  • PostgreSQL              │
 │ • Substack Feeds      →  • Comment Insights →  • Search Embeddings      │
 │ • Hugging Face        →  • Categorization  →  • Cache Management        │
-│                       →  • Quality Filter  →  • 5-min TTL Caching       │
+│ • Engineering Blogs   →  • Quality Filter  →  • 5-min TTL Caching       │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -105,7 +103,7 @@ All settings live in `.env` (see `.env.example`):
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `LLM_BASE_URL` | `http://host.docker.internal:11434/v1` | OpenAI-compatible API to use. Point it at LM Studio, llama.cpp, vLLM or a hosted provider to switch away from Ollama |
+| `LLM_BASE_URL` | `http://host.docker.internal:11434/v1` | OpenAI-compatible API to use. Point it at LM Studio, llama.cpp, vLLM or a hosted provider to use a different server |
 | `LLM_API_KEY` | `ollama` | API key sent to that server (Ollama ignores it) |
 | `LLM_CHAT_MODEL` | `gemma3:4b` | Model for summaries and categorization |
 | `LLM_EMBEDDING_MODEL` | `bge-m3` | Model for semantic search |
