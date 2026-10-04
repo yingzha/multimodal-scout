@@ -119,12 +119,6 @@ class CommentInsight(BaseModel):
     generated_at: Optional[str] = None
 
 
-class CommentInsightRequest(BaseModel):
-    """Request model for generating comment insights"""
-
-    link: HttpUrl
-
-
 class KeywordSuggestionsResponse(BaseModel):
     """Response model for keyword suggestions based on user bookmarks"""
 

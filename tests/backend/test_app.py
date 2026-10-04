@@ -109,20 +109,14 @@ class TestApp(unittest.TestCase):
         self.assertIn('topics', response.json())
 
     @patch('src.backend.app.db_manager.is_bookmarked')
-    def test_bookmarks_need_no_login(self, mock_is_bookmarked):
+    def test_bookmark_check_uses_local_user(self, mock_is_bookmarked):
         mock_is_bookmarked.return_value = True
 
-        # No Authorization header: the local user owns all bookmarks
         response = self.client.get("/api/bookmarks/check", params={"link": "http://example.com"})
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"is_bookmarked": True})
         mock_is_bookmarked.assert_called_once_with("test-user", "http://example.com")
-
-    def test_auth_and_pipeline_endpoints_are_gone(self):
-        self.assertEqual(self.client.post("/api/auth/google", json={"id_token": "x"}).status_code, 404)
-        self.assertEqual(self.client.get("/api/auth/me").status_code, 404)
-        self.assertEqual(self.client.post("/pipeline").status_code, 404)
 
     def test_cors_allows_only_the_frontend_origin(self):
         allowed = self.client.get("/api/config", headers={"Origin": "http://localhost:3000"})

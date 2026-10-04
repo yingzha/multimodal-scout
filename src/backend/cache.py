@@ -73,11 +73,6 @@ class ContentCache:
             f"Content cache SET - cached {len(fresh_sources)} fresh + {len(all_sources)} total sources"
         )
 
-    def clear(self):
-        """Clear cache"""
-        self.cache_entry = None
-        logger.info("Content cache cleared")
-
     def get_cache_age(self) -> Optional[float]:
         """Get cache age in seconds"""
         if not self.cache_entry:
@@ -149,14 +144,6 @@ class SourceProcessingCache:
                 f"Source processing cache cleanup: Removed {len(expired_links)} expired entries"
             )
 
-    def clear(self):
-        """Clear the cache"""
-        self._cache.clear()
-
-    def size(self) -> int:
-        """Get current cache size"""
-        return len(self._cache)
-
 
 # ============================================================================
 # 3. Comment Insights Cache - HN comment processing with TTL
@@ -225,47 +212,8 @@ def get_cached_topics():
 # Main content cache for performance optimization
 content_cache = ContentCache(ttl_seconds=300)  # 5 minutes
 
-# Source processing cache for database operations (7-day TTL, resets on deploy)
+# Source processing cache for database operations (7-day TTL, resets on restart)
 source_processing_cache = SourceProcessingCache(max_size=10000, ttl_seconds=604800)
 
 # Comment insights cache for HN comment processing
 comment_insights_cache = CommentInsightsCache(ttl_seconds=600)  # 10 minutes
-
-
-# ============================================================================
-# Cache Management Functions
-# ============================================================================
-
-
-def clear_all_caches():
-    """Clear all in-memory caches"""
-    content_cache.clear()
-    source_processing_cache.clear()
-    comment_insights_cache._cache.clear()
-    get_cached_topics.cache_clear()
-    logger.info("All in-memory caches cleared")
-
-
-def get_cache_stats() -> Dict[str, Any]:
-    """Get statistics for all caches"""
-    content_age = content_cache.get_cache_age()
-
-    return {
-        "content_cache": {
-            "has_data": content_cache.cache_entry is not None,
-            "age_seconds": content_age,
-            "ttl_seconds": content_cache.ttl_seconds,
-            "expired": content_age is not None
-            and content_age > content_cache.ttl_seconds,
-        },
-        "source_processing_cache": {
-            "size": source_processing_cache.size(),
-            "max_size": source_processing_cache._max_size,
-            "ttl_seconds": source_processing_cache.ttl_seconds,
-        },
-        "comment_insights_cache": {
-            "size": len(comment_insights_cache._cache),
-            "ttl_seconds": comment_insights_cache.ttl_seconds,
-        },
-        "lru_caches": {"topics_cache_info": get_cached_topics.cache_info()._asdict()},
-    }

@@ -10,15 +10,13 @@ from sqlalchemy import (
     DateTime,
     Text,
     Float,
-    Boolean,
     Integer,
     desc,
     ForeignKey,
     func,
     Computed,
 )
-from sqlalchemy.types import JSON, TypeDecorator
-import json
+from sqlalchemy.types import JSON
 from sqlalchemy.dialects.postgresql import ARRAY, TSVECTOR
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import declarative_base
@@ -29,35 +27,6 @@ from .config import config
 from .logger import logger
 from .cache import source_processing_cache
 from .schema import SourceSchema
-
-
-class EmbeddingArrayType(TypeDecorator):
-    """Custom type to handle embedding arrays for both PostgreSQL and SQLite."""
-
-    impl = Text
-    cache_ok = True
-
-    def load_dialect_impl(self, dialect):
-        if dialect.name == "postgresql":
-            return dialect.type_descriptor(ARRAY(Float))
-        else:
-            return dialect.type_descriptor(Text())
-
-    def process_bind_param(self, value, dialect):
-        if value is None:
-            return value
-        if dialect.name == "postgresql":
-            return value  # PostgreSQL handles lists directly
-        else:
-            return json.dumps(value)  # SQLite stores as JSON string
-
-    def process_result_value(self, value, dialect):
-        if value is None:
-            return value
-        if dialect.name == "postgresql":
-            return value  # PostgreSQL returns lists directly
-        else:
-            return json.loads(value)  # SQLite parses JSON string
 
 
 Base = declarative_base()
@@ -103,7 +72,7 @@ class EmbeddingCache(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     text = Column(Text, nullable=False, index=True)
     text_hash = Column(String(64), unique=True, nullable=False, index=True)
-    embedding = Column(EmbeddingArrayType(), nullable=False)
+    embedding = Column(ARRAY(Float), nullable=False)
     model_name = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
 
@@ -113,10 +82,7 @@ class User(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(String, unique=True, nullable=False, index=True)
-    username = Column(String, unique=True, nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
-    last_login = Column(DateTime, nullable=True)
-    is_active = Column(Boolean, default=True, nullable=False)
     custom_topics = Column(JSON, nullable=True, default=lambda: [])
 
 
@@ -639,24 +605,11 @@ class DatabaseManager:
             if user:
                 return str(user.id)
 
-            # Handle username collisions
-            username = email.split("@")[0]
-            existing_username = (
-                session.query(User).filter(User.username == username).first()
-            )
-            if existing_username:
-                username = f"{username}_{str(uuid.uuid4())[:8]}"
-
-            new_user = User(email=email, username=username)
+            new_user = User(email=email)
             session.add(new_user)
             session.commit()
-            logger.info(f"Created local user: {email} ({username})")
+            logger.info(f"Created local user: {email}")
             return str(new_user.id)
-
-    def get_user_by_id(self, user_id: str) -> Optional[User]:
-        """Get user by ID"""
-        with self.get_session() as session:
-            return session.query(User).filter(User.id == user_id).first()
 
     def get_user_custom_topics(self, user_id: str) -> List[str]:
         """Get custom topics for a user"""
@@ -679,38 +632,6 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Failed to update custom topics for user {user_id}: {e}")
             return False
-
-    def cleanup_user(self, email: str) -> Dict[str, Any]:
-        with self.get_session() as session:
-            user = session.query(User).filter(User.email == email).first()
-            if not user:
-                return {
-                    "user_deleted": False,
-                    "bookmarks_deleted": 0,
-                }
-
-            user_id = user.id
-
-            # Delete bookmarks
-            bookmarks_deleted = (
-                session.query(Bookmark)
-                .filter(Bookmark.user_id == user_id)
-                .delete(synchronize_session=False)
-            )
-
-            # Delete user
-            session.delete(user)
-
-            session.commit()
-
-            logger.info(
-                f"Deleted user {email} and their data. Bookmarks: {bookmarks_deleted}"
-            )
-
-            return {
-                "user_deleted": True,
-                "bookmarks_deleted": bookmarks_deleted,
-            }
 
     # --- Bookmark Methods ---
 
@@ -839,15 +760,11 @@ class DatabaseManager:
             return False
 
     def get_bookmarks_by_date(
-        self, start_date: datetime, email: str, end_date: Optional[datetime] = None
+        self, user_id: str, start_date: datetime, end_date: Optional[datetime] = None
     ) -> List[Dict[str, str]]:
         with self.get_session() as session:
-            user = session.query(User).filter(User.email == email).first()
-            if not user:
-                return []
-
             query = session.query(Bookmark).filter(
-                Bookmark.user_id == user.id, Bookmark.bookmarked_at >= start_date
+                Bookmark.user_id == user_id, Bookmark.bookmarked_at >= start_date
             )
             if end_date:
                 query = query.filter(Bookmark.bookmarked_at <= end_date)
@@ -858,7 +775,7 @@ class DatabaseManager:
                     "link": b.link,
                     "source_tag": b.source_tag,
                     "summary": b.summary or "",
-                    "summary_edited": getattr(b, "summary_edited", None),
+                    "summary_edited": b.summary_edited,
                     "bookmarked_at": b.bookmarked_at.isoformat(),
                 }
                 for b in results
@@ -879,19 +796,15 @@ class DatabaseManager:
             )
             return deleted_count
 
-    def get_bookmark_cache_stats(self, email: str) -> Dict[str, int]:
+    def get_bookmark_cache_stats(self, user_id: str) -> Dict[str, int]:
         with self.get_session() as session:
-            user = session.query(User).filter(User.email == email).first()
-            if not user:
-                return {"total_bookmarks": 0, "recent_bookmarks_7_days": 0}
-
             total_count = (
-                session.query(Bookmark).filter(Bookmark.user_id == user.id).count()
+                session.query(Bookmark).filter(Bookmark.user_id == user_id).count()
             )
             week_ago = datetime.now() - timedelta(days=7)
             recent_count = (
                 session.query(Bookmark)
-                .filter(Bookmark.user_id == user.id, Bookmark.bookmarked_at >= week_ago)
+                .filter(Bookmark.user_id == user_id, Bookmark.bookmarked_at >= week_ago)
                 .count()
             )
             return {
@@ -900,13 +813,9 @@ class DatabaseManager:
             }
 
     def search_bookmarks(
-        self, query: str, limit: int = 10, email: str = None
+        self, user_id: str, query: str, limit: int = 10
     ) -> List[Dict[str, str]]:
         with self.get_session() as session:
-            user = session.query(User).filter(User.email == email).first()
-            if not user:
-                return []
-
             # Sanitize query input to prevent SQL injection
             sanitized_query = "".join(
                 c for c in query if c.isalnum() or c.isspace() or c in "-_"
@@ -922,7 +831,7 @@ class DatabaseManager:
             results = (
                 session.query(Bookmark)
                 .filter(
-                    Bookmark.user_id == user.id,
+                    Bookmark.user_id == user_id,
                     (
                         Bookmark.title.ilike(f"%{sanitized_query}%")
                         | Bookmark.summary.ilike(f"%{sanitized_query}%")
@@ -938,7 +847,7 @@ class DatabaseManager:
                     "link": b.link,
                     "source_tag": b.source_tag,
                     "summary": b.summary or "",
-                    "summary_edited": getattr(b, "summary_edited", None),
+                    "summary_edited": b.summary_edited,
                     "bookmarked_at": b.bookmarked_at.isoformat(),
                 }
                 for b in results
@@ -973,9 +882,7 @@ class DatabaseManager:
                     .first()
                 )
                 if cached:
-                    return (
-                        cached.embedding
-                    )  # EmbeddingArrayType handles conversion automatically
+                    return cached.embedding
                 return None
 
         # Handle batch case
@@ -1016,7 +923,7 @@ class DatabaseManager:
                 text_hash=text_hash,
                 embedding=embedding,
                 model_name=model_name,
-            )  # EmbeddingArrayType handles conversion
+            )
             stmt = stmt.on_conflict_do_update(
                 index_elements=[EmbeddingCache.text_hash],
                 set_={
