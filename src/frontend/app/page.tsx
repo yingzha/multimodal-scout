@@ -1,20 +1,89 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import ThemeToggle from './components/ThemeToggle'
 
-export default function Home() {
-  // API configuration
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+// API configuration
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
+// Mirrors ItemResponse in the backend schema
+interface Item {
+  title: string
+  link: string
+  summary: string
+  source: string
+  created_at: string
+  summary_edited?: boolean
+  is_new?: boolean
+  matched_keywords?: string[]
+}
+
+type StreamEvent =
+  | { type: 'status' | 'start' | 'progress' | 'complete' | 'info' | 'warning' | 'error', message: string }
+  | { type: 'result', data: { items: Item[] } }
+
+// Pagination component
+const PaginationControls = ({ currentPage, setCurrentPage, totalItems, itemsPerPage }: {
+  currentPage: number
+  setCurrentPage: (page: number) => void
+  totalItems: number
+  itemsPerPage: number
+}) => {
+  const totalPages = Math.ceil(totalItems / itemsPerPage)
+
+  if (totalPages <= 1 || totalItems === 0) {
+    return null
+  }
+
+
+  return (
+    <div className="flex justify-center items-center gap-2 mt-6 p-4 rounded-lg">
+      <span className="text-sm text-gray-700 mr-4">
+        Page {currentPage} of {totalPages}
+      </span>
+
+      <button
+        onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+        disabled={currentPage === 1}
+        className="px-4 py-2 text-sm text-gray-700 rounded-lg disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
+      >
+        Previous
+      </button>
+
+      {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+        <button
+          key={page}
+          onClick={() => setCurrentPage(page)}
+          className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+            currentPage === page
+              ? 'bg-white text-gray-700 border-blue-600'
+              : 'border-gray-300 text-gray-700'
+          }`}
+        >
+          {page}
+        </button>
+      ))}
+
+      <button
+        onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+        disabled={currentPage === totalPages}
+        className="px-4 py-2 text-sm text-gray-700 rounded-lg disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
+      >
+        Next
+      </button>
+    </div>
+  )
+}
+
+export default function Home() {
   // UI State
   const [showResults, setShowResults] = useState(false)
   const [showBookmarks, setShowBookmarks] = useState(false)
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
 
   // Content and Data State
-  const [fetchedItems, setFetchedItems] = useState<any[]>([])
-  const [bookmarkedCards, setBookmarkedCards] = useState<any[]>([])
+  const [fetchedItems, setFetchedItems] = useState<Item[]>([])
+  const [bookmarkedCards, setBookmarkedCards] = useState<Item[]>([])
   const [bookmarkedItems, setBookmarkedItems] = useState<Set<string>>(new Set())
   const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set())
   const [showReadMore, setShowReadMore] = useState<Set<string>>(new Set())
@@ -55,7 +124,7 @@ export default function Home() {
   const [editingSummary, setEditingSummary] = useState<string | null>(null)
   const [editedSummaryText, setEditedSummaryText] = useState('')
   const [isUpdatingSummary, setIsUpdatingSummary] = useState(false)
-  const [deleteConfirmItem, setDeleteConfirmItem] = useState<any>(null)
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState<Item | null>(null)
   const [deleteConfirmPosition, setDeleteConfirmPosition] = useState<{top: number, left: number} | null>(null)
 
   // Session State
@@ -85,8 +154,6 @@ export default function Home() {
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1)
   const [bookmarksPage, setBookmarksPage] = useState(1)
-  const [paginatedItems, setPaginatedItems] = useState<any[]>([])
-  const [paginatedBookmarks, setPaginatedBookmarks] = useState<any[]>([])
   const itemsPerPage = 5
 
   // Refs
@@ -157,7 +224,6 @@ export default function Home() {
   // Fetch default topics from backend
   const fetchDefaultTopics = async () => {
     try {
-      setIsLoadingTopics(true)
       const response = await fetch(`${apiUrl}/api/topics`)
 
       if (!response.ok) {
@@ -236,13 +302,6 @@ export default function Home() {
     }
   }
 
-  useEffect(() => {
-    fetchDefaultTopics()
-    fetchConfig()
-    loadBookmarkStatus()
-    fetchUserPreferences()
-  }, [])
-
   const handleAddKeyword = () => {
     const trimmedKeyword = newKeyword.trim()
     const allTopics = [...defaultTopics, ...customTopics]
@@ -272,7 +331,7 @@ export default function Home() {
     saveUserPreferences(updatedTopics)
   }
 
-  const handleBookmark = async (item: any) => {
+  const handleBookmark = async (item: Item) => {
     try {
       const isCurrentlyBookmarked = bookmarkedItems.has(item.link)
 
@@ -319,7 +378,7 @@ export default function Home() {
 
       if (response.ok) {
         const data = await response.json()
-        const bookmarkedLinks = new Set<string>(data.items.map((bookmark: any) => String(bookmark.link)))
+        const bookmarkedLinks = new Set<string>(data.items.map((bookmark: Item) => String(bookmark.link)))
         setBookmarkedItems(bookmarkedLinks)
       }
     } catch (error) {
@@ -327,12 +386,24 @@ export default function Home() {
     }
   }
 
+  useEffect(() => {
+    const loadInitialData = async () => {
+      await Promise.all([
+        fetchDefaultTopics(),
+        fetchConfig(),
+        loadBookmarkStatus(),
+        fetchUserPreferences(),
+      ])
+    }
+    loadInitialData()
+  }, [])
+
   // ==============================
   // UTILITY FUNCTIONS
   // ==============================
 
   // Reusable filtering logic
-  const filterItems = (items: any[], searchQuery: string = '') => {
+  const filterItems = useCallback((items: Item[], searchQuery: string = '') => {
     return items.filter(item => {
       // Text search filter
       if (searchQuery.trim()) {
@@ -353,23 +424,25 @@ export default function Home() {
       }
       return false
     })
-  }
+  }, [selectedTags])
 
   // Pagination helper function
-  const paginateItems = (items: any[], page: number, searchQuery: string = '') => {
+  const paginateItems = useCallback((items: Item[], page: number, searchQuery: string = '') => {
     const filtered = filterItems(items, searchQuery)
     const startIndex = (page - 1) * itemsPerPage
     return filtered.slice(startIndex, startIndex + itemsPerPage)
-  }
+  }, [filterItems, itemsPerPage])
 
-  // Check bookmark status when results are loaded
-  useEffect(() => {
-    setPaginatedItems(paginateItems(fetchedItems, currentPage, debouncedHomepageSearch))
-  }, [fetchedItems, selectedTags, currentPage, itemsPerPage, bookmarkedItems, debouncedHomepageSearch])
+  // Items shown on the current page of results and of bookmarks
+  const paginatedItems = useMemo(
+    () => paginateItems(fetchedItems, currentPage, debouncedHomepageSearch),
+    [paginateItems, fetchedItems, currentPage, debouncedHomepageSearch]
+  )
 
-  useEffect(() => {
-    setPaginatedBookmarks(paginateItems(bookmarkedCards, bookmarksPage, debouncedBookmarkSearch))
-  }, [bookmarkedCards, selectedTags, bookmarksPage, itemsPerPage, debouncedBookmarkSearch])
+  const paginatedBookmarks = useMemo(
+    () => paginateItems(bookmarkedCards, bookmarksPage, debouncedBookmarkSearch),
+    [paginateItems, bookmarkedCards, bookmarksPage, debouncedBookmarkSearch]
+  )
 
   // Helper function to check if summary needs "Read More"
   const checkSummaryOverflow = (element: HTMLElement) => {
@@ -509,7 +582,7 @@ export default function Home() {
     }
   }
 
-  const handleEditSummary = (item: any) => {
+  const handleEditSummary = (item: Item) => {
     setEditingSummary(item.link)
     setEditedSummaryText(item.summary)
   }
@@ -614,7 +687,7 @@ export default function Home() {
             setUploadProgressMessage(`❌ Processed ${urlNumber}/${validUrls.length}: ${errorMsg}`)
           }
 
-        } catch (error) {
+        } catch {
           failed++
           setUploadProgressMessage(`❌ Processed ${urlNumber}/${validUrls.length}: Network error`)
         }
@@ -740,61 +813,8 @@ export default function Home() {
     }
   }
 
-  // Pagination component
-  const PaginationControls = ({ currentPage, setCurrentPage, totalItems, itemsPerPage }: {
-    currentPage: number
-    setCurrentPage: (page: number) => void
-    totalItems: number
-    itemsPerPage: number
-  }) => {
-    const totalPages = Math.ceil(totalItems / itemsPerPage)
-
-    if (totalPages <= 1 || totalItems === 0) {
-      return null
-    }
-
-
-    return (
-      <div className="flex justify-center items-center gap-2 mt-6 p-4 rounded-lg">
-        <span className="text-sm text-gray-700 mr-4">
-          Page {currentPage} of {totalPages}
-        </span>
-
-        <button
-          onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-          disabled={currentPage === 1}
-          className="px-4 py-2 text-sm text-gray-700 rounded-lg disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
-        >
-          Previous
-        </button>
-
-        {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-          <button
-            key={page}
-            onClick={() => setCurrentPage(page)}
-            className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
-              currentPage === page
-                ? 'bg-white text-gray-700 border-blue-600'
-                : 'border-gray-300 text-gray-700'
-            }`}
-          >
-            {page}
-          </button>
-        ))}
-
-        <button
-          onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-          disabled={currentPage === totalPages}
-          className="px-4 py-2 text-sm text-gray-700 rounded-lg disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
-        >
-          Next
-        </button>
-      </div>
-    )
-  }
-
   // Helper function to handle stream events
-  const handleStreamEvent = (eventData: any) => {
+  const handleStreamEvent = (eventData: StreamEvent) => {
     switch (eventData.type) {
       case 'status':
         setProgressMessage(eventData.message)
@@ -1008,7 +1028,7 @@ export default function Home() {
             /* Smart Processing Mode - URL Input */
             <div className="space-y-4">
               <div className="text-sm text-gray-700 mb-4">
-                🔗 Add one or more URLs (separated by commas, max {appConfig.max_urls_per_request}) and we'll automatically extract the content, create smart summaries, and organize them for you!
+                🔗 Add one or more URLs (separated by commas, max {appConfig.max_urls_per_request}) and we&apos;ll automatically extract the content, create smart summaries, and organize them for you!
               </div>
               <div className="flex gap-2">
                 <input
@@ -1872,7 +1892,7 @@ export default function Home() {
                 </div>
               </div>
               <p className="text-blue-600 text-sm">
-                Are you sure you want to delete "<strong>{deleteConfirmItem.title}</strong>"?
+                Are you sure you want to delete &quot;<strong>{deleteConfirmItem.title}</strong>&quot;?
               </p>
             </div>
           </div>

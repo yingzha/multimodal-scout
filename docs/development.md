@@ -129,9 +129,10 @@ The tests mock the model server, so Ollama does not need to be running.
 
 ### Frontend Checks
 
-Type-check the frontend:
+Type-check and lint the frontend:
 ```bash
 docker-compose -f docker/docker-compose.yml exec frontend npx tsc --noEmit
+docker-compose -f docker/docker-compose.yml exec frontend npm run lint
 ```
 
 ### Integration Tests (API)
